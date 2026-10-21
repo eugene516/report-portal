@@ -8,7 +8,14 @@ import { useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-type Other = { rank: number; url: string } | null;
+type Other = { rank: number; url?: string; post?: string } | null;
+// 수집 스크립트는 "다른 글"을 {rank, post(글번호)}로 남긴다 → 원고 주소의 블로그 계정으로 글 주소를 만든다
+const otherUrl = (o: Other | undefined, postUrl?: string) => {
+  if (!o) return null;
+  if (o.url) return { rank: o.rank, url: o.url };
+  const m = postUrl?.match(/^(https?:\/\/(?:m\.)?blog\.naver\.com\/[^/]+)\//);
+  return o.post && m ? { rank: o.rank, url: `${m[1]}/${o.post}` } : null;
+};
 type BlogRow = { keyword: string; url?: string; main: number | null; blogTab: number | null; mainOther?: Other; tabOther?: Other };
 type PlaceRow = { keyword: string; rank: number | null; adRank?: number | null; capture?: string };
 type CafeRow = { url: string; status?: string; currentViews?: number | null; currentComments?: number | null; capturedAt?: string; capture?: string; captureSource?: "live" | "report" };
@@ -62,7 +69,7 @@ export default function UploadForms({ clientId, defaultPeriod, recent }: { clien
     if (e0 || !up) return done(false, "업로드를 기록하지 못했습니다. 담당 광고주인지 확인해 주세요.");
 
     if (kind === "blog_rank") {
-      const rows = data.blog!.map((b) => ({ client_id: clientId, keyword: b.keyword, post_url: b.url ?? null, main_rank: n(b.main), blog_tab_rank: n(b.blogTab), main_other: b.mainOther ?? null, tab_other: b.tabOther ?? null, collected_at: at, upload_id: up.id }));
+      const rows = data.blog!.map((b) => ({ client_id: clientId, keyword: b.keyword, post_url: b.url ?? null, main_rank: n(b.main), blog_tab_rank: n(b.blogTab), main_other: otherUrl(b.mainOther, b.url), tab_other: otherUrl(b.tabOther, b.url), collected_at: at, upload_id: up.id }));
       const { error } = await sb.from("blog_rank_results").insert(rows);
       return done(!error, error ? "블로그 순위를 저장하지 못했습니다." : `블로그 순위 ${rows.length}건을 저장했습니다.`);
     }
