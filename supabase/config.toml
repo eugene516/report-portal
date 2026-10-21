@@ -427,3 +427,7 @@ verify_jwt = true
 # staff-admin: 로그인 토큰 필수 + 함수 안에서 관리자 이상인지 다시 확인한다.
 [functions.staff-admin]
 verify_jwt = true
+
+# report-capture: 광고주 링크(로그인 없음) 화면의 이미지 요청. 함수 안에서 링크 토큰을 검증한다.
+[functions.report-capture]
+verify_jwt = false

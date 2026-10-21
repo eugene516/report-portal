@@ -51,3 +51,6 @@ supabase/.branches/
 *.key
 *.p12
 secrets/
+
+# 업로드용 임시 폴더
+.tmp-upload/
