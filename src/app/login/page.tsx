@@ -12,8 +12,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <div className="card pad login-card">
         <div className="faint">믿는구석 · 내부용</div>
         <h1>리포트 포털 직원 로그인</h1>
-        <p className="muted">등록된 직원 이메일을 입력하면 로그인 링크를 보내 드립니다.</p>
-        {error && <div className="notice">로그인 링크가 만료되었거나 올바르지 않습니다. 다시 요청해 주세요.</div>}
+        <p className="muted">관리자가 등록한 직원 계정으로 로그인하세요. 계정이 없으면 관리자에게 요청해 주세요.</p>
+        {error && <div className="notice">로그인 정보가 만료되었습니다. 다시 로그인해 주세요.</div>}
         <LoginForm />
       </div>
     </main>
