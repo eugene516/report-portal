@@ -2,7 +2,7 @@
 // 호출 경로
 //   1) 예약 실행: pg_cron 이 매일 UTC 00:00 (= 한국시간 09:00) 에 x-cron-secret 헤더와 함께 호출
 //      → 활성 광고주 전체, 전일 + 최근 7일 (한국시간 기준 오늘-7 ~ 오늘-1) 재수집
-//   2) 관리자 수동 재수집: 관리자 로그인 토큰 + { clientId, from, to } (최대 92일)
+//   2) 수동 재수집: 담당 직원·관리자 로그인 토큰 + { clientId, from, to } (최대 92일), 전체는 관리자만
 // 동작
 //   - 실행 잠금으로 동시 실행을 막는다 (sync_locks)
 //   - 광고주별로 순차 실행, 한 광고주가 실패해도 나머지는 계속
@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     trigger = "schedule";
   } else {
     const caller = await getCaller(req);
-    if (!caller?.isAdmin) return json({ error: "forbidden" }, 403);
+    if (!caller) return json({ error: "forbidden" }, 403);
     trigger = "manual";
     requestedBy = caller.userId;
     let body: Record<string, unknown> = {};
@@ -40,6 +40,9 @@ Deno.serve(async (req) => {
     if (body.clientId) {
       if (!/^[0-9a-f-]{36}$/.test(String(body.clientId))) return json({ error: "invalid clientId" }, 400);
       onlyClient = String(body.clientId);
+      if (!(await caller.canAccess(onlyClient))) return json({ error: "forbidden" }, 403);   // 담당 광고주만
+    } else if (!caller.isAdmin) {
+      return json({ error: "forbidden" }, 403);   // 전체 재수집은 관리자 이상만
     }
     if (body.from || body.to) {
       from = String(body.from ?? ""); to = String(body.to ?? "");

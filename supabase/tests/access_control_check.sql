@@ -57,15 +57,15 @@ begin
   perform set_config('role', 'postgres', true);
   insert into auth.users (id, email, aud, role) values ('00000000-0000-4000-8000-0000000000a1', 'staff-test@example.com', 'authenticated', 'authenticated'),
                                                        ('00000000-0000-4000-8000-0000000000a2', 'admin-test@example.com', 'authenticated', 'authenticated');
-  insert into public.staff_roles values ('00000000-0000-4000-8000-0000000000a1', 'staff-test@example.com', 'staff', now()),
+  insert into public.staff_roles (user_id, email, role, created_at) values ('00000000-0000-4000-8000-0000000000a1', 'staff-test@example.com', 'staff', now()),
                                         ('00000000-0000-4000-8000-0000000000a2', 'admin-test@example.com', 'admin', now());
+  insert into public.client_staff (client_id, user_id, is_primary) values (b, '00000000-0000-4000-8000-0000000000a1', true);   -- 직원은 B 담당
   perform set_config('role', 'authenticated', true);
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}', true);
   v := public.staff_report_naver(b, current_date - 7, current_date);
   r := r || '15 ' || case when (v->'kpi'->>'cost')::numeric = 77777 then 'OK' else 'FAIL' end || ';';        -- 직원은 광고주 성과 조회 가능
-  r := r || '16 ' || case when (select count(*) from public.naver_daily_stats) = 2 then 'OK' else 'FAIL' end || ';';
-  begin perform public.admin_naver_account_status(); r := r || '17 FAIL;';
-  exception when insufficient_privilege then r := r || '17 OK;'; end;                       -- 일반 직원은 키 상태 조회 불가
+  r := r || '16 ' || case when (select count(*) from public.naver_daily_stats) = 1 then 'OK' else 'FAIL' end || ';';          -- 담당(B) 성과만
+  r := r || '17 ' || case when (select count(*) from public.admin_naver_account_status()) = 0 then 'OK' else 'FAIL' end || ';'; -- 담당 아닌 A의 키 상태는 안 보임
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated"}', true);
   r := r || '18 ' || case when (select customer_id_last4 from public.admin_naver_account_status() limit 1) = '0000' then 'OK' else 'FAIL' end || ';';  -- 관리자는 끝 4자리만
   begin perform 1 from public.naver_ad_accounts limit 1; r := r || '19 FAIL;';

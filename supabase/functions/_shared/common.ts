@@ -10,7 +10,7 @@ export function serviceClient(): SupabaseClient {
   });
 }
 
-export type Caller = { userId: string; email: string | null; isAdmin: boolean };
+export type Caller = { userId: string; email: string | null; isAdmin: boolean; canAccess: (clientId: string) => Promise<boolean> };
 
 // 요청의 로그인 토큰(JWT)으로 사용자를 확인하고, DB의 is_admin()으로 관리자 여부를 판단한다.
 export async function getCaller(req: Request): Promise<Caller | null> {
@@ -23,7 +23,12 @@ export async function getCaller(req: Request): Promise<Caller | null> {
   const { data: u } = await userClient.auth.getUser();
   if (!u?.user) return null;
   const { data: isAdmin } = await userClient.rpc("is_admin");
-  return { userId: u.user.id, email: u.user.email ?? null, isAdmin: isAdmin === true };
+  // 광고주별 권한: 관리자 이상이거나 그 광고주의 담당(주·보조) 직원 — DB의 can_access_client 로 판단
+  const canAccess = async (clientId: string) => {
+    const { data } = await userClient.rpc("can_access_client", { p_client: clientId });
+    return data === true;
+  };
+  return { userId: u.user.id, email: u.user.email ?? null, isAdmin: isAdmin === true, canAccess };
 }
 
 // 예약 실행(pg_cron) 확인: 요청 헤더의 비밀값을 함수 비밀값 CRON_SECRET 과 비교

@@ -1,4 +1,4 @@
-// 관리자 전용: 광고주 네이버 검색광고 API 키 등록·교체·비활성화·삭제
+// 관리자 또는 해당 광고주 담당 직원: 광고주 네이버 검색광고 API 키 등록·교체·비활성화·삭제
 // - 관리자 화면(브라우저)에서 로그인 토큰과 함께 이 함수로 직접 보낸다. 웹 서버(Vercel)를 거치지 않는다.
 // - 키는 네이버 API로 연결을 확인한 뒤 AES-256-GCM 으로 암호화해 저장한다. 응답에는 끝 4자리만 돌려준다.
 // - 원문 조회 기능은 없다. 교체는 새 값으로 덮어쓰기만 가능하다.
@@ -14,13 +14,15 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return reply({ error: "method not allowed" }, 405);
 
   const caller = await getCaller(req);
-  if (!caller?.isAdmin) return reply({ error: "forbidden" }, 403);
+  if (!caller) return reply({ error: "forbidden" }, 403);
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return reply({ error: "invalid body" }, 400); }
   const action = String(body.action ?? "");
   const clientId = String(body.clientId ?? "");
   if (!/^[0-9a-f-]{36}$/.test(clientId)) return reply({ error: "invalid clientId" }, 400);
+  // 관리자 이상 또는 해당 광고주 담당 직원만
+  if (!(await caller.canAccess(clientId))) return reply({ error: "forbidden" }, 403);
 
   const db = serviceClient();
   const { data: client } = await db.from("clients").select("id").eq("id", clientId).maybeSingle();

@@ -423,3 +423,7 @@ verify_jwt = false
 # naver-key-admin: 로그인 토큰 필수 + 함수 안에서 관리자 권한을 다시 확인한다.
 [functions.naver-key-admin]
 verify_jwt = true
+
+# staff-admin: 로그인 토큰 필수 + 함수 안에서 관리자 이상인지 다시 확인한다.
+[functions.staff-admin]
+verify_jwt = true
