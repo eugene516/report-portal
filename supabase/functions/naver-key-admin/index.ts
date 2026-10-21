@@ -6,21 +6,11 @@
 import { encryptCredentials, last4, type NaverCredentials } from "../_shared/crypto.ts";
 import { errorMessage, log } from "../_shared/log.ts";
 import { listCampaigns, NaverApiError } from "../_shared/naver.ts";
-import { getCaller, json, serviceClient } from "../_shared/common.ts";
-
-const CORS = {
-  "Access-Control-Allow-Origin": Deno.env.get("SITE_ORIGIN") ?? "",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeaders, getCaller, json, serviceClient, withCors } from "../_shared/common.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-  const reply = (body: unknown, status = 200) => {
-    const r = json(body, status);
-    for (const [k, v] of Object.entries(CORS)) r.headers.set(k, v);
-    return r;
-  };
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders(req) });
+  const reply = (body: unknown, status = 200) => withCors(req, json(body, status));
   if (req.method !== "POST") return reply({ error: "method not allowed" }, 405);
 
   const caller = await getCaller(req);

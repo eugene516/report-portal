@@ -12,13 +12,15 @@
 import { decryptCredentials, type NaverCredentials } from "../_shared/crypto.ts";
 import { errorMessage, log } from "../_shared/log.ts";
 import { getDailyStats, listAdgroups, listCampaigns } from "../_shared/naver.ts";
-import { dateRange, getCaller, isCronRequest, json, kstDate, notifyFailure, serviceClient } from "../_shared/common.ts";
+import { corsHeaders, dateRange, getCaller, isCronRequest, json as jsonRaw, kstDate, notifyFailure, serviceClient, withCors } from "../_shared/common.ts";
 
 const LOCK = "naver_sync";
 const LOCK_TTL_SECONDS = 15 * 60;
 const MAX_MANUAL_DAYS = 92;
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders(req) });
+  const json = (body: unknown, status = 200) => withCors(req, jsonRaw(body, status));
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
   let trigger: "schedule" | "manual";

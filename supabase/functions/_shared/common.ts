@@ -53,25 +53,51 @@ export function dateRange(from: string, to: string): string[] {
 export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-// 실패 알림: 담당자 이메일 (Resend). RESEND_API_KEY / ALERT_EMAILS 가 설정되지 않으면 로그만 남긴다.
-// 대시보드 표시는 naver_sync_logs(status='failed')를 화면에서 읽어 보여준다.
+// 브라우저(관리자 화면)에서 직접 호출할 수 있는 출처만 허용한다.
+// SITE_ORIGINS: 쉼표로 구분한 허용 출처 (예: http://localhost:3000,https://report.example.com)
+export function corsHeaders(req: Request): Record<string, string> {
+  const allowed = (Deno.env.get("SITE_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const origin = req.headers.get("Origin") ?? "";
+  const h: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+  if (allowed.includes(origin)) h["Access-Control-Allow-Origin"] = origin;
+  return h;
+}
+
+export function withCors(req: Request, res: Response): Response {
+  for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+  return res;
+}
+
+// 실패 알림: 직원 명단(staff_roles)에 등록된 모든 직원 이메일로 발송 (Resend)
+// - RESEND_API_KEY(함수 비밀값)·ALERT_FROM(인증된 발신 주소)이 없으면 로그만 남긴다.
+// - 대시보드 표시는 naver_sync_logs(status='failed')를 화면에서 읽어 보여준다.
+// - 수신자 주소는 서로 보이지 않도록 한 명씩 따로 보낸다.
 export async function notifyFailure(subject: string, lines: string[]) {
   const apiKey = Deno.env.get("RESEND_API_KEY");
-  const to = (Deno.env.get("ALERT_EMAILS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const from = Deno.env.get("ALERT_FROM") ?? "report-portal <onboarding@resend.dev>";
+  const from = Deno.env.get("ALERT_FROM");
+  const { data: staff } = await serviceClient().from("staff_roles").select("email");
+  const to = [...new Set((staff ?? []).map((s) => String(s.email).trim()).filter(Boolean))];
   const text = lines.map((l) => mask(l)).join("\n");
-  if (!apiKey || to.length === 0) {
-    log("warn", "failure alert not sent (email not configured)", { subject });
+  if (!apiKey || !from || to.length === 0) {
+    log("warn", "failure alert not sent (email not configured)", { subject, recipients: to.length });
     return;
   }
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject, text }),
-    });
-    if (!res.ok) log("error", "failure alert email rejected", { status: res.status });
-  } catch {
-    log("error", "failure alert email error");
+  let failed = 0;
+  for (const addr of to) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to: [addr], subject, text }),
+      });
+      if (!res.ok) failed++;
+    } catch {
+      failed++;
+    }
   }
+  log(failed ? "error" : "info", "failure alert sent", { recipients: to.length, failed });
 }
