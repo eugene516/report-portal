@@ -367,3 +367,24 @@ a.kpi:hover { text-decoration: none; }
 @media (max-width: 1200px) { .place-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .place-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .place-grid { grid-template-columns: 1fr; } }
+.ops-head-in { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: flex-end; }
+.ops-head-in .search { min-width: 0; width: 160px; }
+a.cname { color: var(--text); }
+.chip-s { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); font-size: 12px; }
+.alerts li a { display: flex; gap: 10px; align-items: flex-start; padding: 10px 16px; color: var(--text); border-top: 1px solid var(--border); }
+.alerts li a:hover { background: var(--surface-2); text-decoration: none; }
+.badge + .badge { margin-left: 4px; }
+.narrow-wide { max-width: 1080px; }
+.svc-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.svc { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer; }
+.svc.on { border-color: var(--accent); background: var(--accent-soft); }
+.svc.inline { flex-direction: row; align-items: center; padding: 8px 12px; }
+.num-in { width: 90px; min-width: 0; }
+.key-panel { border-top: 1px solid var(--border); padding-top: 14px; }
+.key-form { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+@media (max-width: 900px) { .svc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.upload-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+.upload-form label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-2); }
+.paste { width: 100%; margin-top: 8px; font: 13px/1.5 ui-monospace, Consolas, monospace; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--surface); color: var(--text); }
+@media (max-width: 900px) { .upload-form { grid-template-columns: 1fr; } }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; min-width: 150px; }

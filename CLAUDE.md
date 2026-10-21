@@ -27,6 +27,17 @@
 - 내부 직원: `/admin/…` 로그인 + 직원 권한 확인. 광고주 화면과 같은 부품을 쓰되, 좌측 메뉴 맨 아래 "홈으로 돌아가기" 버튼은 서버에서 직원 권한이 확인된 경우에만 렌더링한다(광고주 링크 HTML에는 포함되지 않음).
 - URL의 광고주 ID를 바꿔도 서버가 권한을 다시 검증한다.
 
+## 권한 구조 (2026-10-21)
+
+- 오너 1명(DB 고유 인덱스로 보장, `transfer_ownership`으로만 양도 → 기존 오너는 관리자) · 관리자 여러 명 · 직원
+- 광고주 담당: `client_staff` (주담당 1명 + 보조 여러 명). 광고주를 만든 직원이 주담당
+- 모든 광고주 데이터 접근은 DB 함수 `can_access_client(client_id)` (관리자 이상 또는 담당 직원)로만 판단한다. 새 테이블도 이 규칙을 쓴다.
+- 직원 계정 생성·비밀번호 재설정·비활성화는 `staff-admin` 함수(관리자 이상). 웹 서버에 service_role 키를 두지 않는다.
+- API 키 등록·재수집: 관리자 또는 해당 광고주 담당 직원
+- 순위·캡쳐: ego-browser 수집 결과(JSON + 이미지)를 직원 화면(`/admin/clients/{id}/upload`)에서 업로드
+- 캡쳐·견적서: 비공개 저장소 `captures/`, `quotes/` (첫 폴더 = client_id). 광고주 링크 화면은 `report-capture` 함수가 토큰 확인 후 2분 서명 주소 발급
+- 시험: `supabase/tests/access_control_check.sql`, `supabase/tests/roles_check.sql` (원격에서 실행해도 데이터 안 남음)
+
 ## 결정된 사항 (2026-10-21)
 
 - 인프라: 리포트 포털 전용 Supabase 프로젝트·Vercel 프로젝트를 새로 만든다.
