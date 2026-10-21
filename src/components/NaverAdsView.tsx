@@ -1,30 +1,55 @@
 // 네이버 광고 성과 (서버 컴포넌트, DB 데이터만 사용)
+// 상단: 기간 선택 · 지표 카드(이전 기간 대비) · 일별 그래프
+// 아래: 광고비 소진 현황 · 성과 분석과 개선 제안(자동 + 담당자 코멘트) · 캠페인 · 광고그룹 · 키워드 · 요일별
 import Link from "next/link";
 import type { NaverReport, Period } from "@/lib/report";
+import { budgetStatus, buildInsights, DOW, keywordGrade } from "@/lib/naverInsights";
+import NoteEditor from "./NoteEditor";
 
 const fmt = (n: number | null | undefined, digits = 0) =>
   n == null || Number.isNaN(Number(n)) ? "-" : Number(n).toLocaleString("ko-KR", { maximumFractionDigits: digits, minimumFractionDigits: digits });
-
-const kstTime = (iso: string | null) => {
+const won = (n: number | null | undefined) => (n == null ? "-" : `${fmt(n)}원`);
+const kstTime = (iso: string | null | undefined) => {
   if (!iso) return "수집 이력 없음";
-  const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
-  return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)} (한국시간)`;
+  const d = new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString();
+  return `${d.slice(0, 10)} ${d.slice(11, 16)}`;
 };
 
-export default function NaverAdsView({ data, period, path }: { data: NaverReport; period: Period; path: string }) {
-  const k = data.kpi;
-  const kpis: [string, string, string][] = [
-    ["비용", fmt(k.cost), "원"], ["노출", fmt(k.impressions), "회"], ["클릭", fmt(k.clicks), "회"],
-    ["CTR", fmt(k.ctr, 2), "%"], ["CPC", fmt(k.cpc), "원"], ["전환수", fmt(k.conversions), "건"], ["ROAS", fmt(k.roas, 1), "%"],
-  ];
+// 이전 기간 대비 변화 (good 방향: 올라가면 좋은 지표인지)
+function Delta({ now, prev, upGood = true, unit = "%", digits = 0 }: { now: number | null | undefined; prev: number | null | undefined; upGood?: boolean; unit?: string; digits?: number }) {
+  if (now == null || prev == null || Number(prev) === 0) return <span className="faint">이전 기간 비교 없음</span>;
+  const ch = ((Number(now) - Number(prev)) / Number(prev)) * 100;
+  if (Math.abs(ch) < 0.5) return <span className="delta">이전 기간과 비슷</span>;
+  const good = ch > 0 === upGood;
+  return <span className={`delta ${good ? "up" : "down"}`}>{ch > 0 ? "▲" : "▼"}{Math.abs(ch).toFixed(0)}{unit} <span className="faint">이전 {fmt(prev, digits)}</span></span>;
+}
+
+export default function NaverAdsView({ data, period, path, note }: {
+  data: NaverReport; period: Period; path: string;
+  note: { editable: false } | { editable: true; clientId: string; period: string };
+}) {
+  const k = data.kpi, p = data.prev;
   const presets: [Period["key"], string][] = [["yesterday", "어제"], ["7d", "최근 7일"], ["30d", "최근 30일"]];
+  const days = data.daily.length || 1;
+  const b = budgetStatus(data);
+  const insights = buildInsights(data);
+  const kpis: { label: string; value: string; unit: string; now: number | null | undefined; prev: number | null | undefined; upGood?: boolean; digits?: number }[] = [
+    { label: "광고비", value: fmt(k.cost), unit: "원", now: k.cost, prev: p?.cost, upGood: false },
+    { label: "노출", value: fmt(k.impressions), unit: "회", now: k.impressions, prev: p?.impressions },
+    { label: "클릭", value: fmt(k.clicks), unit: "회", now: k.clicks, prev: p?.clicks },
+    { label: "클릭률(CTR)", value: fmt(k.ctr, 2), unit: "%", now: k.ctr, prev: p?.ctr, digits: 2 },
+    { label: "클릭당 비용(CPC)", value: fmt(k.cpc), unit: "원", now: k.cpc, prev: p?.cpc, upGood: false },
+    { label: "전환수", value: fmt(k.conversions), unit: "건", now: k.conversions, prev: p?.conversions },
+    { label: "ROAS", value: fmt(k.roas, 1), unit: "%", now: k.roas, prev: p?.roas, digits: 1 },
+  ];
+  const wdMax = Math.max(1, ...data.weekday.map((w) => Number(w.cost)));
+  const kwTotalCost = data.keywords.reduce((s, x) => s + Number(x.cost), 0) || 1;
+
   return (
     <>
       <div className="row period-bar">
         <div className="seg">
-          {presets.map(([key, label]) => (
-            <Link key={key} href={`${path}?range=${key}`} className={period.key === key ? "on" : ""}>{label}</Link>
-          ))}
+          {presets.map(([key, label]) => <Link key={key} href={`${path}?range=${key}`} className={period.key === key ? "on" : ""}>{label}</Link>)}
         </div>
         <form className="row" action={path} method="get">
           <input type="hidden" name="range" value="custom" />
@@ -35,36 +60,152 @@ export default function NaverAdsView({ data, period, path }: { data: NaverReport
         </form>
         <span className="live"><i />마지막 수집 {kstTime(data.lastCollectedAt)}</span>
       </div>
-      <p className="faint">기간: {data.from} ~ {data.to} · 비용은 네이버 기준 VAT 포함 금액 · 매일 오전 9시 자동 수집</p>
+      <p className="faint">기간 {data.from} ~ {data.to} ({days}일){p ? ` · 이전 기간(${p.days}일)과 비교` : ""} · 비용은 VAT 포함 · 매일 오전 9시 자동 수집</p>
 
       <div className="grid g-kpi7 mt">
-        {kpis.map(([label, value, unit]) => (
-          <div key={label} className="card kpi static"><div className="label">{label}</div><div className="value num">{value}<small>{unit}</small></div></div>
+        {kpis.map((c) => (
+          <div key={c.label} className="card kpi static">
+            <div className="label">{c.label}</div>
+            <div className="value num">{c.value}<small>{c.unit}</small></div>
+            <div className="foot"><Delta now={c.now} prev={c.prev} upGood={c.upGood} digits={c.digits} /></div>
+          </div>
         ))}
       </div>
 
       <div className="card pad mt">
-        <div className="card-h"><h2>일별 추이</h2><span className="faint">막대 비용 · 선 클릭</span></div>
+        <div className="card-h"><h2>일별 추이</h2><span className="faint">막대 광고비 · 선 클릭</span></div>
         <DailyChart daily={data.daily} />
       </div>
 
-      <div className="card mt tbl-wrap">
-        <table>
-          <thead><tr><th>캠페인</th><th className="r">비용</th><th className="r">노출</th><th className="r">클릭</th><th className="r">CTR</th><th className="r">CPC</th><th className="r">평균순위</th><th className="r">전환</th><th className="r">ROAS</th></tr></thead>
-          <tbody>
-            {data.campaigns.length === 0 && <tr><td colSpan={9} className="faint">이 기간의 캠페인 성과가 없습니다.</td></tr>}
-            {data.campaigns.map((c) => (
-              <tr key={c.id}>
-                <td><b>{c.name}</b></td>
-                <td className="r num">{fmt(c.cost)}원</td><td className="r num">{fmt(c.impressions)}</td><td className="r num">{fmt(c.clicks)}</td>
-                <td className="r num">{fmt(c.ctr, 2)}%</td><td className="r num">{fmt(c.cpc)}원</td><td className="r num">{fmt(c.avgRank, 1)}</td>
-                <td className="r num">{fmt(c.conversions)}</td><td className="r num">{fmt(c.roas, 1)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* ── 광고비 소진 현황 ── */}
+      <h2 className="mt-l">광고비 소진 현황</h2>
+      <div className="grid g-4 mt">
+        <div className="card kpi static">
+          <div className="label">선택 기간 광고비</div>
+          <div className="value num">{fmt(k.cost)}<small>원</small></div>
+          <div className="foot">일 평균 {won(Number(k.cost) / days)}</div>
+        </div>
+        <div className="card kpi static">
+          <div className="label">{b?.month ? `${b.month.replace("-", "년 ")}월 누적` : "이번 달 누적"}</div>
+          <div className="value num">{fmt(b?.spent)}<small>{b?.budget ? `/ ${fmt(b.budget)}원` : "원"}</small></div>
+          {b?.budget ? <><div className={`bar mt-s ${b.spent > b.budget ? "over" : ""}`}><i style={{ width: `${Math.min(100, (b.spent / b.budget) * 100)}%` }} /></div><div className="foot">예산의 {((b.spent / b.budget) * 100).toFixed(0)}% · {b.elapsed}/{b.days}일 경과</div></> : <div className="foot">월 예산 미설정 (광고주 설정에서 입력)</div>}
+        </div>
+        <div className="card kpi static">
+          <div className="label">월말 예상 광고비</div>
+          <div className="value num">{fmt(b?.projected)}<small>원</small></div>
+          <div className="foot">{b?.budget ? `예산 대비 ${((b.projected / b.budget) * 100).toFixed(0)}% · ` : ""}누적 + 최근 7일 일평균 × 남은 {b ? b.days - b.elapsed : 0}일</div>
+        </div>
+        <div className={`card kpi static ${b?.daysLeft != null && b.daysLeft < 7 ? "alert" : ""}`}>
+          <div className="label">비즈머니 잔액</div>
+          <div className="value num">{data.bizmoney?.amount != null ? fmt(data.bizmoney.amount) : "-"}<small>원</small></div>
+          <div className="foot">{b?.daysLeft != null ? `최근 일평균 기준 약 ${Math.floor(b.daysLeft)}일분` : "잔액 정보 없음"}{data.bizmoney?.checkedAt ? ` · ${kstTime(data.bizmoney.checkedAt).slice(5)} 확인` : ""}</div>
+        </div>
       </div>
+
+      {/* ── 성과 분석 · 개선 제안 ── */}
+      <h2 className="mt-l">성과 분석 · 개선 제안</h2>
+      <div className="grid g-2 mt">
+        <div className="card pad">
+          <div className="card-h"><h3>데이터 분석</h3><span className="faint">수집 데이터 기준 자동 분석</span></div>
+          {insights.length === 0 ? <p className="faint">특이 사항이 없습니다.</p> : (
+            <ul className="insights">
+              {insights.map((it, i) => (
+                <li key={i} className={`ins ${it.level}`}>
+                  <div className="ins-t"><span className={`lv ${it.level === "bad" ? "high" : it.level === "warn" ? "mid" : it.level === "good" ? "ok" : "info"}`} /><b>{it.title}</b></div>
+                  <div className="faint">{it.detail}</div>
+                  {it.action && <div className="ins-a">→ {it.action}</div>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="card pad">
+          <div className="card-h"><h3>담당자 운영 코멘트</h3><span className="faint">{data.note?.updatedAt ? `${kstTime(data.note.updatedAt)} 작성` : ""}</span></div>
+          {note.editable
+            ? <NoteEditor clientId={note.clientId} period={note.period} initial={data.note?.body ?? ""} />
+            : data.note?.body ? <div className="note-body">{data.note.body}</div> : <p className="faint">작성된 코멘트가 없습니다.</p>}
+        </div>
+      </div>
+
+      {/* ── 캠페인 ── */}
+      <h2 className="mt-l">캠페인별 성과</h2>
+      <PerfTable rows={data.campaigns.map((c) => ({ ...c, key: c.id, sub: "" }))} total={k.cost} />
+
+      {/* ── 광고그룹 ── */}
+      {data.adgroups.length > 0 && <>
+        <h2 className="mt-l">광고그룹별 성과</h2>
+        <PerfTable rows={data.adgroups.map((g) => ({ ...g, key: g.id, sub: g.campaign }))} total={k.cost} />
+      </>}
+
+      {/* ── 키워드 ── */}
+      {data.keywords.length > 0 && <>
+        <div className="row mt-l" style={{ justifyContent: "space-between" }}>
+          <h2>키워드별 성과</h2>
+          <span className="faint">노출·비용이 있는 키워드 {data.keywords.length}개 중 비용 순 상위 30개 · 등급 S: 노출 100+ & 클릭 / A: 노출 50+ / B: 저노출 클릭 / C: 노출 10+ / D: 노출 10 미만</span>
+        </div>
+        <div className="card mt tbl-wrap"><table>
+          <thead><tr><th>등급</th><th>키워드</th><th>광고그룹</th><th className="r">광고비</th><th className="r">비중</th><th className="r">노출</th><th className="r">클릭</th><th className="r">CTR</th><th className="r">CPC</th><th className="r">평균순위</th><th className="r">입찰가</th><th>점검</th></tr></thead>
+          <tbody>{data.keywords.slice(0, 30).map((x) => {
+            const g = keywordGrade(Number(x.impressions), Number(x.clicks));
+            const flag = Number(x.impressions) >= 100 && Number(x.clicks) === 0 ? ["클릭 없음", "warn"]
+              : Number(x.impressions) < 100 && Number(x.clicks) >= 2 && Number(x.ctr ?? 0) >= 3 ? ["입찰 상향 후보", "good"]
+              : Number(x.avgRank ?? 0) > 5 ? ["순위 낮음", ""] : null;
+            return (
+              <tr key={x.id}>
+                <td><span className={`badge ${g === "S" ? "good" : g === "A" ? "acc" : g === "D" ? "" : "warn"}`}>{g}</span></td>
+                <td><b>{x.keyword}</b></td><td className="faint">{x.adgroup}</td>
+                <td className="r num">{won(x.cost)}</td><td className="r num faint">{((Number(x.cost) / kwTotalCost) * 100).toFixed(1)}%</td>
+                <td className="r num">{fmt(x.impressions)}</td><td className="r num">{fmt(x.clicks)}</td>
+                <td className="r num">{x.ctr != null ? `${fmt(x.ctr, 2)}%` : "-"}</td><td className="r num">{won(x.cpc)}</td>
+                <td className="r num">{fmt(x.avgRank, 1)}</td><td className="r num faint">{x.bid ? won(x.bid) : "그룹 입찰가"}</td>
+                <td>{flag && <span className={`badge ${flag[1]}`}>{flag[0]}</span>}</td>
+              </tr>
+            );
+          })}</tbody>
+        </table></div>
+      </>}
+
+      {/* ── 요일별 ── */}
+      {data.weekday.length > 0 && <>
+        <h2 className="mt-l">요일별 성과</h2>
+        <div className="card mt tbl-wrap"><table>
+          <thead><tr><th>요일</th><th style={{ width: "30%" }}>광고비</th><th className="r">노출</th><th className="r">클릭</th><th className="r">CTR</th><th className="r">CPC</th></tr></thead>
+          <tbody>{data.weekday.map((w) => (
+            <tr key={w.dow}>
+              <td><b>{DOW[w.dow]}</b> <span className="faint">({w.days}일)</span></td>
+              <td><div className="row" style={{ flexWrap: "nowrap" }}><div className="bar" style={{ flex: 1 }}><i style={{ width: `${(Number(w.cost) / wdMax) * 100}%` }} /></div><span className="num nowrap">{won(w.cost)}</span></div></td>
+              <td className="r num">{fmt(w.impressions)}</td><td className="r num">{fmt(w.clicks)}</td>
+              <td className="r num">{Number(w.impressions) ? `${((Number(w.clicks) / Number(w.impressions)) * 100).toFixed(2)}%` : "-"}</td>
+              <td className="r num">{Number(w.clicks) ? won(Number(w.cost) / Number(w.clicks)) : "-"}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      </>}
     </>
+  );
+}
+
+function PerfTable({ rows, total }: { rows: { key: string; name: string; sub: string; cost: number; impressions: number; clicks: number; ctr: number | null; cpc: number | null; avgRank: number | null; conversions: number }[]; total: number }) {
+  return (
+    <div className="card mt tbl-wrap"><table>
+      <thead><tr><th>이름</th><th className="r">광고비</th><th style={{ width: 120 }}>비중</th><th className="r">노출</th><th className="r">클릭</th><th className="r">CTR</th><th className="r">CPC</th><th className="r">평균순위</th><th className="r">전환</th></tr></thead>
+      <tbody>
+        {rows.length === 0 && <tr><td colSpan={9} className="faint">이 기간의 성과가 없습니다.</td></tr>}
+        {rows.map((r) => {
+          const share = total ? (Number(r.cost) / Number(total)) * 100 : 0;
+          return (
+            <tr key={r.key}>
+              <td><b>{r.name}</b>{r.sub && <div className="faint">{r.sub}</div>}</td>
+              <td className="r num">{won(r.cost)}</td>
+              <td><div className="row" style={{ flexWrap: "nowrap" }}><div className="bar" style={{ flex: 1 }}><i style={{ width: `${Math.min(100, share)}%` }} /></div><span className="faint num">{share.toFixed(0)}%</span></div></td>
+              <td className="r num">{fmt(r.impressions)}</td><td className="r num">{fmt(r.clicks)}</td>
+              <td className="r num">{r.ctr != null ? `${fmt(r.ctr, 2)}%` : "-"}</td><td className="r num">{won(r.cpc)}</td>
+              <td className="r num">{fmt(r.avgRank, 1)}</td><td className="r num">{fmt(r.conversions)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table></div>
   );
 }
 
@@ -80,7 +221,7 @@ function DailyChart({ daily }: { daily: NaverReport["daily"] }) {
   const line = daily.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${(P.t + ih - (Number(d.clicks) / maxClk) * ih).toFixed(1)}`).join("");
   const step = Math.ceil(daily.length / 10);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="svg-chart" role="img" aria-label="일별 비용과 클릭 추이">
+    <svg viewBox={`0 0 ${W} ${H}`} className="svg-chart" role="img" aria-label="일별 광고비와 클릭 추이">
       {[0, 0.5, 1].map((t) => (
         <g key={t}>
           <line x1={P.l} x2={W - P.r} y1={P.t + ih * (1 - t)} y2={P.t + ih * (1 - t)} className="grid-line" />
@@ -92,7 +233,7 @@ function DailyChart({ daily }: { daily: NaverReport["daily"] }) {
         const h = (Number(d.cost) / maxCost) * ih;
         return (
           <g key={d.date}>
-            <rect x={x(i) - bw * 0.35} y={P.t + ih - h} width={bw * 0.7} height={h} rx={2} className="bar-1"><title>{`${d.date} 비용 ${fmt(d.cost)}원 · 클릭 ${fmt(d.clicks)}`}</title></rect>
+            <rect x={x(i) - bw * 0.35} y={P.t + ih - h} width={bw * 0.7} height={h} rx={2} className="bar-1"><title>{`${d.date} 광고비 ${fmt(d.cost)}원 · 클릭 ${fmt(d.clicks)}`}</title></rect>
             {i % step === 0 && <text x={x(i)} y={H - 8} textAnchor="middle" className="axis">{d.date.slice(5).replace("-", "/")}</text>}
           </g>
         );

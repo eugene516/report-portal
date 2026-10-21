@@ -11,7 +11,7 @@
 //   - 키는 이 함수 안에서 광고주를 처리하는 동안만 복호화해 쓰고 버린다
 import { decryptCredentials, type NaverCredentials } from "../_shared/crypto.ts";
 import { errorMessage, log } from "../_shared/log.ts";
-import { getDailyStats, listAdgroups, listCampaigns } from "../_shared/naver.ts";
+import { getBizmoney, getDailyStats, listAdgroups, listCampaigns, listKeywords, type NaverStat } from "../_shared/naver.ts";
 import { corsHeaders, dateRange, getCaller, isCronRequest, json as jsonRaw, kstDate, notifyFailure, serviceClient, withCors } from "../_shared/common.ts";
 
 const LOCK = "naver_sync";
@@ -30,6 +30,14 @@ Deno.serve(async (req) => {
 
   if (isCronRequest(req)) {
     trigger = "schedule";
+    // 내부 호출(예약 비밀값 보유)에 한해 과거 기간 채우기 허용: { from, to } (최대 92일)
+    let body: Record<string, unknown> = {};
+    try { body = await req.json(); } catch { /* 예약 실행은 빈 본문 */ }
+    if (body.from || body.to) {
+      from = String(body.from ?? ""); to = String(body.to ?? "");
+      const ok = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to && to <= kstDate(0);
+      if (!ok || dateRange(from, to).length > MAX_MANUAL_DAYS) return json({ error: `invalid range (최대 ${MAX_MANUAL_DAYS}일)` }, 400);
+    }
   } else {
     const caller = await getCaller(req);
     if (!caller) return json({ error: "forbidden" }, 403);
@@ -64,7 +72,7 @@ Deno.serve(async (req) => {
     return json({ error: "already running" }, 409);
   }
 
-  const results: { clientId: string; status: string; rows: number; error?: string }[] = [];
+  const results: { clientId: string; status: string; rows: number; error?: string; bizmoney?: string }[] = [];
   try {
     let q = db.from("naver_ad_accounts").select("client_id, enc_payload, clients(name)").eq("is_active", true);
     if (onlyClient) q = q.eq("client_id", onlyClient);
@@ -80,9 +88,10 @@ Deno.serve(async (req) => {
       let creds: NaverCredentials | null = null;
       try {
         creds = await decryptCredentials(acc.enc_payload);
-        const rows = await syncClient(db, acc.client_id, creds, from, to);
-        await db.from("naver_sync_logs").update({ status: "success", rows_upserted: rows, duration_ms: Date.now() - started, finished_at: new Date().toISOString() }).eq("id", logRow!.id);
-        results.push({ clientId: acc.client_id, status: "success", rows });
+        const { rows, bizmoney } = await syncClient(db, acc.client_id, creds, from, to);
+        await db.from("naver_sync_logs").update({ status: "success", rows_upserted: rows, duration_ms: Date.now() - started, finished_at: new Date().toISOString(),
+          error_message: bizmoney === "ok" ? null : `(성과 수집 성공) 비즈머니: ${bizmoney}` }).eq("id", logRow!.id);
+        results.push({ clientId: acc.client_id, status: "success", rows, bizmoney });
       } catch (e) {
         const msg = errorMessage(e, creds ? [creds.customerId, creds.accessLicense, creds.secretKey] : []);
         await db.from("naver_sync_logs").update({ status: "failed", error_message: msg, duration_ms: Date.now() - started, finished_at: new Date().toISOString() }).eq("id", logRow!.id);
@@ -108,47 +117,83 @@ Deno.serve(async (req) => {
   return json({ runId, from, to, results: results.map(({ error: _e, ...r }) => r) });
 });
 
-// 광고주 한 곳: 캠페인·광고그룹 정보 갱신 → 날짜별 캠페인 성과 upsert
-async function syncClient(db: ReturnType<typeof serviceClient>, clientId: string, creds: NaverCredentials, from: string, to: string): Promise<number> {
+// 광고주 한 곳: 캠페인·광고그룹·키워드 정보 갱신 → 날짜별 캠페인 성과 + 광고그룹·키워드 성과 upsert → 비즈머니 잔액
+async function syncClient(db: ReturnType<typeof serviceClient>, clientId: string, creds: NaverCredentials, from: string, to: string): Promise<{ rows: number; bizmoney: string }> {
   const now = new Date().toISOString();
+  const entity = (r: Record<string, unknown>) => ({ client_id: clientId, updated_at: now, campaign_type: null, status: null, bid_amt: null, parent_ncc_id: null, ...r });
   const campaigns = await listCampaigns(creds);
   if (campaigns.length) {
-    await db.from("naver_campaigns").upsert(campaigns.map((c) => ({
-      client_id: clientId, entity_type: "campaign", ncc_id: c.nccCampaignId, parent_ncc_id: null,
-      name: c.name, campaign_type: c.campaignTp ?? null, status: c.status ?? null, updated_at: now,
+    await db.from("naver_campaigns").upsert(campaigns.map((c) => entity({
+      entity_type: "campaign", ncc_id: c.nccCampaignId, name: c.name, campaign_type: c.campaignTp ?? null, status: c.status ?? null,
     })), { onConflict: "client_id,ncc_id" });
   }
+  const adgroupIds: string[] = [];
+  const keywordIds: string[] = [];
   for (const c of campaigns) {
     const groups = await listAdgroups(creds, c.nccCampaignId);
-    if (groups.length) {
-      await db.from("naver_campaigns").upsert(groups.map((g) => ({
-        client_id: clientId, entity_type: "adgroup", ncc_id: g.nccAdgroupId, parent_ncc_id: g.nccCampaignId,
-        name: g.name, campaign_type: g.adgroupType ?? null, status: g.status ?? null, updated_at: now,
+    if (!groups.length) continue;
+    await db.from("naver_campaigns").upsert(groups.map((g) => entity({
+      entity_type: "adgroup", ncc_id: g.nccAdgroupId, parent_ncc_id: g.nccCampaignId, name: g.name, campaign_type: g.adgroupType ?? null, status: g.status ?? null,
+    })), { onConflict: "client_id,ncc_id" });
+    for (const g of groups) {
+      adgroupIds.push(g.nccAdgroupId);
+      const kws = await listKeywords(creds, g.nccAdgroupId);
+      if (!kws.length) continue;
+      keywordIds.push(...kws.map((k) => k.nccKeywordId));
+      await db.from("naver_campaigns").upsert(kws.map((k) => entity({
+        entity_type: "keyword", ncc_id: k.nccKeywordId, parent_ncc_id: k.nccAdgroupId, name: k.keyword, status: k.status ?? null,
+        bid_amt: k.useGroupBidAmt ? null : (k.bidAmt ?? null),
       })), { onConflict: "client_id,ncc_id" });
     }
   }
 
+  const metrics = (s: NaverStat) => {
+    const cost = s.salesAmt ?? 0;          // salesAmt = 비용(VAT 포함), 공식 문서 기준
+    return {
+      impressions: s.impCnt ?? 0, clicks: s.clkCnt ?? 0, ctr: s.ctr ?? null, cpc: s.cpc ?? null, cost,
+      avg_rank: s.avgRnk ?? null, conversions: s.ccnt ?? 0, conversion_revenue: s.convAmt ?? 0,
+      collected_at: new Date().toISOString(),
+    };
+  };
   const ids = campaigns.map((c) => c.nccCampaignId);
   let total = 0;
   for (const date of dateRange(from, to)) {
     const stats = await getDailyStats(creds, ids, date);
-    if (!stats.length) continue;
-    const rows = stats.map((s) => {
-      const cost = s.salesAmt ?? 0;        // salesAmt = 비용(VAT 포함), 공식 문서 기준
-      const conv = s.ccnt ?? 0;
-      const rev = s.convAmt ?? 0;
-      return {
-        client_id: clientId, stat_date: date, ncc_campaign_id: s.id,
-        impressions: s.impCnt ?? 0, clicks: s.clkCnt ?? 0,
-        ctr: s.ctr ?? null, cpc: s.cpc ?? null, cost, avg_rank: s.avgRnk ?? null,
-        conversions: conv, conversion_revenue: rev,
-        roas: s.ror ?? (cost > 0 ? Math.round((rev / cost) * 10000) / 100 : null),
-        collected_at: new Date().toISOString(),
-      };
-    });
-    const { error } = await db.from("naver_daily_stats").upsert(rows, { onConflict: "client_id,stat_date,ncc_campaign_id" });
-    if (error) throw new Error("stats upsert failed");
-    total += rows.length;
+    if (stats.length) {
+      const rows = stats.map((s) => {
+        const m = metrics(s);
+        return { client_id: clientId, stat_date: date, ncc_campaign_id: s.id, ...m,
+                 roas: s.ror ?? (m.cost > 0 ? Math.round((m.conversion_revenue / m.cost) * 10000) / 100 : null) };
+      });
+      const { error } = await db.from("naver_daily_stats").upsert(rows, { onConflict: "client_id,stat_date,ncc_campaign_id" });
+      if (error) throw new Error("stats upsert failed");
+      total += rows.length;
+    }
+    // 광고그룹 · 키워드 (수준별로 따로 요청)
+    for (const [level, list] of [["adgroup", adgroupIds], ["keyword", keywordIds]] as const) {
+      if (!list.length) continue;
+      const es = await getDailyStats(creds, list, date);
+      const rows = es.filter((s) => (s.impCnt ?? 0) > 0 || (s.salesAmt ?? 0) > 0 || (s.clkCnt ?? 0) > 0)
+        .map((s) => ({ client_id: clientId, stat_date: date, level, ncc_id: s.id, ...metrics(s) }));
+      if (rows.length) {
+        const { error } = await db.from("naver_entity_daily_stats").upsert(rows, { onConflict: "client_id,stat_date,ncc_id" });
+        if (error) throw new Error(`${level} stats upsert failed`);
+      }
+    }
   }
-  return total;
+
+  // 비즈머니 잔액 (실패해도 성과 수집은 성공으로 본다). 결과는 응답·상태 테이블에 남긴다.
+  let biz = "ok";
+  try {
+    const b = await getBizmoney(creds);
+    const { error } = await db.from("naver_account_status").upsert({ client_id: clientId, bizmoney: b.bizmoney ?? null, budget_lock: b.budgetLock ?? null, checked_at: new Date().toISOString(), error_message: null });
+    if (error) biz = `save failed: ${error.code ?? ""} ${error.message.slice(0, 120)}`;
+    else if (b.bizmoney == null) biz = "no bizmoney field";
+  } catch (e) {
+    biz = errorMessage(e, [creds.customerId, creds.accessLicense, creds.secretKey]);
+    log("warn", "bizmoney fetch failed", { clientId, error: biz });
+    const { error } = await db.from("naver_account_status").upsert({ client_id: clientId, bizmoney: null, budget_lock: null, checked_at: new Date().toISOString(), error_message: biz });
+    if (error) biz += ` / save failed: ${error.code ?? ""} ${error.message.slice(0, 120)}`;
+  }
+  return { rows: total, bizmoney: biz };
 }

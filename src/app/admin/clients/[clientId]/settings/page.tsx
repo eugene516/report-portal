@@ -18,7 +18,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
   if (!client) notFound();   // 담당이 아니면 RLS로 조회되지 않는다
   const [svc, ch, assign, dir, quotes, tokens, keys] = await Promise.all([
     db.from("client_services").select("service, monthly_target").eq("client_id", clientId),
-    db.from("client_ad_channels").select("channel, contracted, api_connected").eq("client_id", clientId),
+    db.from("client_ad_channels").select("channel, contracted, api_connected, monthly_budget").eq("client_id", clientId),
     db.from("client_staff").select("user_id, is_primary").eq("client_id", clientId),
     db.rpc("staff_directory"),
     db.from("client_quotes").select("id, storage_path, file_name, size_bytes, created_at").eq("client_id", clientId).order("created_at", { ascending: false }),
@@ -45,7 +45,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
       <ClientSettings
         client={client}
         services={Object.fromEntries((svc.data ?? []).map((s) => [s.service, { on: true, target: s.monthly_target == null ? "" : String(s.monthly_target) }]))}
-        channels={Object.fromEntries((ch.data ?? []).map((c) => [c.channel, { contracted: c.contracted, apiConnected: c.api_connected }]))}
+        channels={Object.fromEntries((ch.data ?? []).map((c) => [c.channel, { contracted: c.contracted, apiConnected: c.api_connected, budget: c.monthly_budget }]))}
         assigned={assigned} directory={directory} canManageStaff={canManageStaff} isAdmin={isAdminRole(me.role)}
         quotes={quotes.data ?? []} tokens={tokens.data ?? []} naverKey={key}
       />

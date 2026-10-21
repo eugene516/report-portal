@@ -74,7 +74,9 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
   const data = await getNaverReport(ctx, period.from, period.to);
   if (!data) return <div className="notice">성과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>;
   if (data.notContracted) return <div className="empty-state off-state"><b>{label}는 집행되지 않는 광고입니다.</b></div>;
-  return <NaverAdsView data={data} period={period} path={path} />;
+  // 담당자 코멘트: 직원 화면에서만 편집, 광고주 링크 화면은 읽기 전용
+  const note = ctx.mode === "staff" ? { editable: true as const, clientId: ctx.clientId, period: period.to.slice(0, 7) } : { editable: false as const };
+  return <NaverAdsView data={data} period={period} path={path} note={note} />;
 }
 
 function Dashboard({ client, content, base }: { client: ClientSummary; content: ReportContent; base: string }) {

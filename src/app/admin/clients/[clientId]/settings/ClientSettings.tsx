@@ -11,7 +11,7 @@ import NaverKeyPanel from "./NaverKeyPanel";
 type Props = {
   client: { id: string; name: string; category: string | null; area: string | null };
   services: ServiceState;
-  channels: Record<string, { contracted: boolean; apiConnected: boolean }>;
+  channels: Record<string, { contracted: boolean; apiConnected: boolean; budget: number | null }>;
   assigned: { id: string; name: string; primary: boolean }[];
   directory: { id: string; name: string; email: string }[];
   canManageStaff: boolean; isAdmin: boolean;
@@ -48,6 +48,12 @@ export default function ClientSettings(p: Props) {
     setBusy(true);
     const { error } = await sb.from("client_ad_channels").update({ contracted, updated_at: new Date().toISOString() }).eq("client_id", id).eq("channel", ch);
     done(!error, error ? "광고 채널을 저장하지 못했습니다." : "광고 채널을 저장했습니다.");
+  }
+  async function saveBudget(ch: string, value: string) {
+    const v = value.trim() === "" ? null : Math.max(0, Math.floor(Number(value.replace(/[^\d]/g, ""))));
+    setBusy(true);
+    const { error } = await sb.from("client_ad_channels").update({ monthly_budget: v, updated_at: new Date().toISOString() }).eq("client_id", id).eq("channel", ch);
+    done(!error, error ? "월 예산을 저장하지 못했습니다." : "월 예산을 저장했습니다. 리포트의 광고비 소진율에 반영됩니다.");
   }
   async function addStaff(userId: string) {
     setBusy(true);
@@ -108,13 +114,18 @@ export default function ClientSettings(p: Props) {
       <section className="card pad mt">
         <h2>온라인 광고</h2>
         <div className="tbl-wrap mt"><table>
-          <thead><tr><th>채널</th><th>계약</th><th>API 연결</th></tr></thead>
+          <thead><tr><th>채널</th><th>계약</th><th>월 예산 (VAT 포함)</th><th>API 연결</th></tr></thead>
           <tbody>{AD_CHANNEL_OPTIONS.map((c) => {
-            const s = p.channels[c.id] ?? { contracted: false, apiConnected: false };
+            const s = p.channels[c.id] ?? { contracted: false, apiConnected: false, budget: null };
             return (
               <tr key={c.id}>
                 <td><b>{c.label}</b></td>
                 <td><label className="row"><input type="checkbox" checked={s.contracted} disabled={busy} onChange={(e) => toggleChannel(c.id, e.target.checked)} /> {s.contracted ? "계약" : "미계약 (리포트에 '집행되지 않는 광고' 안내)"}</label></td>
+                <td>{s.contracted ? (
+                  <form className="row" onSubmit={(e) => { e.preventDefault(); saveBudget(c.id, String(new FormData(e.currentTarget).get("budget") ?? "")); }}>
+                    <input name="budget" inputMode="numeric" defaultValue={s.budget ?? ""} placeholder="예: 300000" className="search num-in wide" />
+                    <span className="faint">원</span><button className="btn sm" disabled={busy}>저장</button>
+                  </form>) : <span className="faint">-</span>}</td>
                 <td>{s.apiConnected ? <span className="badge good">연결됨</span> : c.id === "naver" ? <span className="badge warn">아래에서 키 등록</span> : <span className="faint">준비 중</span>}</td>
               </tr>
             );

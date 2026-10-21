@@ -91,14 +91,28 @@ export const listCampaigns = (c: NaverCredentials) => naverGet<NaverCampaign[]>(
 export const listAdgroups = (c: NaverCredentials, nccCampaignId: string) =>
   naverGet<NaverAdgroup[]>(c, "/ncc/adgroups", { nccCampaignId });
 
+// 키워드 목록 (광고그룹별, recordSize 최대 1000 — 공식 문서)
+export type NaverKeyword = { nccKeywordId: string; nccAdgroupId: string; keyword: string; status?: string; bidAmt?: number; useGroupBidAmt?: boolean };
+export const listKeywords = (c: NaverCredentials, nccAdgroupId: string) =>
+  naverGet<NaverKeyword[]>(c, "/ncc/keywords", { nccAdgroupId, recordSize: "1000" });
+
+// 비즈머니 잔액 (GET /billing/bizmoney → { bizmoney, budgetLock, refundLock, customerId })
+export const getBizmoney = (c: NaverCredentials) =>
+  naverGet<{ bizmoney?: number; budgetLock?: boolean }>(c, "/billing/bizmoney");
+
 // 하루 단위 요약 성과 (timeRange since=until 로 하루씩 요청)
 // timeIncrement 일별 응답은 문서의 허용값 설명이 엇갈려 쓰지 않는다.
+// 한 번에 넣을 수 있는 ids 개수가 문서에 명시되어 있지 않아 50개씩 나눠 요청한다 (같은 수준의 엔티티끼리만)
+const STATS_CHUNK = 50;
 export async function getDailyStats(c: NaverCredentials, ids: string[], date: string): Promise<NaverStat[]> {
-  if (ids.length === 0) return [];
-  const res = await naverGet<{ data?: NaverStat[] }>(c, "/stats", {
-    ids,
-    fields: JSON.stringify(STAT_FIELDS),
-    timeRange: JSON.stringify({ since: date, until: date }),
-  });
-  return res.data ?? [];
+  const out: NaverStat[] = [];
+  for (let i = 0; i < ids.length; i += STATS_CHUNK) {
+    const res = await naverGet<{ data?: NaverStat[] }>(c, "/stats", {
+      ids: ids.slice(i, i + STATS_CHUNK),
+      fields: JSON.stringify(STAT_FIELDS),
+      timeRange: JSON.stringify({ since: date, until: date }),
+    });
+    out.push(...(res.data ?? []));
+  }
+  return out;
 }

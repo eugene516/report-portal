@@ -13,10 +13,19 @@ export type ClientSummary = {
   channels: Partial<Record<"naver" | "daangn" | "kakao", ChannelState>>;
 };
 
+type Perf = { cost: number; impressions: number; clicks: number; ctr: number | null; cpc: number | null; avgRank: number | null; conversions: number };
 export type NaverReport = {
   notContracted?: true;
   from: string; to: string;
-  kpi: { cost: number; impressions: number; clicks: number; ctr: number | null; cpc: number | null; conversions: number; roas: number | null };
+  kpi: { cost: number; impressions: number; clicks: number; ctr: number | null; cpc: number | null; conversions: number; revenue?: number; avgRank?: number | null; roas: number | null };
+  prev: (NaverReport["kpi"] & { days: number }) | null;
+  weekday: { dow: number; days: number; cost: number; impressions: number; clicks: number }[];
+  adgroups: ({ id: string; name: string; campaign: string } & Perf)[];
+  keywords: ({ id: string; keyword: string; adgroup: string; bid: number | null; status: string | null } & Perf)[];
+  month: { month: string; spent: number; elapsedDays: number; daysInMonth: number; budget: number | null } | null;
+  recentDailyAvg: number | null;
+  bizmoney: { amount: number | null; budgetLock: boolean | null; checkedAt: string } | null;
+  note: { body: string; updatedAt: string } | null;
   daily: { date: string; cost: number; impressions: number; clicks: number; conversions: number }[];
   campaigns: { id: string; name: string; cost: number; impressions: number; clicks: number; ctr: number | null; cpc: number | null; avgRank: number | null; conversions: number; roas: number | null }[];
   lastCollectedAt: string | null;
