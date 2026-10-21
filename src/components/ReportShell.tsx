@@ -1,8 +1,8 @@
 // 광고주 리포트 공통 틀 (서버 컴포넌트)
 // - 같은 화면을 직원 경로(/admin/clients/...)와 광고주 경로(/r/...)가 함께 쓴다.
-// - "홈으로 돌아가기"는 직원 경로에서 서버가 직원 권한을 확인한 경우에만 그린다.
-//   이 컴포넌트는 서버에서만 렌더링되므로, 광고주 링크 페이지의 HTML·스크립트에는 버튼이 아예 포함되지 않는다.
-// - 온라인 광고 하위 메뉴는 <details>로 펼친다 (스크립트 불필요).
+// - 좌측 메뉴는 계약 항목(client_services)에 따라 구성한다. 온라인 광고는 항상 표시(미계약은 안내).
+// - "홈으로 돌아가기", "설정", "데이터 업로드"는 직원 경로에서 서버가 권한을 확인한 경우에만 그린다.
+//   서버에서만 렌더링되므로 광고주 링크 페이지의 HTML·스크립트에는 포함되지 않는다.
 import Link from "next/link";
 import type { ClientSummary } from "@/lib/report";
 
@@ -13,12 +13,12 @@ export const AD_CHANNELS = [
 ] as const;
 export type AdChannelId = (typeof AD_CHANNELS)[number]["id"];
 
-const MENUS = [
-  { id: "", label: "대시보드" },
-  { id: "blog", label: "블로그 · 콘텐츠" },
-  { id: "place", label: "플레이스 순위" },
-  { id: "cafe", label: "카페 · 바이럴" },
-  { id: "sns", label: "SNS 카드뉴스" },
+export const MENUS = [
+  { id: "", label: "대시보드", needs: [] as string[] },
+  { id: "blog", label: "블로그 · 콘텐츠", needs: ["blog", "column", "aeo"] },
+  { id: "place", label: "플레이스 순위", needs: ["place"] },
+  { id: "cafe", label: "카페 · 바이럴", needs: ["cafe", "daangn", "review"] },
+  { id: "sns", label: "SNS 카드뉴스", needs: ["cardnews"] },
 ];
 
 export function isActiveChannel(client: ClientSummary, ch: AdChannelId) {
@@ -26,13 +26,19 @@ export function isActiveChannel(client: ClientSummary, ch: AdChannelId) {
   return !!(s?.contracted && s?.apiConnected);
 }
 
+export function visibleMenus(services: string[]) {
+  return MENUS.filter((m) => m.needs.length === 0 || m.needs.some((n) => services.includes(n)));
+}
+
 export default function ReportShell({
-  client, base, section, title, eyebrow, showHome, children,
+  client, base, section, title, eyebrow, staffTools, services, period, periods, children,
 }: {
-  client: ClientSummary; base: string; section: string[]; title: string; eyebrow: string; showHome: boolean; children: React.ReactNode;
+  client: ClientSummary; base: string; section: string[]; title: string; eyebrow: string;
+  staffTools: boolean; services: string[]; period: string | null; periods: string[]; children: React.ReactNode;
 }) {
   const current = section.join("/");
   const inAds = section[0] === "ads";
+  const q = period ? `?period=${period}` : "";
   return (
     <div className="shell">
       <aside className="side">
@@ -41,8 +47,8 @@ export default function ReportShell({
           <div className="sub">{[client.category, client.area].filter(Boolean).join(" · ")}</div>
         </div>
         <nav className="nav">
-          {MENUS.map((m) => (
-            <Link key={m.id} href={m.id ? `${base}/${m.id}` : base} className={current === m.id ? "on" : ""}>{m.label}</Link>
+          {visibleMenus(services).map((m) => (
+            <Link key={m.id} href={`${m.id ? `${base}/${m.id}` : base}${q}`} className={current === m.id ? "on" : ""}>{m.label}</Link>
           ))}
           <details open={inAds} className="nav-group">
             <summary className={`nav-parent ${inAds ? "on" : ""}`}>온라인 광고<span className="chev" aria-hidden="true">▾</span></summary>
@@ -59,16 +65,27 @@ export default function ReportShell({
             </div>
           </details>
         </nav>
-        {showHome && (
+        {staffTools && (
           <div className="side-foot">
+            <Link href={`/admin/clients/${client.id}/settings`} className="btn sm">광고주 설정</Link>
+            <Link href={`/admin/clients/${client.id}/upload`} className="btn sm">데이터 업로드</Link>
             <Link href="/admin" className="btn home-btn">← 홈으로 돌아가기</Link>
-            <div className="faint">믿는구석 직원에게만 보이는 버튼입니다</div>
+            <div className="faint">믿는구석 직원에게만 보이는 메뉴입니다</div>
           </div>
         )}
       </aside>
       <main className="main">
         <div className="topbar">
           <div className="title"><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div>
+          {period && periods.length > 0 && !inAds && (
+            <form className="row" method="get">
+              <label className="faint" htmlFor="period">보고 월</label>
+              <select id="period" name="period" defaultValue={period}>
+                {periods.map((p) => <option key={p} value={p}>{p.replace("-", "년 ")}월</option>)}
+              </select>
+              <button className="btn sm">보기</button>
+            </form>
+          )}
         </div>
         {children}
       </main>

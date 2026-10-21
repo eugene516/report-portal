@@ -9,5 +9,5 @@ export default async function ClientLinkPage({
   params, searchParams,
 }: { params: Promise<{ token: string; section?: string[] }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { token, section = [] } = await params;
-  return <ReportPage ctx={{ mode: "client", token }} section={section} searchParams={await searchParams} showHome={false} />;
+  return <ReportPage ctx={{ mode: "client", token }} section={section} searchParams={await searchParams} staffTools={false} />;
 }

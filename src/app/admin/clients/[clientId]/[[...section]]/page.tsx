@@ -11,5 +11,5 @@ export default async function StaffClientPage({
   await requireStaff();
   const { clientId, section = [] } = await params;
   if (!/^[0-9a-f-]{36}$/.test(clientId)) notFound();
-  return <ReportPage ctx={{ mode: "staff", clientId }} section={section} searchParams={await searchParams} showHome />;
+  return <ReportPage ctx={{ mode: "staff", clientId }} section={section} searchParams={await searchParams} staffTools />;
 }
