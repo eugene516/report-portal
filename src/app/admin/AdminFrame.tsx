@@ -65,7 +65,7 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
         <aside className="adm-nav" aria-label="내부 메뉴">
           <nav className="nav">
             <Link href="/admin" className={on("/admin")}>대시보드</Link>
-            <Link href="/admin/clients" className={on("/admin/clients")}>광고주 현황</Link>
+            <Link href="/admin/clients" className={sp.get("staff") ? "" : on("/admin/clients")}>광고주 현황</Link>
           </nav>
 
           {isAdmin ? (
