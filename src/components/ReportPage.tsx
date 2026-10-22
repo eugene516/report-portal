@@ -111,6 +111,7 @@ export default async function ReportPage({
 
 async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, label: string, path: string, sp: Record<string, string | undefined>) {
   const state = client.channels[ch];
+  if (!state?.contracted && ctx.mode !== "staff") return <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 광고입니다.</p>;
   if (!state?.contracted) {
     const others = AD_CHANNELS.filter((c) => c.id !== ch && isActiveChannel(client, c.id));
     return (
