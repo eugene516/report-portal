@@ -79,7 +79,7 @@ export default async function ProgressPage({ params, searchParams }: { params: P
         ) : <div className="card kpi static empty"><div className="label">온라인 광고</div><div className="value">미집행</div></div>}
       </div>
 
-      <div className="grid g-2 mt">
+      <div className="grid g-auto mt">
         <section className="card pad">
           <div className="card-h"><h2>계약 항목별 진행</h2><span className="faint">세로선 = 마감일까지 오늘의 예상 진행 위치</span></div>
           <ItemBars items={c.items} period={period} today={today} />
@@ -92,7 +92,7 @@ export default async function ProgressPage({ params, searchParams }: { params: P
         </section>
       </div>
 
-      <div className="grid g-2 mt">
+      <div className="grid g-auto mt">
         {nv?.contracted && (
           <section className="card pad">
             <div className="card-h"><h2>네이버 광고비 누적 소진</h2><span className="faint">실선 = 누적 광고비{nv.budget ? " · 점선 = 예산 계획" : ""}</span></div>

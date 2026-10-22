@@ -10,7 +10,7 @@ export function Donut({ done, total, label, sub, size = 120 }: { done: number; t
       <svg viewBox="0 0 100 100" width={size} height={size} role="img" aria-label={`${label} ${Math.round(rate * 100)}%`}>
         <title>{`${label}: ${done} / ${total} (${Math.round(rate * 100)}%)`}</title>
         <circle cx="50" cy="50" r={r} className="donut-track" />
-        <circle cx="50" cy="50" r={r} className={`donut-fill ${rate >= 1 ? "full" : ""}`} strokeDasharray={`${c * rate} ${c}`} transform="rotate(-90 50 50)" />
+        {rate > 0 && <circle cx="50" cy="50" r={r} className={`donut-fill ${rate >= 1 ? "full" : ""}`} strokeDasharray={`${c * rate} ${c}`} transform="rotate(-90 50 50)" />}
         <text x="50" y="49" className="donut-v">{total ? `${Math.round(rate * 100)}%` : "-"}</text>
         <text x="50" y="64" className="donut-s">{total ? `${done}/${total}` : "계약 없음"}</text>
       </svg>
