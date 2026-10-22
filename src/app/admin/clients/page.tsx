@@ -54,7 +54,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       </header>
 
       <section className="card mt">
-        <div className="tbl-wrap"><table className="ops-table">
+        <div className="tbl-wrap"><table className="ops-table rtable">
           <thead><tr><th>광고주</th><th>담당</th><th>이번 달 계약</th><th>계약 수량 진행</th><th>다음 마감</th><th>광고비 소진</th><th></th></tr></thead>
           <tbody>
             {rows.length === 0 && <tr><td colSpan={7} className="faint">{isAdmin ? "조건에 맞는 광고주가 없습니다." : "담당 광고주가 없습니다. '+ 새 광고주'로 만들거나 관리자에게 배정을 요청하세요."}</td></tr>}
@@ -104,16 +104,16 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 </>} cells={<>
                   <td><Link href={`/admin/progress/${c.id}`} className="cname" title="상세 진행 현황 보기">{c.name}</Link>
                     {(() => { const l = links.get(c.id); return l?.active ? <span className="badge good mt-xs" title={l.lastUsedAt ? `최근 열람 ${kstShort(l.lastUsedAt)}` : "아직 열람 전"}>링크 발급 {kstShort(l.issuedAt!).slice(0, 5)}</span> : <span className="badge mt-xs">링크 미발급</span>; })()}<div className="faint">{[c.category, c.area].filter(Boolean).join(" · ")}</div></td>
-                  <td>{c.staff.length === 0 ? <span className="badge warn">미배정</span> : c.staff.map((s) => <div key={s.id} className="nowrap">{s.name}{s.primary ? <span className="faint"> (주)</span> : ""}</div>)}</td>
-                  <td>{c.contract ? <><span className="badge good">등록</span><div className="faint">{c.contract.amount != null ? won(c.contract.amount) : "금액 미입력"} · 파일 {c.files}</div></> : <Link href={`/admin/clients/${c.id}/contracts`} className="badge warn">미등록 · 등록하기</Link>}</td>
-                  <td>
+                  <td data-label="담당">{c.staff.length === 0 ? <span className="badge warn">미배정</span> : c.staff.map((s) => <div key={s.id} className="nowrap">{s.name}{s.primary ? <span className="faint"> (주)</span> : ""}</div>)}</td>
+                  <td data-label="이번 달 계약">{c.contract ? <><span className="badge good">등록</span><div className="faint">{c.contract.amount != null ? won(c.contract.amount) : "금액 미입력"} · 파일 {c.files}</div></> : <Link href={`/admin/clients/${c.id}/contracts`} className="badge warn">미등록 · 등록하기</Link>}</td>
+                  <td data-label="계약 수량 진행">
                     {t.quantity ? <>
                       <div className="num">{Math.round(t.rate * 100)}% <span className="faint">{t.done}/{t.quantity}</span></div>
                       <div className="bar thin pace" title={`기간 경과 ${mi.elapsed}/${mi.days}일`}><i style={{ width: `${t.rate * 100}%` }} /><s style={{ left: `${(mi.elapsed / mi.days) * 100}%` }} /></div>
                     </> : <span className="faint">계약 항목 없음</span>}
                   </td>
-                  <td>{next ? <><span className={`badge ${{ late: "bad", risk: "warn", ok: "acc", done: "good" }[st!]}`}>{dday(daysLeft(next.dueOn, mi.today))}</span><div className="faint">{itemLabel(next)} {next.done}/{next.quantity}</div></> : t.quantity ? <span className="badge good">모두 완료</span> : <span className="faint">-</span>}</td>
-                  <td>{burn != null ? <><div className="num">{Math.round(burn * 100)}%</div><div className="bar thin"><i style={{ width: `${burn * 100}%` }} /></div><div className="faint">{won(nv!.spent)} / {won(nv!.budget)}</div></>
+                  <td data-label="다음 마감">{next ? <><span className={`badge ${{ late: "bad", risk: "warn", ok: "acc", done: "good" }[st!]}`}>{dday(daysLeft(next.dueOn, mi.today))}</span><div className="faint">{itemLabel(next)} {next.done}/{next.quantity}</div></> : t.quantity ? <span className="badge good">모두 완료</span> : <span className="faint">-</span>}</td>
+                  <td data-label="광고비 소진">{burn != null ? <><div className="num">{Math.round(burn * 100)}%</div><div className="bar thin"><i style={{ width: `${burn * 100}%` }} /></div><div className="faint">{won(nv!.spent)} / {won(nv!.budget)}</div></>
                     : nv?.contracted ? <span className="faint">{nv.apiConnected ? `${won(nv.spent)} · 예산 미입력` : "API 연결 전"}</span> : <span className="faint">미집행</span>}</td>
                 </>} />
               );

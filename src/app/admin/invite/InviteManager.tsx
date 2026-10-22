@@ -104,15 +104,15 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
 
       <section className="card mt">
         <div className="card-h pad-h"><h2>직원 목록</h2></div>
-        <div className="tbl-wrap"><table className="ops-table">
+        <div className="tbl-wrap"><table className="ops-table rtable">
           <thead><tr><th>직원</th><th>권한</th><th>상태</th><th>초대</th><th>최근 로그인</th><th></th></tr></thead>
           <tbody>{staff.map((s) => (
             <tr key={s.id}>
               <td><div className="cname">{s.name}{s.jobTitle && <span className="badge acc">{s.jobTitle}</span>}{s.id === meId && <span className="faint"> (나)</span>}</div><div className="faint">{s.email}</div></td>
-              <td><span className={`badge ${s.role === "owner" ? "acc" : s.role === "admin" ? "good" : ""}`}>{ROLE[s.role]}</span></td>
-              <td>{status(s)}</td>
-              <td className="num faint">{s.invitedAt ? kst(s.invitedAt) : "-"}</td>
-              <td className="num faint">{kst(s.lastSignIn)}</td>
+              <td data-label="권한"><span className={`badge ${s.role === "owner" ? "acc" : s.role === "admin" ? "good" : ""}`}>{ROLE[s.role]}</span></td>
+              <td data-label="상태">{status(s)}</td>
+              <td className="num faint" data-label="초대">{s.invitedAt ? kst(s.invitedAt) : "-"}</td>
+              <td className="num faint" data-label="최근 로그인">{kst(s.lastSignIn)}</td>
               <td className="r">{s.role !== "owner" && s.id !== meId && <button className="btn sm" disabled={busy} onClick={() => reinvite(s)}>임시 비밀번호 재발급</button>}</td>
             </tr>
           ))}</tbody>

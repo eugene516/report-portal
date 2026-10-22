@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { isAdminRole, requireStaff } from "@/lib/auth";
 import { supabaseForStaff } from "@/lib/supabase/server";
 import ClientSettings from "./ClientSettings";
+import ClientTabs from "@/components/ClientTabs";
 
 export const metadata = { title: "광고주 설정 · 리포트 포털" };
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
 
   return (
     <div className="ops narrow-wide">
+      <ClientTabs clientId={clientId} current="settings" isAdmin={isAdminRole(me.role)} />
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div><div className="faint">광고주 설정</div><h1>{client.name}</h1></div>
         <div className="row">

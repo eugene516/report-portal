@@ -11,6 +11,7 @@ export type MonthClient = {
   items: ContractItem[];
   channels: Record<string, { contracted: boolean; apiConnected: boolean; budget: number | null; spent: number | null }>;
   files: number; cafe_deleted: number; sync_failed_7d: number;
+  collected: { blog: string | null; place: string | null; cafe: string | null; naver: string | null };   // 항목별 마지막 수집 시각
 };
 export type MonthDetail = {
   adDaily: { date: string; cost: number }[];

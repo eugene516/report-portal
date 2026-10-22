@@ -768,3 +768,128 @@ a.donut-card.sm.ad .value { font-size: 18px; margin: 4px 0 2px; }
 .confirm-body { white-space: pre-wrap; color: var(--text-2); margin: 10px 0 0; }
 .confirm-act { justify-content: flex-end; margin-top: 18px; }
 .btn.danger-solid { background: var(--bad); color: #fff; border-color: transparent; }
+
+/* 대시보드: 오늘 할 일 영역 · 계약 등록 안내 */
+.today-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.today-grid .dl-list, .today-grid .alerts { max-height: 360px; }
+.empty-guide { text-align: center; padding: 32px 20px; }
+.empty-guide .row { justify-content: center; }
+
+/* 광고주 탭 */
+.client-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); margin: 0 0 16px; scrollbar-width: none; }
+.client-tabs::-webkit-scrollbar { display: none; }
+.client-tabs a { padding: 9px 14px; color: var(--text-2); font-weight: 500; border-bottom: 2px solid transparent; white-space: nowrap; }
+.client-tabs a.on { color: var(--accent); border-bottom-color: var(--accent); }
+.client-tabs a:hover { text-decoration: none; color: var(--text); }
+.main .client-tabs { margin-top: -8px; }
+
+/* 설정: 계약 항목 읽기 전용 */
+.svc-read { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.svc-chip { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text-3); }
+.svc-chip.on { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+
+/* 변경 이력 */
+.log-list { list-style: none; margin: 0; padding: 0; }
+.log-list li { display: grid; grid-template-columns: 130px 110px minmax(0, 1fr); gap: 12px; padding: 10px 16px; border-top: 1px solid var(--border); font-size: 13px; align-items: baseline; }
+.log-list li:first-child { border-top: 0; }
+.log-at { color: var(--text-3); }
+.log-who { font-weight: 500; }
+.log-what { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; min-width: 0; }
+.log-diff { color: var(--text-2); width: 100%; word-break: break-word; }
+
+/* 링크 발급: 사용 기간 */
+.issue-row { gap: 4px; flex-wrap: nowrap; }
+.sm-select { padding: 3px 6px; font-size: 12.5px; }
+.exp-soon { color: var(--bad); font-weight: 700; }
+
+/* 광고주 리포트: 이번 달 요약 */
+.month-summary { margin-bottom: 8px; }
+.ms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.ms-stat { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 12px; background: var(--surface-2); }
+.ms-stat b { font-size: 26px; line-height: 1.2; }
+.ms-stat b small { font-size: 14px; font-weight: 500; color: var(--text-2); margin-left: 2px; }
+
+/* ===== 반응형: 휴대폰(≤600) · 태블릿 세로(≤900) · 태블릿 가로(≤1200) ===== */
+html { -webkit-text-size-adjust: 100%; }
+img, svg { max-width: 100%; }
+@media (max-width: 1200px) {
+  .today-grid { grid-template-columns: 1fr; }
+  .xd { grid-template-columns: 1fr 1fr; }
+  .xd .xd-sum { grid-column: 1 / -1; flex-direction: row; justify-content: center; }
+}
+@media (max-width: 900px) {
+  .ops { padding: 14px 16px 56px; }
+  .main { padding: 14px 16px 56px; }
+  .ops-head-in { flex-direction: column; align-items: stretch; }
+  .ops-head-in > .row, .ops-head-in form.row { width: 100%; }
+  .topbar { flex-direction: column; align-items: stretch; }
+  .topbar-tools { justify-content: flex-start; }
+  .g-auto { grid-template-columns: 1fr; }
+  .month-strip { grid-template-columns: 1fr; gap: 10px; }
+  .log-list li { grid-template-columns: 1fr; gap: 2px; }
+  .preview-bar { flex-direction: column; align-items: flex-start; }
+  .key-form, .st-form, .member-form { grid-template-columns: 1fr 1fr; }
+  .contract-table { min-width: 0; }
+}
+@media (max-width: 600px) {
+  body { font-size: 14.5px; }
+  h1 { font-size: 20px; }
+  .h-sub { display: block; margin: 4px 0 0; font-size: 14px; }
+  .ops, .main { padding: 12px 12px 72px; }
+  .card.pad { padding: 14px; }
+  .btn { padding: 8px 12px; }
+  .btn.sm { padding: 6px 10px; }
+  .search, select { min-height: 38px; font-size: 16px; }   /* 아이폰: 16px 미만이면 입력할 때 화면이 확대된다 */
+  .ops-head-in .search, .ops-head-in select, .ops-head-in .search.date { width: 100%; min-width: 0; flex: 1 1 140px; }
+  .dash-kpi { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dash-kpi .donut-card { grid-column: 1 / -1; }
+  .kpi .value { font-size: 22px; }
+  .g-donut { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .svc-cards { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .donut-card.sm { min-height: 150px; }
+  .xd { grid-template-columns: 1fr; padding: 12px; }
+  .ms-grid { grid-template-columns: 1fr; }
+  .key-form, .st-form, .member-form, .task-edit-grid { grid-template-columns: 1fr; }
+  .st-form .w2 { grid-column: auto; }
+  .crates li a { grid-template-columns: minmax(0, 1fr) 80px; }
+  .crates li a > .cr-bar, .crates li a > .sb-track { grid-column: 1 / -1; grid-row: 2; }
+  .admin-bar .row { gap: 6px; }
+  .admin-brand { font-size: 15px; }
+  .board { scroll-snap-type: x mandatory; }
+  .col { flex-basis: calc(100vw - 48px); scroll-snap-align: start; }
+  .tasks { max-height: none; }
+  .modal-panel { padding: 18px; }
+  .toasts { bottom: 16px; }
+  .client-tabs a { padding: 9px 10px; }
+  .place-grid { grid-template-columns: 1fr; }
+
+  /* 표 → 카드 목록 (data-label 이 있는 표만) */
+  .rtable thead { display: none; }
+  .rtable, .rtable tbody, .rtable tr, .rtable td { display: block; width: 100%; }
+  .rtable tr { border: 1px solid var(--border); border-radius: 12px; margin: 0 0 10px; padding: 6px 12px; background: var(--surface); }
+  .rtable td { border: 0; padding: 6px 0; white-space: normal !important; display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; text-align: right; }
+  .rtable td::before { content: attr(data-label); color: var(--text-3); font-size: 12.5px; text-align: left; flex-shrink: 0; }
+  .rtable td:not([data-label])::before { content: none; }
+  .rtable td:first-child { text-align: left; display: block; padding-top: 8px; }
+  .rtable td.r .actions, .rtable td .actions { justify-content: flex-start; min-width: 0; }
+  .rtable tr.x-row { padding: 0; border: 0; background: none; }
+  .rtable tr.x-row > td { padding: 0; display: block; text-align: left; }
+  .rtable .search, .rtable select { width: 100%; }
+  .tbl-wrap:has(.rtable) { overflow: visible; }
+  .card:has(> .tbl-wrap > .rtable) { background: none; border: 0; box-shadow: none; }
+  .xd { position: static; width: auto; }
+}
+
+/* ===== 인쇄 · PDF 저장 ===== */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  :root { --bg: #fff; }
+  body { background: #fff; font-size: 12px; }
+  .admin-bar, .adm-nav, .adm-fly, .side, .preview-bar, .client-tabs, .print-btn, .preview-btn, .topbar-tools, .sec-tools, .toasts, .off-act, .btn, .logo-edit, form.row { display: none !important; }
+  .adm, .shell { display: block; }
+  .main, .ops { padding: 0; max-width: none; }
+  .card, .kpi { box-shadow: none; break-inside: avoid; }
+  .grid, .ms-grid, .g-donut { gap: 8px; }
+  a { color: inherit; }
+  .main[data-print-title]::before { content: attr(data-print-title); display: block; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+}

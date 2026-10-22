@@ -114,18 +114,18 @@ export default function ContractManager(p: Props) {
             <button className="btn sm" disabled={busy} onClick={() => add(true)}>+ 추가 진행 업무</button>
           </div>
         </div>
-        <div className="tbl-wrap"><table className="contract-table">
+        <div className="tbl-wrap"><table className="contract-table rtable">
           <thead><tr><th>구분</th><th>업무</th><th>세부 내용</th><th className="r">수량</th><th>마감일</th><th>진행 수량</th><th>추가 사유 · 메모</th><th></th></tr></thead>
           <tbody>
             {rows.length === 0 && <tr><td colSpan={8} className="faint">항목이 없습니다. ‘+ 견적 항목’ 또는 ‘+ 추가 진행 업무’를 눌러 주세요.</td></tr>}
             {rows.map((r, k) => (
               <tr key={r.id ?? `new-${k}`} className={r.extra ? "row-extra" : ""}>
-                <td><select value={r.extra ? "extra" : "base"} onChange={(e) => edit(k, { extra: e.target.value === "extra" })} aria-label="구분"><option value="base">견적</option><option value="extra">추가</option></select></td>
-                <td><select value={r.service} onChange={(e) => edit(k, { service: e.target.value })}>{OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select></td>
-                <td><input className="search" value={r.label} maxLength={60} placeholder={r.service === "etc" ? "업무 이름 (필수)" : "예: 상위노출 키워드형"} onChange={(e) => edit(k, { label: e.target.value })} /></td>
-                <td className="r"><input className="search num-in" inputMode="numeric" value={r.quantity} onChange={(e) => edit(k, { quantity: e.target.value.replace(/[^\d]/g, "") })} /></td>
-                <td><input className="search date" type="date" value={r.dueOn} min={`${p.period}-01`} onChange={(e) => edit(k, { dueOn: e.target.value })} /></td>
-                <td>
+                <td data-label="구분"><select value={r.extra ? "extra" : "base"} onChange={(e) => edit(k, { extra: e.target.value === "extra" })} aria-label="구분"><option value="base">견적</option><option value="extra">추가</option></select></td>
+                <td data-label="업무"><select value={r.service} onChange={(e) => edit(k, { service: e.target.value })}>{OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select></td>
+                <td data-label="세부 내용"><input className="search" value={r.label} maxLength={60} placeholder={r.service === "etc" ? "업무 이름 (필수)" : "예: 상위노출 키워드형"} onChange={(e) => edit(k, { label: e.target.value })} /></td>
+                <td className="r" data-label="수량"><input className="search num-in" inputMode="numeric" value={r.quantity} onChange={(e) => edit(k, { quantity: e.target.value.replace(/[^\d]/g, "") })} /></td>
+                <td data-label="마감일"><input className="search date" type="date" value={r.dueOn} min={`${p.period}-01`} onChange={(e) => edit(k, { dueOn: e.target.value })} /></td>
+                <td data-label="진행 수량">
                   {!r.id ? <span className="faint">저장 후 표시</span>
                     : AUTO.has(r.service) ? <span title="리포트에 등록된 자료로 자동 집계"><b className="num">{r.autoDone ?? 0}</b><span className="faint"> / {r.quantity} · 자동</span></span>
                     : <span className="row nowrap">
@@ -133,7 +133,7 @@ export default function ContractManager(p: Props) {
                         <button className="btn sm" disabled={busy} onClick={() => saveDone(r.id!)}>저장</button>
                       </span>}
                 </td>
-                <td><input className="search" value={r.note ?? ""} maxLength={300} placeholder={r.extra ? "예: 10/15 추가 요청" : ""} onChange={(e) => edit(k, { note: e.target.value })} /></td>
+                <td data-label="추가 사유 · 메모"><input className="search" value={r.note ?? ""} maxLength={300} placeholder={r.extra ? "예: 10/15 추가 요청" : ""} onChange={(e) => edit(k, { note: e.target.value })} /></td>
                 <td className="r"><button className="link-x" aria-label="항목 삭제" title="항목 삭제" onClick={() => remove(k)}>×</button></td>
               </tr>
             ))}

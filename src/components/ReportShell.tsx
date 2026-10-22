@@ -9,6 +9,8 @@ import Link from "next/link";
 import type { ClientSummary } from "@/lib/report";
 import { logoUrl } from "@/lib/logo";
 import LogoEditor from "./LogoEditor";
+import ClientTabs from "./ClientTabs";
+import PrintButton from "./PrintButton";
 import IssueLinkButton from "@/app/admin/IssueLinkButton";
 import { kstShort, type LinkStatus } from "@/lib/links";
 
@@ -102,6 +104,7 @@ export default function ReportShell({
         )}
       </aside>
       <main className="main">
+        {staffTools && <ClientTabs clientId={client.id} current={current === "contracts" ? "contracts" : "report"} />}
         {preview && (
           <div className="preview-bar">
             <span><b>광고주 화면 미리보기</b> · 광고주가 링크로 보는 화면과 같습니다</span>
@@ -114,12 +117,14 @@ export default function ReportShell({
         )}
         <div className="topbar">
           <div className="title"><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div>
+          {!staffTools && <PrintButton />}
           {staffTools && (
             <div className="row topbar-tools">
             {link && <LinkState link={link} />}
             <Link href={`${base}/preview${current && current !== "contracts" ? `/${current}` : ""}${q}`} className="btn sm preview-btn" title="광고주에게 보내는 링크로 열었을 때와 같은 화면">
               <span aria-hidden="true">👁</span> 광고주 화면 미리보기
             </Link>
+            <PrintButton />
             </div>
           )}
           {past && (
@@ -136,12 +141,16 @@ export default function ReportShell({
   );
 }
 
+// 만료 2주 이내
+const expSoon = (iso: string) => Date.parse(iso) - Date.parse(new Date().toISOString()) < 14 * 86_400_000;
+
 // 광고주 링크 발급 현황 (링크 원문은 발급할 때 한 번만 보이고 저장하지 않는다)
 function LinkState({ link }: { link: LinkStatus }) {
   if (!link.active) return <span className="badge warn" title="광고주에게 보낼 링크가 아직 없습니다">광고주 링크 미발급</span>;
   return (
     <span className="badge good link-state" title={`사용 중인 링크 ${link.active}개 · 링크 확인·폐기는 광고주 설정에서`}>
       ✓ 링크 발급 완료 · {kstShort(link.issuedAt!)}{link.lastUsedAt ? ` · 최근 열람 ${kstShort(link.lastUsedAt)}` : " · 아직 열람 전"}
+      {link.expiresAt && <span className={Date.parse(link.expiresAt) - Date.parse(link.issuedAt!) > 0 && expSoon(link.expiresAt) ? "exp-soon" : ""}> · {kstShort(link.expiresAt).slice(0, 5)} 만료</span>}
     </span>
   );
 }

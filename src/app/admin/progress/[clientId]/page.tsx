@@ -2,7 +2,8 @@
 // 좌측 메뉴의 직원 → 담당 업체, 또는 대시보드에서 업체 이름을 누르면 열린다.
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireStaff } from "@/lib/auth";
+import { isAdminRole, requireStaff } from "@/lib/auth";
+import ClientTabs from "@/components/ClientTabs";
 import { currentPeriod } from "@/lib/content";
 import { daysLeft, getMonthDetail, getMonthOverview, itemState, monthInfo, totals, won } from "@/lib/month";
 import { Donut, HistoryBars, ItemBars, MonthTimeline, SpendChart } from "@/components/charts";
@@ -14,7 +15,7 @@ export const metadata = { title: "광고주 진행 현황 · 리포트 포털" }
 export const dynamic = "force-dynamic";
 
 export default async function ProgressPage({ params, searchParams }: { params: Promise<{ clientId: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
-  await requireStaff();
+  const me = await requireStaff();
   const { clientId } = await params;
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(clientId)) notFound();
@@ -34,6 +35,7 @@ export default async function ProgressPage({ params, searchParams }: { params: P
 
   return (
     <div className="ops">
+      <ClientTabs clientId={clientId} current="progress" isAdmin={isAdminRole(me.role)} />
       <header className="ops-head-in">
         <div>
           <div className="faint">{[c.category, c.area].filter(Boolean).join(" · ") || "광고주"} · 주담당 {primary?.name ?? "없음"}{c.staff.filter((s) => !s.primary).length > 0 && ` · 보조 ${c.staff.filter((s) => !s.primary).map((s) => s.name).join(", ")}`}</div>

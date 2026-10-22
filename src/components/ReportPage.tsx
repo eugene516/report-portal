@@ -1,7 +1,7 @@
 // 광고주 리포트 페이지 본문 (직원 경로·광고주 경로 공용, 서버 컴포넌트)
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { basePath, getClientSummary, getNaverReport, getNaverTopKeywords, resolveKeywordWindow, resolvePeriod, type ClientSummary, type ReportCtx } from "@/lib/report";
+import { basePath, getClientSummary, getNaverReport, kstToday, getNaverTopKeywords, resolveKeywordWindow, resolvePeriod, type ClientSummary, type ReportCtx } from "@/lib/report";
 import { captureUrls, currentPeriod, getContentForRequest, getHistory, SERVICE_LABELS, type HistoryMonth, type ReportContent } from "@/lib/content";
 import ReportShell, { AD_CHANNELS, isActiveChannel, isContracted, MENUS, visibleMenus, type AdChannelId } from "./ReportShell";
 import NaverAdsView from "./NaverAdsView";
@@ -83,7 +83,7 @@ export default async function ReportPage({
     if (!menu || !visibleMenus(services).includes(menu)) notFound();   // 고정 메뉴가 아니고 계약하지 않은 항목(플레이스)의 주소는 열리지 않는다
     title = menu.label;
     let inner: React.ReactNode;
-    if (key === "") inner = <Dashboard client={client} content={content} base={base} staff={staffView} />;
+    if (key === "") inner = <Dashboard ctx={ctx} client={client} content={content} base={base} staff={staffView} />;
     else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} />;
     else if (key === "column") inner = <ColumnSection c={content} />;
     else if (key === "place") inner = <PlaceSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.capture ?? null))} />;
@@ -155,7 +155,7 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
 
 // 대시보드: 모든 업무 항목과 광고 채널을 기본 카드로 표시. 계약하지 않은 항목은 "미집행",
 // 직원 화면에서는 그 아래 [+ 추가하기] (→ 해당 메뉴의 추가 계약 입력이 열린 상태로 이동)
-function Dashboard({ client, content, base, staff }: { client: ClientSummary; content: ReportContent; base: string; staff: boolean }) {
+async function Dashboard({ ctx, client, content, base, staff }: { ctx: ReportCtx; client: ClientSummary; content: ReportContent; base: string; staff: boolean }) {
   const s = content.services;
   const past = content.period !== currentPeriod();
   const q = past ? `?period=${content.period}` : "";
@@ -181,9 +181,10 @@ function Dashboard({ client, content, base, staff }: { client: ClientSummary; co
   const offCls = `card kpi donut-card off-card ${staff ? "" : "mini"}`;
   return (
     <>
-      <h2>마케팅 업무</h2>
+      <MonthSummary ctx={ctx} client={client} content={content} cards={cards} />
+      <h2 className="mt-l">마케팅 업무</h2>
       <div className="grid g-donut mt">
-        {cards.map((c) => !c.on && !c.done ? (
+        {(staff ? cards : [...cards].sort((a, b) => Number(!(b.on || b.done)) - Number(!(a.on || a.done)))).map((c) => !c.on && !c.done ? (
           <div key={c.id} className={offCls}>
             {off(c.label, "계약에 포함되지 않음", staff && <Link className="btn sm primary" href={`${base}/${c.id}?add=extra`}>+ 추가하기</Link>)}
           </div>
@@ -196,7 +197,7 @@ function Dashboard({ client, content, base, staff }: { client: ClientSummary; co
       </div>
       <h2 className="mt-l">온라인 광고</h2>
       <div className="grid g-donut mt">
-        {AD_CHANNELS.map((c) => {
+        {(staff ? [...AD_CHANNELS] : [...AD_CHANNELS].sort((a, b) => Number(!!client.channels[b.id]?.contracted) - Number(!!client.channels[a.id]?.contracted))).map((c) => {
           const st = client.channels[c.id];
           if (!st?.contracted) return (
             <div key={c.id} className={offCls}>
@@ -247,5 +248,38 @@ function HistorySection({ months, thisMonth, base, services }: { months: History
         ))}
       </div>
     </>
+  );
+}
+
+// 이번 달 요약: 핵심 수치 3개 (발행·게시 합계 · 계약 수량 진행률 · 네이버 광고 또는 플레이스)
+async function MonthSummary({ ctx, client, content, cards }: {
+  ctx: ReportCtx; client: ClientSummary; content: ReportContent;
+  cards: { id: string; label: string; on: boolean; done: number; target: number | null }[];
+}) {
+  const work = cards.filter((c) => c.id !== "place");
+  const posted = work.reduce((a, c) => a + c.done, 0);
+  const withTarget = work.filter((c) => c.on && c.target);
+  const target = withTarget.reduce((a, c) => a + (c.target ?? 0), 0);
+  const done = withTarget.reduce((a, c) => a + Math.min(c.done, c.target ?? 0), 0);
+  const rate = target ? Math.round((done / target) * 100) : null;
+  const from = `${content.period}-01`;
+  const yesterday = kstToday(-1);
+  const to = content.period === yesterday.slice(0, 7) ? yesterday : new Date(Date.UTC(Number(content.period.slice(0, 4)), Number(content.period.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const naver = isActiveChannel(client, "naver") && to >= from ? await getNaverReport(ctx, from, to) : null;
+  const place = content.keywords.filter((k) => k.kind === "place");
+  const top3 = place.filter((k) => (k.place?.rank ?? 99) <= 3).length;
+  const third = naver && !naver.notContracted
+    ? { label: "네이버 광고", value: `${naver.kpi.clicks.toLocaleString("ko-KR")}회 클릭`, foot: `노출 ${naver.kpi.impressions.toLocaleString("ko-KR")} · 광고비 ${Math.round(naver.kpi.cost).toLocaleString("ko-KR")}원` }
+    : place.length ? { label: "플레이스 Top 3", value: `${top3} / ${place.length}개`, foot: "지정 키워드 중 3위 이내" } : null;
+  const [y, m] = content.period.split("-").map(Number);
+  return (
+    <section className="card pad month-summary">
+      <div className="card-h"><h2>이번 달 요약</h2><span className="faint">{y}년 {m}월 · {Number(to.slice(5, 7))}/{Number(to.slice(8, 10))}까지 집계</span></div>
+      <div className="ms-grid">
+        <div className="ms-stat"><span className="faint">발행 · 게시 콘텐츠</span><b className="num">{posted}<small>건</small></b><span className="faint">{work.filter((c) => c.done > 0).map((c) => `${c.label.replace(" 발행", "")} ${c.done}`).join(" · ") || "이번 달 등록 전"}</span></div>
+        <div className="ms-stat"><span className="faint">계약 수량 진행률</span><b className="num">{rate == null ? "-" : rate}<small>{rate == null ? "" : "%"}</small></b><span className="faint">{target ? `${done} / ${target}건 완료` : "계약 수량 없음"}</span></div>
+        {third && <div className="ms-stat"><span className="faint">{third.label}</span><b className="num">{third.value}</b><span className="faint">{third.foot}</span></div>}
+      </div>
+    </section>
   );
 }

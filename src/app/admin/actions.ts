@@ -7,13 +7,16 @@ import { headers } from "next/headers";
 import { requireStaff } from "@/lib/auth";
 import { supabaseForStaff } from "@/lib/supabase/server";
 
-export async function issueClientLink(clientId: string): Promise<{ url?: string; error?: string }> {
+export async function issueClientLink(clientId: string, months = 0): Promise<{ url?: string; error?: string }> {
   const staff = await requireStaff();
   if (!/^[0-9a-f-]{36}$/.test(clientId)) return { error: "잘못된 요청입니다." };
   const token = randomBytes(32).toString("base64url"); // 43자, 256비트
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const db = await supabaseForStaff();
-  const { error } = await db.from("client_access_tokens").insert({ client_id: clientId, token_hash: tokenHash, label: "관리자 발급", created_by: staff.userId });
+  // 사용 기간: 0 = 무기한, 3·6·12개월
+  const m = [0, 3, 6, 12].includes(months) ? months : 0;
+  const expires = m ? new Date(Date.now() + m * 30.5 * 86_400_000).toISOString() : null;
+  const { error } = await db.from("client_access_tokens").insert({ client_id: clientId, token_hash: tokenHash, label: "관리자 발급", created_by: staff.userId, expires_at: expires });
   if (error) return { error: "링크를 발급하지 못했습니다." };
   const h = await headers();
   const proto = h.get("x-forwarded-proto") ?? "http";

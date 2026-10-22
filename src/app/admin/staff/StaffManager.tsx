@@ -77,14 +77,14 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
       {msg && <div className={`${msg.ok ? "planned" : "notice"} mt`}>{msg.text}</div>}
 
       <section className="card mt">
-        <div className="tbl-wrap"><table className="ops-table">
+        <div className="tbl-wrap"><table className="ops-table rtable">
           <thead><tr><th>직원</th><th>직급 · 담당 업무</th><th>권한</th><th>담당 광고주</th><th></th></tr></thead>
           <tbody>{staff.map((s) => {
             const self = s.id === me.id;
             return (
               <tr key={s.id}>
                 <td><div className="cname">{s.name}{self && <span className="faint"> (나)</span>}</div><div className="faint">{s.email}</div></td>
-                <td className="wrap-cell">
+                <td className="wrap-cell" data-label="직급 · 담당 업무">
                   {editFor === s.id ? (
                     <form className="profile-edit" onSubmit={(e) => saveProfile(e, s.id)}>
                       <input name="name" defaultValue={s.name} maxLength={40} className="search" aria-label="이름" />
@@ -100,8 +100,8 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
                     </span>
                   )}
                 </td>
-                <td><span className={`badge ${s.role === "owner" ? "acc" : s.role === "admin" ? "good" : ""}`}>{ROLE[s.role]}</span></td>
-                <td>{s.clients.length === 0 ? <span className="faint">-</span> : s.clients.map((c) => <span key={c.id} className="chip-s">{c.name}{c.primary ? " (주)" : ""}</span>)}</td>
+                <td data-label="권한"><span className={`badge ${s.role === "owner" ? "acc" : s.role === "admin" ? "good" : ""}`}>{ROLE[s.role]}</span></td>
+                <td data-label="담당 광고주">{s.clients.length === 0 ? <span className="faint">-</span> : s.clients.map((c) => <span key={c.id} className="chip-s">{c.name}{c.primary ? " (주)" : ""}</span>)}</td>
                 <td className="r">
                   <div className="row" style={{ justifyContent: "flex-end" }}>
                     {s.role === "staff" && <button className="btn sm" disabled={busy} onClick={() => setRole(s.id, "admin")}>관리자로 지정</button>}

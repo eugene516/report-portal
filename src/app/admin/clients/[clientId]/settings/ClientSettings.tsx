@@ -4,7 +4,8 @@ import { ask, toast } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import { AD_CHANNEL_OPTIONS, serviceRows, ServicePicker, type ServiceState } from "@/components/ServicePicker";
+import Link from "next/link";
+import { AD_CHANNEL_OPTIONS, SERVICES, type ServiceState } from "@/components/ServicePicker";
 import { uploadQuotes } from "@/components/quotes";
 import IssueLinkButton from "@/app/admin/IssueLinkButton";
 import NaverKeyPanel from "./NaverKeyPanel";
@@ -30,21 +31,13 @@ export default function ClientSettings(p: Props) {
   // 저장 결과는 화면 아래 알림으로
   const setMsg = (m: { ok: boolean; text: string } | null) => { if (m) toast(m.text, { kind: m.ok ? "ok" : "error" }); };
   const [busy, setBusy] = useState(false);
-  const [services, setServices] = useState<ServiceState>(p.services);
+  const services = p.services;
   const done = (ok: boolean, text: string) => { setMsg({ ok, text }); setBusy(false); if (ok) router.refresh(); };
 
   async function saveInfo(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); const fd = new FormData(e.currentTarget); setBusy(true);
     const { error } = await sb.from("clients").update({ name: String(fd.get("name")).trim(), category: String(fd.get("category")).trim() || null, area: String(fd.get("area")).trim() || null, updated_at: new Date().toISOString() }).eq("id", id);
     done(!error, error ? "기본 정보를 저장하지 못했습니다." : "기본 정보를 저장했습니다.");
-  }
-  async function saveServices() {
-    setBusy(true);
-    const rows = serviceRows(id, services);
-    const off = Object.entries(services).filter(([, s]) => !s.on).map(([k]) => k);
-    const r1 = rows.length ? await sb.from("client_services").upsert(rows) : { error: null };
-    const r2 = off.length ? await sb.from("client_services").delete().eq("client_id", id).in("service", off) : { error: null };
-    done(!r1.error && !r2.error, r1.error || r2.error ? "계약 항목을 저장하지 못했습니다." : "계약 항목을 저장했습니다. 리포트 메뉴에 바로 반영됩니다.");
   }
   async function toggleChannel(ch: string, contracted: boolean) {
     setBusy(true);
@@ -108,8 +101,13 @@ export default function ClientSettings(p: Props) {
       </section>
 
       <section className="card pad mt">
-        <div className="card-h"><h2>계약 항목</h2><button className="btn primary sm" disabled={busy} onClick={saveServices}>계약 항목 저장</button></div>
-        <ServicePicker value={services} onChange={setServices} />
+        <div className="card-h"><h2>계약 항목</h2><Link href={`/admin/clients/${id}/contracts`} className="btn primary sm">계약 · 견적 관리에서 수정</Link></div>
+        <p className="faint">월별 계약 수량 · 마감일 · 추가 진행 업무는 ‘계약 · 견적 관리’ 한 곳에서 관리합니다. 이번 달 계약을 저장하면 아래 리포트 메뉴와 월 목표가 함께 바뀝니다.</p>
+        <div className="svc-read">
+          {SERVICES.map((sv) => { const v = services[sv.id]; return (
+            <span key={sv.id} className={`svc-chip ${v?.on ? "on" : ""}`}>{sv.label}{v?.on ? (v.target ? ` · 월 ${v.target}${sv.unit.replace("/월", "")}` : " · 계약") : " · 미집행"}</span>
+          ); })}
+        </div>
       </section>
 
       <section className="card pad mt">
