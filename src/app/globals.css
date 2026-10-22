@@ -39,7 +39,7 @@
 html, body { margin: 0; }
 body {
   background: var(--bg); color: var(--text);
-  font: 14px/1.55 "Noto Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  font: 14px/1.55 "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 a { color: var(--accent); text-decoration: none; }
@@ -679,3 +679,7 @@ a.donut-card.sm.ad .value { font-size: 18px; margin: 4px 0 2px; }
 /* 광고주 화면 미리보기 */
 .preview-bar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; padding: 10px 14px; margin: -8px 0 16px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 13px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 .preview-btn { display: inline-flex; align-items: center; gap: 6px; }
+.mt-xs { margin-top: 4px; }
+.topbar-tools { justify-content: flex-end; }
+.link-state { white-space: normal; }
+.link-row { align-items: flex-start; }

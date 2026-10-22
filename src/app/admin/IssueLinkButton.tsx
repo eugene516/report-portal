@@ -1,22 +1,27 @@
 "use client";
+// 광고주 링크 발급: 발급 직후 링크를 한 번만 보여주고, 화면을 새로 고쳐 다른 곳의 "발급 완료" 표시도 바로 바뀌게 한다
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { issueClientLink } from "./actions";
 
-export default function IssueLinkButton({ clientId }: { clientId: string }) {
+export default function IssueLinkButton({ clientId, issued = false, primary = false }: { clientId: string; issued?: boolean; primary?: boolean }) {
+  const router = useRouter();
   const [url, setUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   return (
     <span className="issue-link">
-      <button className="btn sm" disabled={pending} onClick={() => start(async () => {
-        if (!confirm("새 광고주 링크를 발급할까요? 링크는 지금 한 번만 표시됩니다.")) return;
+      <button className={`btn sm ${primary ? "primary" : ""}`} disabled={pending} onClick={() => start(async () => {
+        if (!confirm(issued ? "광고주 링크를 새로 발급할까요?\n이미 보낸 링크도 계속 쓸 수 있으며, 필요 없으면 광고주 설정에서 폐기하세요.\n새 링크는 지금 한 번만 표시됩니다." :"광고주 링크를 발급할까요? 링크는 지금 한 번만 표시됩니다.")) return;
         const r = await issueClientLink(clientId);
-        setUrl(r.url ?? null); setError(r.error ?? null);
-      })}>광고주 링크 발급</button>
+        setUrl(r.url ?? null); setError(r.error ?? null); setCopied(false);
+        if (r.url) router.refresh();
+      })}>{issued ? "링크 새로 발급" : "광고주 링크 발급"}</button>
       {url && (
         <span className="link-once">
           <input readOnly value={url} className="search" onFocus={(e) => e.currentTarget.select()} />
-          <button className="btn sm" onClick={() => navigator.clipboard.writeText(url)}>복사</button>
+          <button className="btn sm" onClick={async () => { try { await navigator.clipboard.writeText(url); setCopied(true); } catch { setCopied(false); } }}>{copied ? "복사했습니다" : "복사"}</button>
           <span className="faint">이 링크는 다시 볼 수 없습니다. 지금 복사해 광고주에게 전달하세요.</span>
         </span>
       )}

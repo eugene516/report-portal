@@ -9,6 +9,7 @@ import { BlogSection, CafeSection, ColumnSection, PlaceSection, SnsSection } fro
 import ContractsSection from "./ContractsSection";
 import SectionTools, { type SectionKind } from "./SectionTools";
 import AdContractButton from "./AdContractButton";
+import { getLinkStatus } from "@/lib/links";
 import { getMonthOverview, monthInfo } from "@/lib/month";
 import { Donut } from "./charts";
 
@@ -56,6 +57,8 @@ export default async function ReportPage({
   const [client, content] = await Promise.all([getClientSummary(ctx), getContentForRequest(ctx, searchParams.period)]);
   if (!client || !content) notFound();   // 틀린 링크·권한 없음: 존재 여부를 구분하지 않는다
   const base = basePath(ctx) + (preview ? "/preview" : "");
+  // 직원 경로: 광고주 링크 발급 현황 (화면 위쪽 표시)
+  const link = ctx.mode === "staff" ? ((await getLinkStatus([ctx.clientId])).get(ctx.clientId) ?? { active: 0, issuedAt: null, lastUsedAt: null }) : null;
   const key = section.join("/");
   const services = Object.keys(content.services);
   const monthLabel = `${content.period.replace("-", "년 ")}월`;
@@ -107,7 +110,7 @@ export default async function ReportPage({
   return (
     <ReportShell client={client} base={base} section={section} title={title}
       eyebrow={`${client.name} · ${section[0] === "ads" ? "온라인 광고" : key === "history" || key === "contracts" ? "월별 관리" : `${monthLabel} 마케팅 리포트`}`}
-      staffTools={staffView} preview={preview ? basePath(ctx) : null} services={services} period={content.period} thisMonth={currentPeriod()}>
+      staffTools={staffView} preview={preview ? basePath(ctx) : null} link={link} services={services} period={content.period} thisMonth={currentPeriod()}>
       {body}
     </ReportShell>
   );

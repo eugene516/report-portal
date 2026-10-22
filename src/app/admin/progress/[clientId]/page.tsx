@@ -7,6 +7,8 @@ import { currentPeriod } from "@/lib/content";
 import { daysLeft, getMonthDetail, getMonthOverview, itemState, monthInfo, totals, won } from "@/lib/month";
 import { Donut, HistoryBars, ItemBars, MonthTimeline, SpendChart } from "@/components/charts";
 import ServiceGrid from "@/components/ServiceGrid";
+import IssueLinkButton from "../../IssueLinkButton";
+import { getLinkStatus, kstShort } from "@/lib/links";
 
 export const metadata = { title: "광고주 진행 현황 · 리포트 포털" };
 export const dynamic = "force-dynamic";
@@ -17,7 +19,8 @@ export default async function ProgressPage({ params, searchParams }: { params: P
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(clientId)) notFound();
   const period = sp.period && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.period) ? sp.period : currentPeriod();
-  const [rows, detail] = await Promise.all([getMonthOverview(period, clientId), getMonthDetail(clientId, period)]);
+  const [rows, detail, links] = await Promise.all([getMonthOverview(period, clientId), getMonthDetail(clientId, period), getLinkStatus([clientId])]);
+  const link = links.get(clientId);
   const c = rows[0];
   if (!c || !detail) notFound();   // 담당이 아니면 DB 함수가 거부한다
   const mi = monthInfo(period);
@@ -43,11 +46,18 @@ export default async function ProgressPage({ params, searchParams }: { params: P
             <button className="btn sm">보기</button>
           </form>
           <Link href={`/admin/clients/${c.id}`} className="btn">리포트 열기</Link>
+          <Link href={`/admin/clients/${c.id}/preview`} className="btn">광고주 화면 미리보기</Link>
           <Link href={`/admin/clients/${c.id}/contracts?period=${period}`} className="btn primary">계약 · 견적 관리</Link>
           <Link href={`/admin/clients/${c.id}/settings`} className="btn">설정</Link>
         </div>
       </header>
 
+      <div className="row link-row mt-s">
+        {link?.active
+          ? <span className="badge good">✓ 광고주 링크 발급 완료 · {kstShort(link.issuedAt!)}{link.lastUsedAt ? ` · 최근 열람 ${kstShort(link.lastUsedAt)}` : " · 아직 열람 전"}</span>
+          : <span className="badge warn">광고주 링크 미발급</span>}
+        <IssueLinkButton clientId={c.id} issued={!!link?.active} />
+      </div>
       {!c.contract && (
         <div className="notice mt">
           {mi.label} 계약 내용이 아직 등록되지 않았습니다. {c.items.length > 0 ? "아래는 리포트 계약 항목의 월 목표로 대신 계산한 값이며, 마감일은 말일로 표시합니다." : ""}

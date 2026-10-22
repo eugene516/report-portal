@@ -9,6 +9,8 @@ import Link from "next/link";
 import type { ClientSummary } from "@/lib/report";
 import { logoUrl } from "@/lib/logo";
 import LogoEditor from "./LogoEditor";
+import IssueLinkButton from "@/app/admin/IssueLinkButton";
+import { kstShort, type LinkStatus } from "@/lib/links";
 
 export const AD_CHANNELS = [
   { id: "naver", label: "네이버 광고" },
@@ -41,11 +43,12 @@ export function visibleMenus(services: string[]) {
 export const isContracted = (services: string[], svc: string | null) => !svc || services.includes(svc);
 
 export default function ReportShell({
-  client, base, section, title, eyebrow, staffTools, preview = null, services, period, thisMonth, children,
+  client, base, section, title, eyebrow, staffTools, preview = null, link = null, services, period, thisMonth, children,
 }: {
   client: ClientSummary; base: string; section: string[]; title: string; eyebrow: string;
   staffTools: boolean; services: string[]; period: string; thisMonth: string; children: React.ReactNode;
   preview?: string | null;   // 광고주 화면 미리보기 중이면 내부 화면 주소(돌아가기용)
+  link?: LinkStatus | null;  // 직원 화면 · 미리보기: 광고주 링크 발급 현황
 }) {
   const current = section.join("/");
   const inAds = section[0] === "ads";
@@ -102,15 +105,22 @@ export default function ReportShell({
         {preview && (
           <div className="preview-bar">
             <span><b>광고주 화면 미리보기</b> · 광고주가 링크로 보는 화면과 같습니다</span>
-            <Link href={`${preview}${current ? `/${current}` : ""}${q}`} className="btn sm">← 내부 화면으로 돌아가기</Link>
+            <span className="row">
+              {link && <LinkState link={link} />}
+              <IssueLinkButton clientId={client.id} issued={!!link?.active} primary />
+              <Link href={`${preview}${current ? `/${current}` : ""}${q}`} className="btn sm">← 내부 화면으로 돌아가기</Link>
+            </span>
           </div>
         )}
         <div className="topbar">
           <div className="title"><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div>
           {staffTools && (
+            <div className="row topbar-tools">
+            {link && <LinkState link={link} />}
             <Link href={`${base}/preview${current && current !== "contracts" ? `/${current}` : ""}${q}`} className="btn sm preview-btn" title="광고주에게 보내는 링크로 열었을 때와 같은 화면">
               <span aria-hidden="true">👁</span> 광고주 화면 미리보기
             </Link>
+            </div>
           )}
           {past && (
             <div className="row">
@@ -123,5 +133,15 @@ export default function ReportShell({
         {children}
       </main>
     </div>
+  );
+}
+
+// 광고주 링크 발급 현황 (링크 원문은 발급할 때 한 번만 보이고 저장하지 않는다)
+function LinkState({ link }: { link: LinkStatus }) {
+  if (!link.active) return <span className="badge warn" title="광고주에게 보낼 링크가 아직 없습니다">광고주 링크 미발급</span>;
+  return (
+    <span className="badge good link-state" title={`사용 중인 링크 ${link.active}개 · 링크 확인·폐기는 광고주 설정에서`}>
+      ✓ 링크 발급 완료 · {kstShort(link.issuedAt!)}{link.lastUsedAt ? ` · 최근 열람 ${kstShort(link.lastUsedAt)}` : " · 아직 열람 전"}
+    </span>
   );
 }

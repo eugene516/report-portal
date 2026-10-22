@@ -8,6 +8,7 @@ import { Donut, ItemBars, MonthTimeline } from "@/components/charts";
 import IssueLinkButton from "../IssueLinkButton";
 import ExpandRow from "./ExpandRow";
 import ServiceGrid from "@/components/ServiceGrid";
+import { getLinkStatus, kstShort } from "@/lib/links";
 
 export const metadata = { title: "광고주 현황 · 리포트 포털" };
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const isAdmin = isAdminRole(me.role);
   const period = currentPeriod();
-  const [all, staffList] = await Promise.all([getMonthOverview(period), isAdmin ? getStaffOverview() : Promise.resolve([])]);
+  const [all, staffList, links] = await Promise.all([getMonthOverview(period), isAdmin ? getStaffOverview() : Promise.resolve([]), getLinkStatus()]);
   const mi = monthInfo(period);
   const q = (sp.q ?? "").trim();
   const staffFilter = isAdmin ? sp.staff : undefined;
@@ -99,9 +100,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                   <Link className="btn sm" href={`/admin/clients/${c.id}`}>리포트</Link>
                   <Link className="btn sm" href={`/admin/clients/${c.id}/contracts`}>계약 · 견적</Link>
                   <Link className="btn sm" href={`/admin/clients/${c.id}/settings`}>설정</Link>
-                  <IssueLinkButton clientId={c.id} />
+                  <IssueLinkButton clientId={c.id} issued={!!links.get(c.id)?.active} />
                 </>} cells={<>
-                  <td><Link href={`/admin/progress/${c.id}`} className="cname" title="상세 진행 현황 보기">{c.name}</Link><div className="faint">{[c.category, c.area].filter(Boolean).join(" · ")}</div></td>
+                  <td><Link href={`/admin/progress/${c.id}`} className="cname" title="상세 진행 현황 보기">{c.name}</Link>
+                    {(() => { const l = links.get(c.id); return l?.active ? <span className="badge good mt-xs" title={l.lastUsedAt ? `최근 열람 ${kstShort(l.lastUsedAt)}` : "아직 열람 전"}>링크 발급 {kstShort(l.issuedAt!).slice(0, 5)}</span> : <span className="badge mt-xs">링크 미발급</span>; })()}<div className="faint">{[c.category, c.area].filter(Boolean).join(" · ")}</div></td>
                   <td>{c.staff.length === 0 ? <span className="badge warn">미배정</span> : c.staff.map((s) => <div key={s.id} className="nowrap">{s.name}{s.primary ? <span className="faint"> (주)</span> : ""}</div>)}</td>
                   <td>{c.contract ? <><span className="badge good">등록</span><div className="faint">{c.contract.amount != null ? won(c.contract.amount) : "금액 미입력"} · 파일 {c.files}</div></> : <Link href={`/admin/clients/${c.id}/contracts`} className="badge warn">미등록 · 등록하기</Link>}</td>
                   <td>
