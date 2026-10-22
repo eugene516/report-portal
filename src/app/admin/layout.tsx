@@ -23,8 +23,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
   return (
     <Suspense>
-      <AdminFrame me={{ name: staff.name, role: staff.role }} myClients={myClients} navCollapsed={navCollapsed}
-        staff={staffList.map((s) => ({ id: s.id, name: s.name, role: s.role, clients: s.clients }))}>
+      <AdminFrame me={{ name: staff.name, role: staff.role, jobTitle: staff.jobTitle }} myClients={myClients} navCollapsed={navCollapsed}
+        staff={staffList.map((s) => ({ id: s.id, name: s.name, role: s.role, jobTitle: s.jobTitle, clients: s.clients }))}>
         {children}
       </AdminFrame>
     </Suspense>

@@ -9,9 +9,9 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 type NavClient = { id: string; name: string; primary: boolean };
-type NavStaff = { id: string; name: string; role: "owner" | "admin" | "staff"; clients: NavClient[] };
+type NavStaff = { id: string; name: string; role: "owner" | "admin" | "staff"; jobTitle: string | null; clients: NavClient[] };
 type Props = {
-  me: { name: string; role: "owner" | "admin" | "staff" };
+  me: { name: string; role: "owner" | "admin" | "staff"; jobTitle: string | null };
   staff: NavStaff[];          // 관리자 이상만 채워짐
   myClients: NavClient[];     // 직원: 내 담당 광고주
   children: React.ReactNode;
@@ -54,7 +54,7 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
         </div>
         <div className="row">
           {isAdmin && <Link href="/admin/invite" className="btn sm primary hide-s">직원 초대</Link>}
-          <span className="faint hide-s">{me.name} ({ROLE[me.role]})</span>
+          <span className="faint hide-s">{me.name}{me.jobTitle ? ` ${me.jobTitle}` : ""} ({ROLE[me.role]})</span>
           <Link href="/admin/account" className="btn sm">내 정보 수정</Link>
           <form action="/auth/signout" method="post"><button className="btn sm">로그아웃</button></form>
         </div>
@@ -79,7 +79,7 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
                     <div key={s.id}>
                       <button className={`nav-btn ${open ? "open" : ""}`} aria-expanded={open}
                         onClick={() => setOpenStaff(open ? openStaff.filter((x) => x !== s.id) : [...openStaff, s.id])}>
-                        <span className="nav-t">{s.name}{s.role !== "staff" && <span className="faint"> · {ROLE[s.role]}</span>}</span>
+                        <span className="nav-t">{s.name}{(s.jobTitle || s.role !== "staff") && <span className="faint"> · {s.jobTitle ?? ROLE[s.role]}</span>}</span>
                         <span className="cnt">{s.clients.length}<span className="chev" aria-hidden="true">▾</span></span>
                       </button>
                       {open && (

@@ -726,3 +726,14 @@ a.donut-card.sm.ad .value { font-size: 18px; margin: 4px 0 2px; }
 .done-h:hover { background: var(--surface-2); }
 @media (hover: none) { .task-act { display: inline-flex; } }
 @media (max-width: 700px) { .col { flex-basis: 85vw; } }
+
+/* 직급 · 담당 업무 */
+.ops-table td.wrap-cell { white-space: normal; min-width: 220px; }
+.profile-edit { display: grid; grid-template-columns: 1fr; gap: 6px; min-width: 240px; }
+.profile-edit .search { min-width: 0; width: 100%; }
+.col-title { font-size: 12px; font-weight: 500; color: var(--accent); background: var(--accent-soft); padding: 1px 8px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+.col-duty { padding: 0 12px 8px; font-size: 12.5px; color: var(--text-3); margin-top: -4px; }
+.col-edit { display: grid; gap: 6px; padding: 0 12px 10px; }
+.col-edit .search { min-width: 0; width: 100%; }
+.col-h .icon-btn { border: 0; background: none; cursor: pointer; color: var(--text-3); padding: 2px 6px; border-radius: 6px; }
+.col-h .icon-btn:hover { background: var(--surface-2); color: var(--text); }

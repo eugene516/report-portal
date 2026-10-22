@@ -35,6 +35,21 @@ begin
   select count(*) into n from public.team_tasks where id = t;
   r := r || '5 ' || case when n = 0 then 'OK' else 'FAIL' end || ';';
 
+  -- 7. 직급 · 담당 업무: 직원은 바꿀 수 없다
+  begin perform public.set_staff_profile(s1, null, '부장', null); r := r || '7 FAIL;';
+  exception when insufficient_privilege then r := r || '7 OK;'; end;
+  -- 8. 관리자는 바꿀 수 있고, 연결된 보드 멤버에도 반영된다
+  perform set_config('role', 'postgres', true);
+  insert into public.task_members (name, user_id) values ('직원시험', s1);
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims', json_build_object('sub', ad, 'role', 'authenticated')::text, true);
+  perform public.set_staff_profile(s1, '새이름', '대리', '블로그 운영');
+  select count(*) into n from public.staff_roles where user_id = s1 and job_title = '대리' and duty = '블로그 운영' and display_name = '새이름';
+  r := r || '8 ' || case when n = 1 and (select job_title from public.task_members where user_id = s1) = '대리' then 'OK' else 'FAIL' end || ';';
+  -- 9. 목록에 없는 직급은 거부
+  begin perform public.set_staff_profile(s1, null, '회장', null); r := r || '9 FAIL;';
+  exception when check_violation then r := r || '9 OK;'; end;
+
   -- 6. 로그인하지 않은 요청: 조회 불가
   perform set_config('role', 'anon', true);
   perform set_config('request.jwt.claims', '{"role":"anon"}', true);

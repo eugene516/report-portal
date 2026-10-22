@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { StaffRow } from "@/lib/dashboard";
+import { NEW_JOB_TITLES } from "@/lib/titles";
 
 const ROLE: Record<string, string> = { owner: "오너", admin: "관리자", staff: "직원" };
 const kst = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ") : "-");
@@ -46,6 +47,9 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
     const { data, error } = await sb.functions.invoke("staff-admin", { body: { action: "invite", email, displayName: fd.get("name"), role: fd.get("role") } });
     setBusy(false);
     if (error) { setMsg({ ok: false, text: await fnError(error, "초대하지 못했습니다.") }); return; }
+    // 직급 · 담당 업무 저장 (오너·관리자만 가능 — 이 화면이 관리자 전용)
+    const title = String(fd.get("title") ?? ""), duty = String(fd.get("duty") ?? "");
+    if (data?.userId && (title || duty)) await sb.rpc("set_staff_profile", { p_user: data.userId, p_name: "", p_title: title, p_duty: duty });
     form.reset();
     show(email, data);
   }
@@ -71,7 +75,9 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
         <h2>새 직원 초대</h2>
         <form onSubmit={invite} className="key-form mt" autoComplete="off">
           <label>이름<input name="name" required maxLength={40} className="search" /></label>
+          <label>직급<select name="title" defaultValue="사원">{NEW_JOB_TITLES.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
           <label>이메일<input name="email" type="email" required className="search" autoComplete="off" placeholder="name@believe-corner.com" /></label>
+          <label>담당 업무<input name="duty" maxLength={100} className="search" placeholder="예: 블로그·카페 운영" /></label>
           <label>권한<select name="role" defaultValue="staff"><option value="staff">직원 (담당 광고주만)</option><option value="admin">관리자 (전체)</option></select></label>
           <button className="btn primary" disabled={busy}>{busy ? "처리 중…" : "초대 보내기"}</button>
         </form>
@@ -101,7 +107,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
           <thead><tr><th>직원</th><th>권한</th><th>상태</th><th>초대</th><th>최근 로그인</th><th></th></tr></thead>
           <tbody>{staff.map((s) => (
             <tr key={s.id}>
-              <td><div className="cname">{s.name}{s.id === meId && <span className="faint"> (나)</span>}</div><div className="faint">{s.email}</div></td>
+              <td><div className="cname">{s.name}{s.jobTitle && <span className="badge acc">{s.jobTitle}</span>}{s.id === meId && <span className="faint"> (나)</span>}</div><div className="faint">{s.email}</div></td>
               <td><span className={`badge ${s.role === "owner" ? "acc" : s.role === "admin" ? "good" : ""}`}>{ROLE[s.role]}</span></td>
               <td>{status(s)}</td>
               <td className="num faint">{s.invitedAt ? kst(s.invitedAt) : "-"}</td>

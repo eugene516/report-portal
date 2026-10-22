@@ -2,11 +2,13 @@
 // 직원 관리 화면
 // - 비밀번호 재설정·비활성화 (새 직원 초대는 /admin/invite): Supabase staff-admin 함수로 직접 전송 (웹 서버를 거치지 않음)
 // - 관리자 지정·해제, 오너 양도: DB 함수(set_staff_role / transfer_ownership)가 권한을 다시 확인
+// - 이름 · 직급 · 담당 업무: set_staff_profile (오너·관리자만, 업무 확인 보드 멤버에도 함께 반영)
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { StaffRow } from "@/lib/dashboard";
+import { JOB_TITLES } from "@/lib/titles";
 
 const ROLE: Record<string, string> = { owner: "오너", admin: "관리자", staff: "직원" };
 const RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{10,}$/;
@@ -22,6 +24,7 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [pwFor, setPwFor] = useState<string | null>(null);
+  const [editFor, setEditFor] = useState<string | null>(null);
 
   const done = (ok: boolean, text: string) => { setMsg({ ok, text }); setBusy(false); if (ok) router.refresh(); };
 
@@ -49,6 +52,15 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
     done(true, "비밀번호를 재설정했습니다. 직원에게 따로 전달해 주세요.");
   }
 
+  async function saveProfile(e: React.FormEvent<HTMLFormElement>, id: string) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setBusy(true);
+    const { error } = await sb.rpc("set_staff_profile", { p_user: id, p_name: String(fd.get("name") ?? ""), p_title: String(fd.get("title") ?? ""), p_duty: String(fd.get("duty") ?? "") });
+    if (!error) setEditFor(null);
+    done(!error, error ? "직원 정보를 저장하지 못했습니다." : "직원 정보를 저장했습니다.");
+  }
+
   async function disable(s: StaffRow) {
     if (!confirm(`${s.name}(${s.email}) 계정을 비활성화할까요?\n로그인이 차단되고 담당 배정도 모두 해제됩니다.`)) return;
     setBusy(true);
@@ -65,12 +77,28 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
 
       <section className="card mt">
         <div className="tbl-wrap"><table className="ops-table">
-          <thead><tr><th>직원</th><th>권한</th><th>담당 광고주</th><th></th></tr></thead>
+          <thead><tr><th>직원</th><th>직급 · 담당 업무</th><th>권한</th><th>담당 광고주</th><th></th></tr></thead>
           <tbody>{staff.map((s) => {
             const self = s.id === me.id;
             return (
               <tr key={s.id}>
                 <td><div className="cname">{s.name}{self && <span className="faint"> (나)</span>}</div><div className="faint">{s.email}</div></td>
+                <td className="wrap-cell">
+                  {editFor === s.id ? (
+                    <form className="profile-edit" onSubmit={(e) => saveProfile(e, s.id)}>
+                      <input name="name" defaultValue={s.name} maxLength={40} className="search" aria-label="이름" />
+                      <select name="title" defaultValue={s.jobTitle ?? ""} aria-label="직급"><option value="">직급 없음</option>{JOB_TITLES.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+                      <input name="duty" defaultValue={s.duty ?? ""} maxLength={100} className="search" placeholder="담당 업무 (예: 블로그·카페 운영)" aria-label="담당 업무" />
+                      <span className="row"><button className="btn sm primary" disabled={busy}>저장</button><button type="button" className="btn sm" onClick={() => setEditFor(null)}>취소</button></span>
+                    </form>
+                  ) : (
+                    <span className="row">
+                      {s.jobTitle ? <span className="badge acc">{s.jobTitle}</span> : <span className="faint">직급 없음</span>}
+                      <span className="faint">{s.duty ?? ""}</span>
+                      <button className="btn sm" disabled={busy} onClick={() => setEditFor(s.id)}>수정</button>
+                    </span>
+                  )}
+                </td>
                 <td><span className={`badge ${s.role === "owner" ? "acc" : s.role === "admin" ? "good" : ""}`}>{ROLE[s.role]}</span></td>
                 <td>{s.clients.length === 0 ? <span className="faint">-</span> : s.clients.map((c) => <span key={c.id} className="chip-s">{c.name}{c.primary ? " (주)" : ""}</span>)}</td>
                 <td className="r">

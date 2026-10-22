@@ -12,7 +12,7 @@ export type ClientRow = {
   cafe_count: number; cafe_deleted: number; cafe_views: number; card_rounds: number; column_count: number;
   last_sync: { status: string; at: string; error: string | null } | null; sync_failed_7d: number;
 };
-export type StaffRow = { id: string; email: string; name: string; role: "owner" | "admin" | "staff"; createdAt: string; mustChange: boolean; invitedAt: string | null; mailedAt: string | null; lastSignIn: string | null; clients: { id: string; name: string; primary: boolean }[] };
+export type StaffRow = { id: string; email: string; name: string; role: "owner" | "admin" | "staff"; jobTitle: string | null; duty: string | null; createdAt: string; mustChange: boolean; invitedAt: string | null; mailedAt: string | null; lastSignIn: string | null; clients: { id: string; name: string; primary: boolean }[] };
 
 export async function getOverview(period: string): Promise<ClientRow[]> {
   const db = await supabaseForStaff();

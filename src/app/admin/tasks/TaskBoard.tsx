@@ -7,8 +7,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { JOB_TITLES, NEW_JOB_TITLES } from "@/lib/titles";
 
-export type Member = { id: string; name: string; user_id: string | null; sort: number };
+export type Member = { id: string; name: string; user_id: string | null; sort: number; job_title: string | null; duty: string | null };
 export type Task = { id: string; member_id: string; title: string; due_on: string | null; done: boolean; done_at: string | null; sort: number; created_at: string };
 
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
@@ -40,11 +41,23 @@ export default function TaskBoard({ today, meId, canManageMembers, members: init
     const typed = String(fd.get("name") ?? "").trim();
     const name = typed || directory.find((d) => d.id === userId)?.name || "";
     if (!name) return fail("이름을 입력하거나 직원을 선택해 주세요.");
+    const title = String(fd.get("title") ?? "") || null, duty = String(fd.get("duty") ?? "").trim() || null;
     const { data, error } = await sb.from("task_members")
-      .insert({ name, user_id: userId || null, sort: Math.max(0, ...members.map((m) => m.sort)) + 1, created_by: meId })
-      .select("id, name, user_id, sort").single();
+      .insert({ name, user_id: userId || null, job_title: title, duty, sort: Math.max(0, ...members.map((m) => m.sort)) + 1, created_by: meId })
+      .select("id, name, user_id, sort, job_title, duty").single();
+    // 직원 계정과 연결했으면 직원 정보(직급 · 담당 업무)도 같이 맞춘다
+    if (!error && userId && (title || duty)) await sb.rpc("set_staff_profile", { p_user: userId, p_name: "", p_title: title ?? "", p_duty: duty ?? "" });
     if (error || !data) return fail("멤버를 추가하지 못했습니다.");
     setMembers([...members, data as Member]); setAdding(false); setMsg(null);
+  }
+  // 멤버 이름 · 직급 · 담당 업무 수정 (오너·관리자). 직원 계정과 연결된 멤버는 직원 정보도 함께 바뀐다
+  async function editMember(m: Member, p: { name: string; job_title: string | null; duty: string | null }) {
+    const { error } = m.user_id
+      ? await sb.rpc("set_staff_profile", { p_user: m.user_id, p_name: p.name, p_title: p.job_title ?? "", p_duty: p.duty ?? "" })
+      : await sb.from("task_members").update(p).eq("id", m.id);
+    if (error) { fail("멤버 정보를 저장하지 못했습니다."); return false; }
+    setMembers(members.map((x) => (x.id === m.id ? { ...x, ...p } : x))); setMsg(null);
+    return true;
   }
   async function removeMember(m: Member) {
     const n = tasks.filter((t) => t.member_id === m.id && !t.done).length;
@@ -104,6 +117,8 @@ export default function TaskBoard({ today, meId, canManageMembers, members: init
         <form className="card pad member-form" onSubmit={addMember}>
           <label>직원 계정에서 선택<select name="user" defaultValue=""><option value="">(선택 안 함)</option>{unlinked.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.email})</option>)}</select></label>
           <label>또는 이름 입력<input name="name" maxLength={40} className="search" placeholder="예: 디자인팀, 외주 작가" /></label>
+          <label>직급<select name="title" defaultValue=""><option value="">선택 안 함</option>{NEW_JOB_TITLES.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
+          <label>담당 업무<input name="duty" maxLength={100} className="search" placeholder="예: 블로그·카페 운영" /></label>
           <button className="btn primary sm">추가</button>
           <button type="button" className="btn sm" onClick={() => setAdding(false)}>취소</button>
         </form>
@@ -114,7 +129,7 @@ export default function TaskBoard({ today, meId, canManageMembers, members: init
       <div className="board">
         {members.length === 0 && <div className="empty-state">멤버가 없습니다. ‘+ 멤버 추가’로 시작하세요.</div>}
         {members.map((m) => (
-          <Column key={m.id} m={m} today={today} removing={removing}
+          <Column key={m.id} m={m} today={today} removing={removing} canEdit={canManageMembers} onEditMember={(p) => editMember(m, p)}
             open={tasks.filter((t) => t.member_id === m.id && !t.done)
               .sort((a, b) => (a.due_on ?? "9999").localeCompare(b.due_on ?? "9999") || a.created_at.localeCompare(b.created_at))}
             done={tasks.filter((t) => t.member_id === m.id && t.done).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""))}
@@ -125,8 +140,9 @@ export default function TaskBoard({ today, meId, canManageMembers, members: init
   );
 }
 
-function Column({ m, today, removing, open, done, onAdd, onToggle, onPatch, onRemove, onRemoveMember }: {
+function Column({ m, today, removing, canEdit, onEditMember, open, done, onAdd, onToggle, onPatch, onRemove, onRemoveMember }: {
   m: Member; today: string; removing: boolean; open: Task[]; done: Task[];
+  canEdit: boolean; onEditMember: (p: { name: string; job_title: string | null; duty: string | null }) => Promise<boolean>;
   onAdd: (memberId: string, title: string, due: string) => Promise<boolean>;
   onToggle: (t: Task) => void; onPatch: (id: string, p: Partial<Task>) => void; onRemove: (t: Task) => void; onRemoveMember: () => void;
 }) {
@@ -134,6 +150,7 @@ function Column({ m, today, removing, open, done, onAdd, onToggle, onPatch, onRe
   const [due, setDue] = useState(today);
   const [showDone, setShowDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const todays = open.filter((t) => !t.due_on || t.due_on <= today);
   const later = open.filter((t) => t.due_on && t.due_on > today);
 
@@ -149,11 +166,30 @@ function Column({ m, today, removing, open, done, onAdd, onToggle, onPatch, onRe
   return (
     <section className="col">
       <div className="col-card">
-        <div className="col-h">
-          <h3>{m.name}</h3>
-          <span className="faint">{todays.length}건</span>
-          {removing && <button className="col-x" onClick={onRemoveMember} aria-label={`${m.name} 멤버 삭제`}>×</button>}
-        </div>
+        {editing ? (
+          <form className="col-edit" onSubmit={async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget);
+            const name = String(fd.get("name") ?? "").trim();
+            if (!name) return;
+            if (await onEditMember({ name, job_title: String(fd.get("title") ?? "") || null, duty: String(fd.get("duty") ?? "").trim() || null })) setEditing(false);
+          }}>
+            <input name="name" defaultValue={m.name} maxLength={40} required className="search" aria-label="이름" />
+            <select name="title" defaultValue={m.job_title ?? ""} aria-label="직급"><option value="">직급 없음</option>{JOB_TITLES.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+            <input name="duty" defaultValue={m.duty ?? ""} maxLength={100} className="search" placeholder="담당 업무" aria-label="담당 업무" />
+            <span className="row"><button className="btn sm primary">저장</button><button type="button" className="btn sm" onClick={() => setEditing(false)}>취소</button></span>
+          </form>
+        ) : (
+          <>
+            <div className="col-h">
+              <h3>{m.name}{m.job_title && <span className="col-title">{m.job_title}</span>}</h3>
+              <span className="faint">{todays.length}건</span>
+              {canEdit && !removing && <button className="icon-btn" onClick={() => setEditing(true)} aria-label={`${m.name} 정보 수정`} title="이름 · 직급 · 담당 업무 수정">✎</button>}
+              {removing && <button className="col-x" onClick={onRemoveMember} aria-label={`${m.name} 멤버 삭제`}>×</button>}
+            </div>
+            {m.duty && <div className="col-duty">{m.duty}</div>}
+          </>
+        )}
         <form className="add-task" onSubmit={submit}>
           <span className="plus" aria-hidden="true">+</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} placeholder="업무 추가" aria-label={`${m.name} 업무 추가`} />

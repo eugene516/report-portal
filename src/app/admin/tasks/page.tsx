@@ -16,7 +16,7 @@ export default async function TasksPage() {
   const db = await supabaseForStaff();
   const weekAgo = daysAgo(7);
   const [members, open, done, dir] = await Promise.all([
-    db.from("task_members").select("id, name, user_id, sort").order("sort").order("created_at"),
+    db.from("task_members").select("id, name, user_id, sort, job_title, duty").order("sort").order("created_at"),
     db.from("team_tasks").select("id, member_id, title, due_on, done, done_at, sort, created_at").eq("done", false).order("due_on", { ascending: true, nullsFirst: false }).order("sort").order("created_at"),
     db.from("team_tasks").select("id, member_id, title, due_on, done, done_at, sort, created_at").eq("done", true).gte("done_at", weekAgo).order("done_at", { ascending: false }),
     db.rpc("staff_directory"),
