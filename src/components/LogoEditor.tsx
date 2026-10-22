@@ -94,10 +94,13 @@ export default function LogoEditor({ clientId, name, current }: { clientId: stri
 
   return (
     <>
-      <button className={`logo-btn ${current ? "" : "empty"}`} onClick={() => { setOpen(true); setErr(null); }} title="로고 등록 · 변경" aria-label="로고 등록 · 변경">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {current ? <img src={logoUrl(current)} alt={`${name} 로고`} /> : <span>+ 로고</span>}
-      </button>
+      <div className="logo-box">
+        <button className={`logo-btn ${current ? "" : "empty"}`} onClick={() => { setOpen(true); setErr(null); }} title="로고 등록 · 변경" aria-label="로고 등록 · 변경">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {current ? <img src={logoUrl(current)} alt={`${name} 로고`} /> : <span>+ 로고 등록</span>}
+        </button>
+        {current && <button className="logo-edit" onClick={() => { setOpen(true); setErr(null); }}>✎ 로고 수정</button>}
+      </div>
 
       {open && (
         <div className="modal" role="dialog" aria-modal="true" aria-label="로고 등록">
