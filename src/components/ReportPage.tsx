@@ -215,7 +215,7 @@ async function Dashboard({ ctx, client, content, base, staff, summaryOnly = fals
       <MonthSummary ctx={ctx} client={client} content={content} cards={cards} />
       <h2 className="mt-l">마케팅 업무</h2>
       <div className="grid g-donut mt">
-        {(staff ? cards : [...cards].sort((a, b) => Number(!(b.on || b.done)) - Number(!(a.on || a.done)))).map((c) => !c.on && !c.done ? (
+        {(staff ? cards : [...cards].sort((a, b) => Number(!(a.on || a.done)) - Number(!(b.on || b.done)))).map((c) => !c.on && !c.done ? (
           <div key={c.id} className={offCls}>
             {off(c.label, "계약에 포함되지 않음", staff && <Link className="btn sm primary" href={`${base}/${c.id}?add=extra`}>+ 추가하기</Link>)}
           </div>
