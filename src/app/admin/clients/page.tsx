@@ -7,6 +7,7 @@ import { daysLeft, dday, getMonthOverview, itemLabel, itemState, monthInfo, tota
 import { Donut, ItemBars, MonthTimeline } from "@/components/charts";
 import IssueLinkButton from "../IssueLinkButton";
 import ExpandRow from "./ExpandRow";
+import ServiceGrid from "@/components/ServiceGrid";
 
 export const metadata = { title: "광고주 현황 · 리포트 포털" };
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               const left = daysLeft(end, mi.today);
               const detail = (
                 <div className="xd">
+                  <div className="xd-grid"><ServiceGrid c={c} today={mi.today} size={80} /></div>
                   <div className="xd-sum">
                     <Donut done={t.done} total={t.quantity} label="계약 수량 진행" sub={`항목 ${c.items.length}개`} size={96} />
                     <dl className="kv sm">

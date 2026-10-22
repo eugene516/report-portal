@@ -6,6 +6,7 @@ import { requireStaff } from "@/lib/auth";
 import { currentPeriod } from "@/lib/content";
 import { daysLeft, getMonthDetail, getMonthOverview, itemState, monthInfo, totals, won } from "@/lib/month";
 import { Donut, HistoryBars, ItemBars, MonthTimeline, SpendChart } from "@/components/charts";
+import ServiceGrid from "@/components/ServiceGrid";
 
 export const metadata = { title: "광고주 진행 현황 · 리포트 포털" };
 export const dynamic = "force-dynamic";
@@ -78,6 +79,11 @@ export default async function ProgressPage({ params, searchParams }: { params: P
           </div>
         ) : <div className="card kpi static empty"><div className="label">온라인 광고</div><div className="value">미집행</div></div>}
       </div>
+
+      <section className="card pad mt">
+        <div className="card-h"><h2>업무 항목 현황</h2><span className="faint">미집행 항목은 [+ 추가하기]로 중간 계약을 등록합니다</span></div>
+        <ServiceGrid c={c} today={today} />
+      </section>
 
       <div className="grid g-auto mt">
         <section className="card pad">

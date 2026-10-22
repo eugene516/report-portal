@@ -636,6 +636,14 @@ a.donut-card { color: var(--text); }
 .off-card .label { font-weight: 700; color: var(--text-2); }
 .off-card .value { font-size: 18px; color: var(--text-3); margin: 6px 0 0; }
 .off-act { margin-top: 10px; }
+/* 내부용 업무 항목 카드 (진행 현황 · 광고주 현황 자세히 보기) */
+.svc-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.donut-card.sm { padding: 12px 10px; min-height: 0; }
+.off-card.sm { min-height: 150px; justify-content: center; }
+.off-card.sm .value { font-size: 16px; margin: 2px 0 0; }
+.donut-card.sm.ad { justify-content: center; text-align: center; min-height: 110px; }
+a.donut-card.sm.ad .value { font-size: 18px; margin: 4px 0 2px; }
+.xd-grid { grid-column: 1 / -1; }
 /* 광고주 링크: 미집행은 작게 */
 .off-card.mini { min-height: 0; padding: 14px 16px; gap: 6px; }
 .off-card.mini .label { font-weight: 500; font-size: 13px; }
