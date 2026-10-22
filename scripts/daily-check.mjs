@@ -88,8 +88,8 @@ for (const p of r.place ?? []) {
   } catch { p.capturePath = null; log(`캡쳐 업로드 실패: ${p.keyword}`); }
 }
 if (r.place?.length) sql(`
-  insert into public.place_rank_results (client_id, keyword, rank, ad_rank, capture_path, collected_at, method)
-  select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, x->>'capturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
+  insert into public.place_rank_results (client_id, keyword, rank, ad_rank, page, capture_path, collected_at, method)
+  select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, (x->>'page')::int, x->>'capturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
     from jsonb_array_elements(${json(r.place.filter((p) => !p.noBlock))}) x`);
 if (r.cafe?.length) sql(`
   update public.cafe_posts p

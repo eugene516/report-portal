@@ -123,11 +123,11 @@ export function PlaceSection({ c, urls }: { c: ReportContent; urls: Map<string, 
             <figure key={r.keyword} className="place-card card">
               <figcaption>
                 <div className="pk"><span className="faint num">{i + 1}</span><b>{r.keyword}</b>{r.important && <span className="badge warn" title="중점 관리 키워드">중점</span>}</div>
-                <div className="row"><Rank v={r.place?.rank} collected={!!r.place} />{r.place?.adRank && <span className="badge acc">광고 {r.place.adRank}번째</span>}</div>
+                <div className="row"><Rank v={r.place?.rank} collected={!!r.place} />{r.place?.page && r.place.rank != null && <span className="badge" title="플레이스 목록 페이지">{r.place.page}페이지</span>}{r.place?.adRank && <span className="badge acc">광고 {r.place.adRank}번째</span>}</div>
               </figcaption>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {src ? <a href={src} target="_blank" rel="noopener noreferrer"><img loading="lazy" src={src} alt={`${r.keyword} 플레이스 노출 화면`} /></a> : <div className="noimg">{r.place ? "캡쳐 없음" : "수집 전"}</div>}
-              <div className="pf faint"><span>{r.place ? `${kst(r.place.at)} 수집` : ""}</span><a href={naverSearch(r.keyword)} target="_blank" rel="noopener noreferrer">네이버 검색</a></div>
+              <div className="pf faint"><span>{r.place ? `${kst(r.place.at)} 수집${r.place.page ? ` · 플레이스 ${r.place.page}페이지` : ""}` : ""}</span><a href={naverSearch(r.keyword)} target="_blank" rel="noopener noreferrer">네이버 검색</a></div>
             </figure>
           );
         })}

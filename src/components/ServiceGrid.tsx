@@ -28,11 +28,24 @@ export default function ServiceGrid({ c, today, size = 92 }: { c: MonthClient; t
       <div className="svc-cards">
         {WORK.map((w) => {
           const items = by(w.svc);
-          if (items.length === 0) return (
+          const contracted = items.length > 0 || (c.services ?? []).includes(w.svc);
+          if (!contracted) return (
             <div key={w.svc} className="card kpi donut-card off-card sm">
               <div className="label">{w.label}</div><div className="value">미집행</div>
               <div className="off-act"><Link className="btn sm primary" href={`${base}/${w.menu}?add=extra`}>+ 추가하기</Link></div>
             </div>
+          );
+          // 플레이스: 수량 대신 지정 키워드 Top 3 현황
+          if (w.svc === "place" && items.length === 0) return (
+            <Link key={w.svc} href={`${base}/place`} className="card kpi donut-card sm">
+              <Donut done={c.place?.top3 ?? 0} total={c.place?.total ?? 0} label="플레이스 Top 3" size={size}
+                sub={c.place?.total ? `키워드 ${c.place.total}개 · 순위 확인 ${c.place.ranked}개` : "키워드 미등록"} />
+            </Link>
+          );
+          if (items.length === 0) return (
+            <Link key={w.svc} href={`${base}/contracts`} className="card kpi donut-card sm">
+              <div className="label">{w.label}</div><div className="value sm-v">계약</div><div className="foot">월 수량 미등록 · 계약에서 입력</div>
+            </Link>
           );
           const qty = items.reduce((s, i) => s + i.quantity, 0);
           const done = items.reduce((s, i) => s + Math.min(i.done, i.quantity), 0);

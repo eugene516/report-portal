@@ -12,7 +12,7 @@ export type ReportContent = {
           rank: { main: number | null; blogTab: number | null; mainOther: RankOther; tabOther: RankOther; at: string } | null }[];
   keywords: { kind: "blog_extra" | "place" | "aeo" | "etc"; keyword: string; important?: boolean;
               blogRank: { main: number | null; blogTab: number | null; at: string } | null;
-              place: { rank: number | null; adRank: number | null; capture: string | null; at: string } | null }[];
+              place: { rank: number | null; adRank: number | null; page?: number | null; capture: string | null; at: string } | null }[];
   cafe: { id: string; channel: "cafe" | "daangn"; postedOn: string | null; cafe: string; url: string; title: string | null; views: number | null; comments: number | null;
           basis: string | null; status: string; note: string | null; capture: string | null; captureSource: "live" | "report" | null;
           capturedAt: string | null; currentViews: number | null; currentComments: number | null }[];

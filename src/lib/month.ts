@@ -12,6 +12,8 @@ export type MonthClient = {
   channels: Record<string, { contracted: boolean; apiConnected: boolean; budget: number | null; spent: number | null }>;
   files: number; cafe_deleted: number; sync_failed_7d: number;
   collected: { blog: string | null; place: string | null; cafe: string | null; naver: string | null };   // 항목별 마지막 수집 시각
+  services: string[];                                              // 리포트 계약 항목 (월 수량이 없어도 계약)
+  place: { total: number; top3: number; ranked: number } | null;  // 플레이스 키워드 Top3 현황
 };
 export type MonthDetail = {
   adDaily: { date: string; cost: number }[];

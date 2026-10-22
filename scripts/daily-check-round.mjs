@@ -77,38 +77,78 @@ for (const b of job.blog) {
 }
 
 // 2) 플레이스 순위 (광고 제외)
+//    첫 페이지에 없으면 플레이스 영역의 '다음' 버튼으로 최대 5페이지까지 넘겨 찾는다(순위는 페이지를 이어 센다)
+//    캡쳐: 검색창(키워드 빨간 박스) + 찾은 페이지의 플레이스 영역 전체(해당 병원 빨간 박스, 아래 페이지 표시까지)
+const RED = "4px solid #ff0000";
+const placeBox = () => [...document.querySelectorAll(".api_subject_bx")].find((b) => /^플레이스/.test((b.innerText || "").trim()) && b.querySelector("a[href*='place']"));
 for (const p of job.place) {
   try {
     await page.goto("https://search.naver.com/search.naver?where=nexearch&query=" + encodeURIComponent(p.keyword));
     await page.waitForLoadState(); await page.waitForTimeout(1500);
-    const r = await page.evaluate((NAME) => {
-      const RED = "4px solid #ff0000";
-      const input = document.querySelector("#nx_query");
-      if (input) { input.style.outline = RED; input.style.outlineOffset = "5px"; input.style.borderRadius = "2px"; }
-      const box = [...document.querySelectorAll(".api_subject_bx")].find((b) => /^플레이스/.test((b.innerText || "").trim()) && b.querySelector("a[href*='place']"));
-      if (!box) return { noBlock: true };
-      const lis = [...box.querySelectorAll("li")].filter((li) => li.querySelector("a[href*='place']") && !li.parentElement.closest("li"));
-      let organic = 0, ads = 0, rank = null, adRank = null;
-      for (const li of lis) {
-        const text = (li.innerText || "").replace(/\s+/g, " ");
-        if (/(^| )광고( |$)/.test(text)) { ads++; if (adRank == null && text.includes(NAME)) adRank = ads; continue; }
-        organic++;
-        if (rank == null && text.includes(NAME)) { rank = organic; li.style.outline = RED; li.style.outlineOffset = "-4px"; li.style.position = "relative"; li.style.zIndex = "5"; }
-      }
-      const rc = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, w: b.width, h: b.height }; };
-      return { rank, adRank, input: input && rc(input), block: rc(box) };
-    }, p.placeName);
+    let organicBefore = 0, rank = null, adRank = null, pageNo = 1, noBlock = false;
+    for (; pageNo <= 5; pageNo++) {
+      const r = await page.evaluate(({ NAME, RED, organicBefore, src }) => {
+        const placeBox = new Function("return " + src)();
+        const box = placeBox();
+        if (!box) return { noBlock: true };
+        const lis = [...box.querySelectorAll("li")].filter((li) => li.querySelector("a[href*='place']") && !li.parentElement.closest("li"));
+        let organic = organicBefore, ads = 0, rank = null, adRank = null;
+        for (const li of lis) {
+          const text = (li.innerText || "").replace(/\s+/g, " ");
+          if (/(^| )광고( |$)/.test(text)) { ads++; if (adRank == null && text.includes(NAME)) adRank = ads; continue; }
+          organic++;
+          if (rank == null && text.includes(NAME)) {
+            rank = organic;
+            li.style.outline = RED; li.style.outlineOffset = "-4px"; li.style.position = "relative"; li.style.zIndex = "5";
+          }
+        }
+        // 다음 페이지 버튼 (없거나 비활성이면 null)
+        const next = [...box.querySelectorAll("a, button")].find((el) => /다음|next/i.test((el.getAttribute("aria-label") || "") + " " + (el.className || "") + " " + (el.textContent || "").trim()))
+          ?? null;
+        const disabled = !next || next.getAttribute("aria-disabled") === "true" || next.hasAttribute("disabled") || /disabled|off/.test(String(next.className));
+        return { organic, rank, adRank, hasNext: !disabled };
+      }, { NAME: p.placeName, RED, organicBefore, src: placeBox.toString() });
+      if (r.noBlock) { noBlock = true; break; }
+      if (adRank == null && r.adRank != null) adRank = r.adRank;
+      if (r.rank != null) { rank = r.rank; break; }
+      organicBefore = r.organic;
+      if (!r.hasNext) break;
+      await page.evaluate((src) => {
+        const box = new Function("return " + src)()();
+        const next = [...box.querySelectorAll("a, button")].find((el) => /다음|next/i.test((el.getAttribute("aria-label") || "") + " " + (el.className || "") + " " + (el.textContent || "").trim()));
+        next?.click();
+      }, placeBox.toString());
+      await page.waitForTimeout(1500);
+    }
+    if (rank == null) pageNo = null;
     let capture = null;
-    if (tool && !r.noBlock && r.input) {
+    if (tool && !noBlock) {
       try {
-        const base = `${job.captureDir}/${p.client}_${String(p.idx).padStart(2, "0")}`;
-        await page.screenshot({ path: base + "_head.png", clip: { x: r.block.x, y: Math.max(0, r.input.y - 22), width: r.block.w, height: r.input.h + 44 } });
-        await page.screenshot({ path: base + "_block.png", fullPage: true, clip: { x: r.block.x, y: r.block.y, width: r.block.w, height: r.block.h } });
-        await stitch([base + "_head.png", base + "_block.png"], base + ".jpg");
-        capture = base + ".jpg";
+        // 영역을 화면에 올리고 지도 · 목록이 다 그려진 뒤 크기를 다시 잰다 (아래 페이지 표시까지 담기)
+        const rect = await page.evaluate(async ({ RED, src }) => {
+          const input = document.querySelector("#nx_query");
+          if (input) { input.style.outline = RED; input.style.outlineOffset = "5px"; input.style.borderRadius = "2px"; }
+          const box = new Function("return " + src)()();
+          box.scrollIntoView({ block: "start" });
+          await new Promise((ok) => setTimeout(ok, 1200));
+          const rc = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, w: b.width, h: b.height }; };
+          // 페이지 표시(1 / 5 등)가 영역 바로 아래 형제 요소에 있으면 함께 담는다
+          let bottom = rc(box).y + rc(box).h;
+          const sib = box.nextElementSibling;
+          if (sib && /\d+\s*\/\s*\d+/.test(sib.innerText || "") && rc(sib).h < 80) bottom = rc(sib).y + rc(sib).h;
+          const b = rc(box);
+          return { input: input && rc(input), block: { ...b, h: bottom - b.y + 6 } };
+        }, { RED, src: placeBox.toString() });
+        if (rect.input) {
+          const base = `${job.captureDir}/${p.client}_${String(p.idx).padStart(2, "0")}`;
+          await page.screenshot({ path: base + "_head.png", fullPage: true, clip: { x: rect.block.x, y: Math.max(0, rect.input.y - 22), width: rect.block.w, height: rect.input.h + 44 } });
+          await page.screenshot({ path: base + "_block.png", fullPage: true, clip: { x: rect.block.x, y: rect.block.y, width: rect.block.w, height: rect.block.h } });
+          await stitch([base + "_head.png", base + "_block.png"], base + ".jpg");
+          capture = base + ".jpg";
+        }
       } catch (e) { result.errors.push(`캡쳐 ${p.keyword}: ${String(e).slice(0, 100)}`); }
     }
-    result.place.push({ client: p.client, keyword: p.keyword, idx: p.idx, rank: r.rank ?? null, adRank: r.adRank ?? null, noBlock: !!r.noBlock, capture, at: new Date().toISOString() });
+    result.place.push({ client: p.client, keyword: p.keyword, idx: p.idx, rank, adRank, page: pageNo, noBlock, capture, at: new Date().toISOString() });
   } catch (e) { result.errors.push(`플레이스 ${p.keyword}: ${String(e).slice(0, 120)}`); }
   await save(); await pause(2000, 4000);
 }

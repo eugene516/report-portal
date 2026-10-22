@@ -28,7 +28,7 @@ function alertsOf(rows: MonthClient[], period: string, today: string): Alert[] {
     if (!c.staff.some((s) => s.primary)) out.push({ level: "mid", client: c, text: "주담당 직원이 지정되지 않았습니다", href: `${base}/settings` });
     if (c.channels.naver?.contracted && !c.channels.naver.apiConnected) out.push({ level: "mid", client: c, text: "네이버 광고 계약 · API 키 미등록", href: `${base}/settings` });
     // 계약한 항목의 자료가 3일 넘게 갱신되지 않았으면 경고 (블로그·플레이스 순위, 카페 확인, 네이버 광고)
-    const svc = new Set(c.items.map((i) => i.service));
+    const svc = new Set([...c.items.map((i) => i.service), ...(c.services ?? [])]);
     const stale: [boolean, string | null, string, string][] = [
       [svc.has("blog"), c.collected?.blog ?? null, "블로그 순위", `${base}/blog`],
       [svc.has("place"), c.collected?.place ?? null, "플레이스 순위", `${base}/place`],
