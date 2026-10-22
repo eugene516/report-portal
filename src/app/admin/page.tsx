@@ -8,6 +8,7 @@ import { getStaffOverview } from "@/lib/dashboard";
 import { currentPeriod, SERVICE_LABELS } from "@/lib/content";
 import { daysLeft, dday, getMonthOverview, itemLabel, itemState, monthInfo, totals, type MonthClient } from "@/lib/month";
 import { Donut } from "@/components/charts";
+import { supabaseForStaff } from "@/lib/supabase/server";
 
 export const metadata = { title: "운영 대시보드 · 리포트 포털" };
 export const dynamic = "force-dynamic";
@@ -64,6 +65,12 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const late = open.filter((i) => i.st === "late");
   const noContract = rows.filter((c) => !c.contract);
   const alerts = alertsOf(rows, period, today);
+  // 파일 검수: 광고주 수정 요청 (담당 광고주만 — RLS)
+  const { data: changes } = await (await supabaseForStaff()).from("review_items").select("id, client_id, title").eq("status", "changes");
+  for (const r of changes ?? []) {
+    const c = rows.find((x) => x.id === r.client_id);
+    if (c) alerts.unshift({ level: "high", client: c, text: `파일 검수 수정 요청: ${r.title}`, href: `/admin/clients/${c.id}/review/${r.id}` });
+  }
   const pace = mi.days ? mi.elapsed / mi.days : 0;
 
   // 업무 종류별 합계

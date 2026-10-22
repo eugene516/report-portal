@@ -6,6 +6,7 @@
 // - "홈으로 돌아가기", "설정", "데이터 업로드"는 직원 경로에서 서버가 권한을 확인한 경우에만 그린다.
 //   서버에서만 렌더링되므로 광고주 링크 페이지의 HTML·스크립트에는 포함되지 않는다.
 import Link from "next/link";
+import { Fragment } from "react";
 import type { ClientSummary } from "@/lib/report";
 import { logoUrl } from "@/lib/logo";
 import LogoEditor from "./LogoEditor";
@@ -45,16 +46,17 @@ export function visibleMenus(services: string[]) {
 export const isContracted = (services: string[], svc: string | null) => !svc || services.includes(svc);
 
 export default function ReportShell({
-  client, base, section, title, eyebrow, staffTools, preview = null, link = null, services, period, thisMonth, children,
+  client, base, section, title, eyebrow, staffTools, preview = null, link = null, reviewPending = 0, services, period, thisMonth, children,
 }: {
   client: ClientSummary; base: string; section: string[]; title: string; eyebrow: string;
   staffTools: boolean; services: string[]; period: string; thisMonth: string; children: React.ReactNode;
   preview?: string | null;   // 광고주 화면 미리보기 중이면 내부 화면 주소(돌아가기용)
   link?: LinkStatus | null;  // 직원 화면 · 미리보기: 광고주 링크 발급 현황
+  reviewPending?: number;    // 파일 검수 대기 건수 (0이면 배지 숨김)
 }) {
   const current = section.join("/");
   const inAds = section[0] === "ads";
-  const tool = current === "history" || current === "contracts";
+  const tool = current === "history" || current === "contracts" || section[0] === "review";
   const past = period !== thisMonth && !inAds && !tool;
   const q = past ? `?period=${period}` : "";
   return (
@@ -72,9 +74,17 @@ export default function ReportShell({
         </div>
         <nav className="nav">
           {visibleMenus(services).map((m) => (
-            <Link key={m.id} href={`${m.id ? `${base}/${m.id}` : base}${q}`} className={`${current === m.id ? "on" : ""} ${isContracted(services, m.svc) ? "" : "off"}`}>
-              {m.label}{!isContracted(services, m.svc) && <span className="cnt">미집행</span>}
-            </Link>
+            <Fragment key={m.id}>
+              <Link href={`${m.id ? `${base}/${m.id}` : base}${q}`} className={`${current === m.id ? "on" : ""} ${isContracted(services, m.svc) ? "" : "off"}`}>
+                {m.label}{!isContracted(services, m.svc) && <span className="cnt">미집행</span>}
+              </Link>
+              {/* 대시보드 바로 아래: 파일 검수 (대기 건수) */}
+              {m.id === "" && (
+                <Link href={`${base}/review`} className={section[0] === "review" ? "on" : ""}>
+                  파일 검수{reviewPending > 0 && <span className="cnt review-cnt">{reviewPending}건 대기</span>}
+                </Link>
+              )}
+            </Fragment>
           ))}
           <details open className="nav-group">
             <summary className={`nav-parent ${inAds ? "on" : ""}`}>온라인 광고<span className="chev" aria-hidden="true">▾</span></summary>
@@ -113,7 +123,7 @@ export default function ReportShell({
         )}
       </aside>
       <main className="main">
-        {staffTools && <ClientTabs clientId={client.id} current={current === "contracts" ? "contracts" : "report"} />}
+        {staffTools && <ClientTabs clientId={client.id} current={current === "contracts" ? "contracts" : section[0] === "review" ? "review" : "report"} />}
         {preview && (
           <div className="preview-bar">
             <span><b>광고주 화면 미리보기</b> · 광고주가 링크로 보는 화면과 같습니다</span>

@@ -15,6 +15,8 @@ import { getLinkStatus } from "@/lib/links";
 import { getMonthOverview, monthInfo } from "@/lib/month";
 import { Donut } from "./charts";
 import SheetTabs, { type Sheet } from "./SheetTabs";
+import ReviewSection from "./review/ReviewSection";
+import { getReviewSummary, REVIEW_KINDS } from "@/lib/review";
 
 // 받침 있으면 "은", 없으면 "는" (예: 당근마켓 바이럴은, 홈페이지 칼럼은, SNS 카드뉴스는)
 const eunNeun = (w: string) => {
@@ -64,6 +66,8 @@ export default async function ReportPage({
   const link = ctx.mode === "staff" ? ((await getLinkStatus([ctx.clientId])).get(ctx.clientId) ?? { active: 0, issuedAt: null, lastUsedAt: null }) : null;
   const key = section.join("/");
   const services = Object.keys(content.services);
+  // 파일 검수: 대기 건수(사이드바) · 유형별 검수 현황(대시보드) — 개수만, 리포트 내용과 섞지 않는다
+  const review = await getReviewSummary(ctx, currentPeriod());
   const monthLabel = `${content.period.replace("-", "년 ")}월`;
 
   let title: string;
@@ -84,6 +88,9 @@ export default async function ReportPage({
           : await adsBody(ctx, client, ch.id, ch.id === "naver" ? "네이버 파워링크 광고" : ch.label, `${base}/ads/${ch.id}`, searchParams, staffView)}
       </>
     );
+  } else if (section[0] === "review" && section.length <= 2) {
+    title = section[1] ? "파일 검수 · 상세" : "파일 검수";
+    body = <ReviewSection clientId={client.id} clientName={client.name} base={base} itemId={section[1] ?? null} period={searchParams.period} staffView={staffView} thisMonth={currentPeriod()} siteLogin={`${base}/review`} />;
   } else if (key === "full") {
     title = "레포트 상세보기";
     body = <FullReport ctx={ctx} client={client} content={content} base={base} services={services} staffView={staffView} searchParams={searchParams} />;
@@ -127,7 +134,7 @@ export default async function ReportPage({
   return (
     <ReportShell client={client} base={base} section={section} title={title}
       eyebrow={`${client.name} · ${section[0] === "ads" ? "온라인 광고" : key === "history" || key === "contracts" ? "월별 관리" : `${monthLabel} 마케팅 리포트`}`}
-      staffTools={staffView} preview={preview ? basePath(ctx) : null} link={link} services={services} period={content.period} thisMonth={currentPeriod()}>
+      staffTools={staffView} preview={preview ? basePath(ctx) : null} link={link} reviewPending={review?.pending ?? 0} services={services} period={content.period} thisMonth={currentPeriod()}>
       {body}
     </ReportShell>
   );
@@ -213,6 +220,7 @@ async function Dashboard({ ctx, client, content, base, staff, summaryOnly = fals
         <span className="btn primary">상세보기 열기 ›</span>
       </Link>}
       <MonthSummary ctx={ctx} client={client} content={content} cards={cards} />
+      {!summaryOnly && <ReviewStatus ctx={ctx} period={content.period} base={base} />}
       <h2 className="mt-l">마케팅 업무</h2>
       <div className="grid g-donut mt">
         {(staff ? cards : [...cards].sort((a, b) => Number(!(a.on || a.done)) - Number(!(b.on || b.done)))).map((c) => !c.on && !c.done ? (
@@ -397,5 +405,29 @@ function RanksSheet({ c }: { c: ReportContent }) {
         )}
       </section>
     </div>
+  );
+}
+
+// 대시보드 '이번 달 요약' 아래: 콘텐츠 검수 현황 (유형별 건수만, 리포트 · PDF 에는 넣지 않음)
+// 유형별 전체 = 검수 요청 건수와 그달 계약 수량 중 큰 값 → 일부만 등록 · 승인된 상태를 '검수 완료'로 표시하지 않는다
+async function ReviewStatus({ ctx, period, base }: { ctx: ReportCtx; period: string; base: string }) {
+  const s = await getReviewSummary(ctx, period);
+  const kinds = s?.kinds ?? [];
+  if (kinds.length === 0) return null;
+  return (
+    <section className="card pad review-status no-print">
+      <div className="card-h"><h2>콘텐츠 검수 현황</h2><Link href={`${base}/review`} className="btn sm">파일 검수 ›</Link></div>
+      <ul className="review-status-list">
+        {kinds.map((k) => {
+          const done = k.target > 0 && k.approved >= k.target;
+          return (
+            <li key={k.kind}>
+              <b>{REVIEW_KINDS[k.kind] ?? k.kind}</b>
+              {done ? <span className="badge good">{k.target}건 검수 완료</span> : <span className="badge warn">검수 진행 중 ({k.approved}/{k.target}건)</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

@@ -428,6 +428,10 @@ verify_jwt = true
 [functions.staff-admin]
 verify_jwt = true
 
+# client-account: 광고주 계정(파일 검수 로그인) 생성 · 임시 비밀번호 재발급. 로그인 토큰 필수 + 함수 안에서 담당 직원인지 확인한다.
+[functions.client-account]
+verify_jwt = true
+
 # report-capture: 광고주 링크(로그인 없음) 화면의 이미지 요청. 함수 안에서 링크 토큰을 검증한다.
 [functions.report-capture]
 verify_jwt = false
