@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-export default function AdContractButton({ clientId, channel, label }: { clientId: string; channel: string; label: string }) {
+// compact: 대시보드 카드 안에서는 버튼만
+export default function AdContractButton({ clientId, channel, label, compact = false }: { clientId: string; channel: string; label: string; compact?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(false);
@@ -20,8 +21,8 @@ export default function AdContractButton({ clientId, channel, label }: { clientI
   }
   return (
     <span className="row">
-      <button className="btn primary" disabled={busy} onClick={contract}>{busy ? "처리 중…" : `+ ${label} 계약 추가`}</button>
-      <Link className="btn" href={`/admin/clients/${clientId}/settings`}>광고주 설정</Link>
+      <button className={`btn primary ${compact ? "sm" : ""}`} disabled={busy} onClick={contract}>{busy ? "처리 중…" : compact ? "+ 추가하기" : `+ ${label} 계약 추가`}</button>
+      {!compact && <Link className="btn" href={`/admin/clients/${clientId}/settings`}>광고주 설정</Link>}
       {err && <span className="badge bad">저장하지 못했습니다. 광고주 설정에서 변경해 주세요.</span>}
     </span>
   );

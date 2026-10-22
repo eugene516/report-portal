@@ -18,7 +18,7 @@ const eunNeun = (w: string) => {
   return `${w}${c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? "은" : "는"}`;
 };
 
-const SECTION_KIND: Partial<Record<string, SectionKind>> = { blog: "blog", column: "column", cafe: "cafe", daangn: "daangn", sns: "cardnews" };
+const SECTION_KIND: Partial<Record<string, SectionKind>> = { blog: "blog", column: "column", place: "place", cafe: "cafe", daangn: "daangn", sns: "cardnews" };
 
 // 미집행 메뉴라도 등록된 내용이 있으면 보여준다
 function hasContent(c: ReportContent, key: string) {
@@ -26,11 +26,12 @@ function hasContent(c: ReportContent, key: string) {
   if (key === "column") return c.columns.length > 0;
   if (key === "cafe" || key === "daangn") return c.cafe.some((x) => (x.channel ?? "cafe") === key);
   if (key === "sns") return c.cardnews.length > 0;
+  if (key === "place") return c.keywords.some((k) => k.kind === "place");
   return false;
 }
 
 // 직원 경로 전용: 이 메뉴의 이번 달 계약 수량(견적 + 추가) 요약과 입력 도구
-async function StaffSectionTools({ clientId, period, kind, contracted, content }: { clientId: string; period: string; kind: SectionKind; contracted: boolean; content: ReportContent }) {
+async function StaffSectionTools({ clientId, period, kind, contracted, content, add }: { clientId: string; period: string; kind: SectionKind; contracted: boolean; content: ReportContent; add?: string }) {
   const [row] = await getMonthOverview(period, clientId);
   const items = (row?.items ?? []).filter((i) => i.service === kind);
   const open = items.filter((i) => i.done < i.quantity).sort((a, b) => a.dueOn.localeCompare(b.dueOn));
@@ -41,7 +42,7 @@ async function StaffSectionTools({ clientId, period, kind, contracted, content }
     dueOn: open[0]?.dueOn ?? null,
   } : null;
   const nextRound = Math.max(0, ...content.cardnews.map((r) => r.round)) + 1;
-  return <SectionTools clientId={clientId} period={period} kind={kind} contracted={contracted} lastDay={monthInfo(period).last} nextRound={nextRound} summary={summary} />;
+  return <SectionTools clientId={clientId} period={period} kind={kind} contracted={contracted} lastDay={monthInfo(period).last} nextRound={nextRound} summary={summary} initialOpen={add === "extra" ? "extra" : add === "content" ? "content" : null} />;
 }
 
 export default async function ReportPage({
@@ -75,7 +76,7 @@ export default async function ReportPage({
     if (!menu || !visibleMenus(services).includes(menu)) notFound();   // 고정 메뉴가 아니고 계약하지 않은 항목(플레이스)의 주소는 열리지 않는다
     title = menu.label;
     let inner: React.ReactNode;
-    if (key === "") inner = <Dashboard client={client} content={content} base={base} />;
+    if (key === "") inner = <Dashboard client={client} content={content} base={base} staff={ctx.mode === "staff" && staffTools} />;
     else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} />;
     else if (key === "column") inner = <ColumnSection c={content} />;
     else if (key === "place") inner = <PlaceSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.capture ?? null))} />;
@@ -93,7 +94,7 @@ export default async function ReportPage({
             {ctx.mode === "staff" ? "중간에 계약되면 아래 ‘+ 추가 계약’으로 수량과 마감일을 등록하세요." : "진행이 시작되면 이곳에 내용이 표시됩니다."}
           </div>
         )}
-        {kind && ctx.mode === "staff" && staffTools && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} />}
+        {kind && ctx.mode === "staff" && staffTools && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} add={searchParams.add} />}
         {(contracted || hasContent(content, key)) && inner}
       </>
     );
@@ -144,49 +145,58 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
   return <NaverAdsView data={data} period={period} path={path} note={note} top={{ window: kwWindow, keywords: topKeywords, sort: kwSort }} query={sp} />;
 }
 
-function Dashboard({ client, content, base }: { client: ClientSummary; content: ReportContent; base: string }) {
+// 대시보드: 모든 업무 항목과 광고 채널을 기본 카드로 표시. 계약하지 않은 항목은 "미집행",
+// 직원 화면에서는 그 아래 [+ 추가하기] (→ 해당 메뉴의 추가 계약 입력이 열린 상태로 이동)
+function Dashboard({ client, content, base, staff }: { client: ClientSummary; content: ReportContent; base: string; staff: boolean }) {
   const s = content.services;
   const past = content.period !== currentPeriod();
   const q = past ? `?period=${content.period}` : "";
   const top5 = content.blog.filter((b) => (b.rank?.main ?? 99) <= 5 || (b.rank?.blogTab ?? 99) <= 5).length;
   const place = content.keywords.filter((k) => k.kind === "place");
   const placeRanks = place.map((p) => p.place?.rank).filter((v): v is number => v != null);
-  // 수량 계약 항목: 도넛 (계약 수량 대비 진행)
-  // 고정 항목: 계약하지 않았으면 미집행으로 표시
   const cafe = content.cafe.filter((x) => (x.channel ?? "cafe") === "cafe");
   const daangn = content.cafe.filter((x) => x.channel === "daangn");
   const views = (l: typeof cafe) => l.reduce((a, x) => a + (x.views ?? 0), 0).toLocaleString("ko-KR");
-  const cards: { label: string; on: boolean; done: number; target: number | null; unit: string; foot: string; href: string }[] = [
-    { label: "블로그 발행", on: !!s.blog, done: content.blog.length, target: s.blog?.target ?? null, unit: "건", foot: `5위 이내 ${top5}건`, href: `${base}/blog${q}` },
-    { label: "홈페이지 칼럼", on: !!s.column, done: content.columns.length, target: s.column?.target ?? null, unit: "건", foot: "SEO · AEO용 칼럼", href: `${base}/column${q}` },
-    { label: "카페 바이럴", on: !!s.cafe, done: cafe.filter((x) => x.status !== "삭제됨").length, target: s.cafe?.target ?? null, unit: "건", foot: `조회 ${views(cafe)}`, href: `${base}/cafe${q}` },
-    { label: "당근마켓 바이럴", on: !!s.daangn, done: daangn.filter((x) => x.status !== "삭제됨").length, target: s.daangn?.target ?? null, unit: "건", foot: `조회 ${views(daangn)}`, href: `${base}/daangn${q}` },
-    { label: "SNS 카드뉴스", on: !!s.cardnews, done: content.cardnews.length, target: s.cardnews?.target ?? null, unit: "회차", foot: `인스타·카카오·당근 소식 ${content.cardnews.reduce((a, r) => a + r.links.length, 0)}개`, href: `${base}/sns${q}` },
+  const cards: { id: string; label: string; on: boolean; done: number; target: number | null; unit: string; foot: string }[] = [
+    { id: "blog", label: "블로그 발행", on: !!s.blog, done: content.blog.length, target: s.blog?.target ?? null, unit: "건", foot: `5위 이내 ${top5}건` },
+    { id: "column", label: "홈페이지 칼럼", on: !!s.column, done: content.columns.length, target: s.column?.target ?? null, unit: "건", foot: "SEO · AEO용 칼럼" },
+    { id: "place", label: "플레이스 Top 3", on: !!s.place, done: placeRanks.filter((v) => v <= 3).length, target: place.length || null, unit: "개",
+      foot: placeRanks.length ? `평균 ${(placeRanks.reduce((a, b) => a + b, 0) / placeRanks.length).toFixed(1)}위` : "수집 전" },
+    { id: "cafe", label: "카페 바이럴", on: !!s.cafe, done: cafe.filter((x) => x.status !== "삭제됨").length, target: s.cafe?.target ?? null, unit: "건", foot: `조회 ${views(cafe)}` },
+    { id: "daangn", label: "당근마켓 바이럴", on: !!s.daangn, done: daangn.filter((x) => x.status !== "삭제됨").length, target: s.daangn?.target ?? null, unit: "건", foot: `조회 ${views(daangn)}` },
+    { id: "sns", label: "SNS 카드뉴스", on: !!s.cardnews, done: content.cardnews.length, target: s.cardnews?.target ?? null, unit: "회차", foot: `인스타·카카오·당근 소식 ${content.cardnews.reduce((a, r) => a + r.links.length, 0)}개` },
   ];
+  const off = (label: string, foot: string, action: React.ReactNode) => (
+    <><div className="label">{label}</div><div className="value">미집행</div><div className="foot">{foot}</div>{action && <div className="off-act">{action}</div>}</>
+  );
   return (
     <>
-      <div className="grid g-donut">
-        {cards.map((c) => (
-          <Link key={c.label} href={c.href} className={`card kpi donut-card ${c.on || c.done ? "" : "empty"}`}>
-            {!c.on && !c.done ? <><div className="label">{c.label}</div><div className="value">미집행</div><div className="foot">계약에 포함되지 않음</div></>
-              : c.target ? <Donut done={c.done} total={c.target} label={c.label} sub={c.foot} size={104} />
+      <h2>마케팅 업무</h2>
+      <div className="grid g-donut mt">
+        {cards.map((c) => !c.on && !c.done ? (
+          <div key={c.id} className="card kpi donut-card off-card">
+            {off(c.label, "계약에 포함되지 않음", staff && <Link className="btn sm primary" href={`${base}/${c.id}?add=extra`}>+ 추가하기</Link>)}
+          </div>
+        ) : (
+          <Link key={c.id} href={`${base}/${c.id}${q}`} className="card kpi donut-card">
+            {c.target ? <Donut done={c.done} total={c.target} label={c.label} sub={c.foot} size={104} />
               : <><div className="label">{c.label}</div><div className="value num">{c.done}<small>{c.unit}</small></div><div className="foot">{c.foot}</div></>}
           </Link>
         ))}
-        {s.place && (
-          <Link href={`${base}/place${q}`} className="card kpi donut-card">
-            <Donut done={placeRanks.filter((v) => v <= 3).length} total={place.length} label="플레이스 Top 3" sub={placeRanks.length ? `평균 ${(placeRanks.reduce((a, b) => a + b, 0) / placeRanks.length).toFixed(1)}위` : "수집 전"} size={104} />
-          </Link>
-        )}
       </div>
       <h2 className="mt-l">온라인 광고</h2>
-      <div className="grid g-3 mt">
+      <div className="grid g-donut mt">
         {AD_CHANNELS.map((c) => {
           const st = client.channels[c.id];
-          const status = !st?.contracted ? ["미집행", ""] : st.apiConnected ? ["성과 연결됨", "good"] : ["연결 준비 중", "warn"];
+          if (!st?.contracted) return (
+            <div key={c.id} className="card kpi donut-card off-card">
+              {off(c.label, "집행하지 않는 광고", staff && <AdContractButton clientId={client.id} channel={c.id} label={c.label} compact />)}
+            </div>
+          );
+          const status = st.apiConnected ? ["성과 연결됨", "good"] : ["연결 준비 중", "warn"];
           return (
-            <Link key={c.id} href={`${base}/ads/${c.id}`} className={`card kpi ${st?.contracted ? "" : "empty"}`}>
-              <div className="label">{c.label}</div><div className="row mt-s"><span className={`badge ${status[1]}`}>{status[0]}</span></div>
+            <Link key={c.id} href={`${base}/ads/${c.id}`} className="card kpi donut-card">
+              <div className="label">{c.label}</div><div className="value sm-v">집행 중</div><div className="row mt-s"><span className={`badge ${status[1]}`}>{status[0]}</span></div>
             </Link>
           );
         })}

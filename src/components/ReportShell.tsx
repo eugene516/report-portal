@@ -21,7 +21,7 @@ export const MENUS = [
   { id: "", label: "대시보드", svc: null, fixed: true },
   { id: "blog", label: "블로그", svc: "blog", fixed: true },
   { id: "column", label: "홈페이지 칼럼", svc: "column", fixed: true },
-  { id: "place", label: "플레이스 순위", svc: "place", fixed: false },
+  { id: "place", label: "플레이스 순위", svc: "place", fixed: true },
   { id: "cafe", label: "카페 바이럴", svc: "cafe", fixed: true },
   { id: "daangn", label: "당근마켓 바이럴", svc: "daangn", fixed: true },
   { id: "sns", label: "SNS 카드뉴스", svc: "cardnews", fixed: true },

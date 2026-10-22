@@ -7,10 +7,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-export type SectionKind = "blog" | "column" | "cafe" | "daangn" | "cardnews";
+export type SectionKind = "blog" | "column" | "place" | "cafe" | "daangn" | "cardnews";
 const NAMES: Record<SectionKind, { item: string; svc: string }> = {
   blog: { item: "블로그 원고", svc: "블로그" },
   column: { item: "홈페이지 칼럼", svc: "홈페이지 칼럼" },
+  place: { item: "플레이스 키워드", svc: "플레이스" },
   cafe: { item: "카페 게시글", svc: "카페 바이럴" },
   daangn: { item: "당근 게시글", svc: "당근마켓 바이럴" },
   cardnews: { item: "카드뉴스 회차", svc: "SNS 카드뉴스" },
@@ -21,12 +22,13 @@ const int = (v: string) => (v === "" ? null : Math.max(0, Math.floor(Number(v.re
 
 export type ContractSummary = { quantity: number; extra: number; done: number; dueOn: string | null } | null;
 
-export default function SectionTools({ clientId, period, kind, contracted, lastDay, nextRound, summary }: {
+export default function SectionTools({ clientId, period, kind, contracted, lastDay, nextRound, summary, initialOpen = null }: {
   clientId: string; period: string; kind: SectionKind; contracted: boolean; lastDay: string; nextRound: number; summary: ContractSummary;
+  initialOpen?: "content" | "extra" | null;   // 대시보드의 [+ 추가하기]로 들어오면 추가 계약 입력이 열린 상태
 }) {
   const router = useRouter();
   const sb = supabaseBrowser();
-  const [open, setOpen] = useState<"content" | "extra" | null>(null);
+  const [open, setOpen] = useState<"content" | "extra" | null>(initialOpen);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const n = NAMES[kind];
@@ -39,11 +41,13 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
     e.preventDefault();
     const form = e.currentTarget; const fd = new FormData(form);
     const url = s(fd, "url");
-    if (kind !== "cardnews" && !isUrl(url)) return setMsg({ ok: false, text: "주소는 http:// 또는 https:// 로 시작해야 합니다." });
+    if (kind !== "cardnews" && kind !== "place" && !isUrl(url)) return setMsg({ ok: false, text: "주소는 http:// 또는 https:// 로 시작해야 합니다." });
     setBusy(true); setMsg(null);
     let error: unknown = null;
     if (kind === "blog") {
       ({ error } = await sb.from("blog_posts").insert({ client_id: clientId, period, keyword: s(fd, "keyword"), title: s(fd, "title"), url, published_on: s(fd, "date") || null }));
+    } else if (kind === "place") {
+      ({ error } = await sb.from("tracked_keywords").upsert({ client_id: clientId, kind: "place", keyword: s(fd, "keyword"), active: true }, { onConflict: "client_id,kind,keyword" }));
     } else if (kind === "column") {
       ({ error } = await sb.from("web_columns").insert({ client_id: clientId, period, title: s(fd, "title"), url, published_on: s(fd, "date") || null }));
     } else if (kind === "cafe" || kind === "daangn") {
@@ -110,6 +114,10 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
             <label className="w2">포스팅 제목 *<input name="title" required maxLength={200} className="search" /></label>
             <label className="w2">포스팅 주소 *<input name="url" required className="search" placeholder="https://blog.naver.com/..." /></label>
             <label>발행일<input name="date" type="date" className="search" /></label>
+          </>}
+          {kind === "place" && <>
+            <label className="w2">플레이스 순위 키워드 *<input name="keyword" required maxLength={60} className="search" placeholder="예: 청량리 안과" /></label>
+            <p className="faint w2">순위는 매일 오전 9시 수집 또는 요청 시 수집 때 반영됩니다.</p>
           </>}
           {kind === "column" && <>
             <label className="w2">칼럼 제목 *<input name="title" required maxLength={200} className="search" /></label>
