@@ -193,14 +193,14 @@ function KeywordTop10({ top, path, query }: { top: TopKw; path: string; query: R
       </div>
       <p className="faint">{top.window.label}{top.window.partial ? ` · 진행 중인 달이라 ${top.window.to.slice(5).replace("-", "/")}까지 집계` : ""} · 이달 노출된 키워드 {top.keywords.length}개 중 {SORTS.find(([k]) => k === top.sort)?.[1]} 상위 10개 · 월말 리포트 기준(1일~말일)</p>
       {rows.length === 0 ? <div className="card pad mt faint">이 달에 노출된 키워드가 없습니다.</div> : (
-        <div className="card mt tbl-wrap"><table>
-          <thead><tr><th className="r">순위</th><th>키워드</th><th>광고그룹</th><th className="r">클릭</th><th className="r">노출</th><th className="r">CTR</th><th className="r">광고비</th><th className="r">비중</th><th className="r">CPC</th><th className="r">평균 노출순위</th><th>등급</th></tr></thead>
+        <div className="card mt tbl-wrap"><table className="kw-top">
+          <thead><tr><th className="r">순위</th><th>키워드 · 광고그룹</th><th className="r">클릭</th><th className="r">노출</th><th className="r">CTR</th><th className="r">광고비</th><th className="r">비중</th><th className="r">CPC</th><th className="r">평균순위</th><th>등급</th></tr></thead>
           <tbody>{rows.map((x, i) => {
             const g = keywordGrade(Number(x.impressions), Number(x.clicks));
             return (
               <tr key={x.id}>
                 <td className="r num"><b>{i + 1}</b></td>
-                <td><b>{x.keyword}</b></td><td className="faint">{x.adgroup}</td>
+                <td className="kw-cell"><b>{x.keyword}</b><div className="faint">{x.adgroup}</div></td>
                 <td className="r num">{fmt(x.clicks)}</td><td className="r num">{fmt(x.impressions)}</td>
                 <td className="r num">{x.ctr != null ? `${fmt(x.ctr, 2)}%` : "-"}</td>
                 <td className="r num">{won(x.cost)}</td>

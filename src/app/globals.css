@@ -415,3 +415,8 @@ a.cname { color: var(--text); }
 /* 화면 이동 중 표시 */
 .loading-bar { height: 3px; width: 100%; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 50% 100%; background-repeat: no-repeat; animation: loading-slide 1s linear infinite; border-radius: 2px; }
 @keyframes loading-slide { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+
+/* 월간 상위 키워드 10: 좁은 화면에서도 글자가 한 글자씩 꺾이지 않게 */
+.kw-top th, .kw-top td { white-space: nowrap; }
+.kw-top .kw-cell { white-space: normal; min-width: 140px; }
+.kw-top .kw-cell .faint { font-size: 12px; }
