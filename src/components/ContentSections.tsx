@@ -137,14 +137,19 @@ export function PlaceSection({ c, urls }: { c: ReportContent; urls: Map<string, 
   );
 }
 
-// ── 네이버 플레이스 광고 (플레이스 순위와 같은 키워드 · 같은 형식) ───────────────────────
-export function PlaceAdsSection({ c, urls }: { c: ReportContent; urls: Map<string, string> }) {
+// ── 네이버 플레이스 광고 (플레이스 순위와 같은 키워드, 순위만 표시) ───────────────────────
+// 정렬: 광고 자리 순위가 높은 키워드 먼저 → 같은 순위면 광고주 주소지 지역(광고주 정보의 지역) 키워드 먼저 → 미노출은 맨 뒤
+export function PlaceAdsSection({ c, area }: { c: ReportContent; area: string | null }) {
   const rows = c.keywords.filter((k) => k.kind === "place");
+  const local = (area ?? "").split(/[\s·,/]+/).map((t) => t.replace(/(동|구|역)$/, "")).filter((t) => t.length >= 2);
+  const isLocal = (kw: string) => local.some((t) => kw.includes(t));
+  const sorted = [...rows].sort((x, y) =>
+    (x.place?.adRank ?? 99) - (y.place?.adRank ?? 99) || Number(isLocal(y.keyword)) - Number(isLocal(x.keyword)) || Number(!!y.important) - Number(!!x.important));
   const shown = rows.filter((r) => r.place?.adRank != null);
   const last = rows.map((r) => r.place?.at).filter(Boolean).sort().at(-1);
   return (
     <>
-      <p className="muted">플레이스 순위와 같은 키워드를 네이버 메인에서 검색했을 때 플레이스 영역의 <b>광고 자리</b>에 노출되는지 확인합니다. 캡쳐에서 검색 키워드와 광고 딱지가 붙은 해당 업체 항목을 빨간 박스로 표시했습니다.</p>
+      <p className="muted">플레이스 순위와 같은 키워드를 네이버 메인에서 검색했을 때 플레이스 영역의 <b>광고 자리</b>에 몇 번째로 노출되는지입니다. 상위에 노출되는 키워드부터 보여주고, 노출되지 않은 키워드는 아래에 모았습니다.</p>
       {rows.length > 0 && (
         <div className="row place-sum">
           <span className="badge acc">광고 노출 {shown.length} / {rows.length}개 키워드</span>
@@ -152,23 +157,20 @@ export function PlaceAdsSection({ c, urls }: { c: ReportContent; urls: Map<strin
           <span className="faint">{kst(last)} 확인</span>
         </div>
       )}
-      {rows.length === 0 && <div className="empty-state">등록된 플레이스 키워드가 없습니다.</div>}
-      <div className="place-grid">
-        {rows.map((r, i) => {
-          const src = r.place?.adCapture ? urls.get(r.place.adCapture) : undefined;
-          return (
-            <figure key={r.keyword} className="place-card card">
-              <figcaption>
-                <div className="pk"><span className="faint num">{i + 1}</span><b>{r.keyword}</b>{r.important && <span className="badge warn">중점</span>}</div>
-                <div className="row">{!r.place ? <span className="rank none">확인 전</span> : r.place.adRank != null ? <span className="rank top">광고 {r.place.adRank}번째</span> : <span className="rank out">광고 미노출</span>}</div>
-              </figcaption>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {src ? <a href={src} target="_blank" rel="noopener noreferrer"><img loading="lazy" src={src} alt={`${r.keyword} 플레이스 광고 노출 화면`} /></a> : <div className="noimg">{r.place ? (r.place.adRank != null ? "캡쳐 없음" : "광고 자리에 노출되지 않음") : "확인 전"}</div>}
-              <div className="pf faint"><span>{r.place ? `${kst(r.place.at)} 확인` : ""}</span><a href={naverSearch(r.keyword)} target="_blank" rel="noopener noreferrer">네이버 검색</a></div>
-            </figure>
-          );
-        })}
-      </div>
+      {rows.length === 0 ? <div className="empty-state">등록된 플레이스 키워드가 없습니다.</div> : (
+        <div className="card tbl-wrap"><table className="ad-rank-table">
+          <thead><tr><th>No</th><th>키워드</th><th className="r">광고 순위</th><th>확인 시각</th><th></th></tr></thead>
+          <tbody>{sorted.map((r, i) => (
+            <tr key={r.keyword} className={r.place?.adRank == null ? "muted-row" : ""}>
+              <td className="faint num">{i + 1}</td>
+              <td><b>{r.keyword}</b>{r.important && <span className="badge warn">중점</span>}{isLocal(r.keyword) && <span className="badge">주소지</span>}</td>
+              <td className="r">{!r.place ? <span className="rank none">확인 전</span> : r.place.adRank != null ? <span className={`rank ${r.place.adRank === 1 ? "top" : "mid"}`}>{r.place.adRank}번째</span> : <span className="rank out">미노출</span>}</td>
+              <td className="faint num">{kst(r.place?.at)}</td>
+              <td className="r"><a className="btn sm" href={naverSearch(r.keyword)} target="_blank" rel="noopener noreferrer">네이버 검색</a></td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
     </>
   );
 }

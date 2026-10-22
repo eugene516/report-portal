@@ -927,3 +927,5 @@ img, svg { max-width: 100%; }
 .nav .subnav a.sub2 { padding-left: 22px; font-size: 13px; }
 @media (max-width: 900px) { .subnav-group { flex-direction: row; align-items: center; } .subnav-h { padding: 0 4px; white-space: nowrap; } .nav .subnav a.sub2 { padding-left: 10px; } }
 .kw-edit { margin-left: 4px; font-size: 12px; }
+.ad-rank-table tr.muted-row td { color: var(--text-3); }
+.ad-rank-table .badge { margin-left: 6px; }

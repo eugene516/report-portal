@@ -78,7 +78,7 @@ export default async function ReportPage({
       <>
         {creatives && <AdCreatives items={creatives} editable={staffView} clientId={ctx.mode === "staff" ? ctx.clientId : undefined} channel={ch.id} label={ch.label} />}
         {placeAd
-          ? (client.channels.naver?.contracted ? <PlaceAdsSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.adCapture ?? null))} />
+          ? (client.channels.naver?.contracted ? <PlaceAdsSection c={content} area={client.area} />
             : staffView ? await adsBody(ctx, client, ch.id, "네이버 플레이스 광고", `${base}/ads/naver/place`, searchParams, staffView) : <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 광고입니다.</p>)
           : await adsBody(ctx, client, ch.id, ch.id === "naver" ? "네이버 파워링크 광고" : ch.label, `${base}/ads/${ch.id}`, searchParams, staffView)}
       </>

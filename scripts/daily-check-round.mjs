@@ -80,7 +80,7 @@ for (const b of job.blog) {
 //    순위: 첫 페이지에 없으면 아래쪽 '다음 페이지'로 최대 5페이지까지 넘겨 찾는다(순위는 페이지를 이어 센다)
 //    캡쳐(위아래로 합친 JPG): 검색창(키워드 빨간 박스) + 플레이스 영역 전체(대상 항목 빨간 박스, 아래 페이지 표시까지)
 //      - 순위 캡쳐: 순위로 센 일반 항목에만 박스
-//      - 광고 캡쳐: 광고 딱지가 붙은 해당 업체 항목에만 박스 (광고는 첫 페이지 위쪽에 나온다)
+//    플레이스 광고: 첫 페이지 광고 자리에서 해당 업체가 몇 번째인지 (캡쳐 없음)
 const RED = "4px solid #ff0000";
 const placeBox = () => [...document.querySelectorAll(".api_subject_bx")].find((b) => /^플레이스/.test((b.innerText || "").trim()) && b.querySelector("a[href*='place']"));
 async function capturePlace(p, kind) {
@@ -129,11 +129,8 @@ for (const p of job.place) {
         return { organic, rank, adRank, hasNext: !disabled };
       }, { NAME: p.placeName, organicBefore, src: placeBox.toString() });
       if (r.noBlock) { noBlock = true; break; }
-      // 플레이스 광고: 첫 페이지에서 광고 딱지가 붙은 해당 업체 항목만 박스 표시해 캡쳐
-      if (pageNo === 1 && r.adRank != null) {
-        adRank = r.adRank;
-        if (tool) { try { adCapture = await capturePlace(p, "ad"); } catch (e) { result.errors.push(`광고 캡쳐 ${p.keyword}: ${String(e).slice(0, 100)}`); } }
-      }
+      // 플레이스 광고: 첫 페이지 광고 자리 순위만 기록 (캡쳐 안 함)
+      if (pageNo === 1 && r.adRank != null) adRank = r.adRank;
       if (r.rank != null) { rank = r.rank; break; }
       organicBefore = r.organic;
       if (!r.hasNext) break;
