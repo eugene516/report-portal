@@ -333,69 +333,37 @@ async function FullReport({ ctx, client, content, base, services, staffView, sea
   const y = kstToday(-1);
   const to = content.period === y.slice(0, 7) ? y : new Date(Date.UTC(Number(content.period.slice(0, 4)), Number(content.period.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const adSp = { ...searchParams, range: "custom", from, to };
+  // 탭 = 좌측 메뉴와 같은 내용 (전체 요약은 좌측 '대시보드'에서). 계약했거나 자료가 있는 항목만
   const sheets: Sheet[] = [];
-  sheets.push({ id: "summary", label: "요약", node: <Dashboard ctx={ctx} client={client} content={content} base={base} staff={false} summaryOnly /> });
-  sheets.push({ id: "links", label: "배포 링크", node: <LinksSheet c={content} /> });
-  sheets.push({ id: "ranks", label: "순위 요약", node: <RanksSheet c={content} /> });
   if (on("blog", content.blog.length > 0)) sheets.push({ id: "blog", label: "블로그", badge: String(content.blog.length), node: <BlogSection c={content} tab="posts" path={`${base}/blog`} bare /> });
   if (on("column", content.columns.length > 0)) sheets.push({ id: "column", label: "홈페이지 칼럼", badge: String(content.columns.length), node: <ColumnSection c={content} /> });
+  const cafeOn = on("cafe", cafe.length > 0), daangnOn = on("daangn", daangn.length > 0);
+  if (cafeOn || daangnOn) sheets.push({ id: "viral", label: cafeOn && daangnOn ? "카페 · 당근" : cafeOn ? "카페 바이럴" : "당근마켓 바이럴", badge: String(cafe.length + daangn.length), node: (
+    <>
+      {cafeOn && <><h3 className="sheet-sub">카페 바이럴</h3><CafeSection c={content} list={cafe} channel="cafe" urls={cUrls} /></>}
+      {daangnOn && <><h3 className="sheet-sub">당근마켓 바이럴</h3><CafeSection c={content} list={daangn} channel="daangn" urls={dUrls} /></>}
+    </>
+  ) });
   if (on("place", place.length > 0)) sheets.push({ id: "place", label: "플레이스 순위", badge: String(place.length), node: <PlaceSection c={content} urls={pUrls} /> });
-  if (on("cafe", cafe.length > 0)) sheets.push({ id: "cafe", label: "카페 바이럴", badge: String(cafe.length), node: <CafeSection c={content} list={cafe} channel="cafe" urls={cUrls} /> });
-  if (on("daangn", daangn.length > 0)) sheets.push({ id: "daangn", label: "당근마켓 바이럴", badge: String(daangn.length), node: <CafeSection c={content} list={daangn} channel="daangn" urls={dUrls} /> });
   if (on("cardnews", content.cardnews.length > 0)) sheets.push({ id: "sns", label: "SNS 카드뉴스", badge: String(content.cardnews.length), node: <SnsSection c={content} /> });
-  if (client.channels.naver?.contracted) {
-    sheets.push({ id: "powerlink", label: "파워링크 광고", node: await adsBody(ctx, client, "naver", "네이버 파워링크 광고", `${base}/ads/naver`, adSp, false) });
-    sheets.push({ id: "placead", label: "플레이스 광고", node: <PlaceAdsSection c={content} area={client.area} /> });
+  // 온라인 광고: 계약한 채널을 한 탭에 (각 채널 메뉴와 같은 내용 — 집행 중인 광고 소재 → 성과)
+  const ads: React.ReactNode[] = [];
+  for (const ch of AD_CHANNELS) {
+    if (!client.channels[ch.id]?.contracted) continue;
+    const creatives = await getCreatives(ctx, ch.id);
+    const head = ch.id === "naver" ? "네이버 파워링크 광고" : ch.label;
+    ads.push(
+      <section key={ch.id} className="sheet-block">
+        <h3 className="sheet-sub">{head}</h3>
+        <AdCreatives items={creatives} editable={false} channel={ch.id} label={head} />
+        {await adsBody(ctx, client, ch.id, head, `${base}/ads/${ch.id}`, adSp, false)}
+      </section>,
+    );
+    if (ch.id === "naver") ads.push(<section key="naver-place" className="sheet-block"><h3 className="sheet-sub">네이버 플레이스 광고</h3><PlaceAdsSection c={content} area={client.area} /></section>);
   }
-  if (client.channels.daangn?.contracted) sheets.push({ id: "daangnad", label: "당근마켓 광고", node: await adsBody(ctx, client, "daangn", "당근마켓 광고", `${base}/ads/daangn`, adSp, false) });
-  if (client.channels.kakao?.contracted) sheets.push({ id: "kakaoad", label: "카카오 광고", node: await adsBody(ctx, client, "kakao", "카카오 광고", `${base}/ads/kakao`, adSp, false) });
+  if (ads.length) sheets.push({ id: "ads", label: "온라인 광고", node: <>{ads}</> });
   void staffView;
   const [yy, mm] = content.period.split("-").map(Number);
   return <SheetTabs sheets={sheets} title={`${client.name} ${yy}년 ${mm}월 레포트`} />;
 }
 
-// 배포 링크: 이번 달 발행 · 게시한 모든 링크를 한 표로
-function LinksSheet({ c }: { c: ReportContent }) {
-  const MEDIA: Record<string, string> = { 카카오채널: "카카오 소식", 당근마켓: "당근 소식" };
-  const rows: { kind: string; date: string | null; title: string; url: string }[] = [
-    ...c.blog.map((b) => ({ kind: "블로그", date: b.publishedOn, title: b.title, url: b.url })),
-    ...c.columns.map((x) => ({ kind: "홈페이지 칼럼", date: x.publishedOn, title: x.title, url: x.url })),
-    ...c.cafe.map((x) => ({ kind: x.channel === "daangn" ? "당근 바이럴" : "카페 바이럴", date: x.postedOn, title: x.title ?? x.cafe, url: x.url })),
-    ...c.cardnews.flatMap((r) => r.links.map((l) => ({ kind: `카드뉴스 ${r.round}회차 · ${MEDIA[l.media] ?? l.media}`, date: r.postedOn, title: r.topic ?? "", url: l.url }))),
-  ];
-  if (rows.length === 0) return <div className="empty-state">이번 달 배포한 링크가 없습니다.</div>;
-  return (
-    <div className="card tbl-wrap"><table className="links-table">
-      <thead><tr><th>No</th><th>구분</th><th>날짜</th><th>제목</th><th>링크</th></tr></thead>
-      <tbody>{rows.map((r, i) => (
-        <tr key={r.url + i}><td className="faint num">{i + 1}</td><td className="nowrap">{r.kind}</td><td className="num nowrap">{r.date ?? "-"}</td>
-          <td><a href={r.url} target="_blank" rel="noopener noreferrer">{r.title || "(제목 없음)"}</a></td>
-          <td className="link-cell"><a href={r.url} target="_blank" rel="noopener noreferrer">{r.url.replace(/^https?:\/\//, "").slice(0, 60)}</a></td></tr>
-      ))}</tbody>
-    </table></div>
-  );
-}
-
-// 순위 요약: 블로그 순위(메인 · 블로그 탭 중 높은 쪽) · 플레이스 순위 · 플레이스 광고 순위
-function RanksSheet({ c }: { c: ReportContent }) {
-  const best = (a?: number | null, b?: number | null) => (a == null ? (b ?? null) : b == null ? a : Math.min(a, b));
-  const r = (v: number | null | undefined, done: boolean) => (!done ? <span className="rank none">확인 전</span> : v == null ? <span className="rank out">순위 밖</span> : <span className={`rank ${v <= 3 ? "top" : v <= 10 ? "mid" : ""}`}>{v}위</span>);
-  const place = c.keywords.filter((k) => k.kind === "place");
-  return (
-    <div className="grid g-auto">
-      <section className="card pad">
-        <h3>블로그 순위</h3>
-        {c.blog.length === 0 ? <p className="faint">이번 달 블로그 원고가 없습니다.</p> : (
-          <table className="mt-s"><tbody>{c.blog.map((b) => <tr key={b.id}><td>{b.keyword}</td><td className="r">{r(best(b.rank?.main, b.rank?.blogTab), !!b.rank)}</td></tr>)}</tbody></table>
-        )}
-      </section>
-      <section className="card pad">
-        <h3>플레이스 순위 · 광고</h3>
-        {place.length === 0 ? <p className="faint">플레이스 키워드가 없습니다.</p> : (
-          <table className="mt-s"><thead><tr><th>키워드</th><th className="r">순위</th><th className="r">광고</th></tr></thead>
-            <tbody>{place.map((k) => <tr key={k.keyword}><td>{k.keyword}{k.important && <span className="badge warn">중점</span>}</td><td className="r">{r(k.place?.rank, !!k.place)}{k.place?.page && k.place.page > 1 ? <span className="faint"> ({k.place.page}p)</span> : null}</td><td className="r">{k.place?.adRank ? `${k.place.adRank}번째` : "-"}</td></tr>)}</tbody></table>
-        )}
-      </section>
-    </div>
-  );
-}
