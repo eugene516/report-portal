@@ -1,8 +1,8 @@
 // 네이버 광고 성과 (서버 컴포넌트, DB 데이터만 사용)
 // 상단: 기간 선택 · 지표 카드(이전 기간 대비) · 일별 그래프
-// 아래: 광고비 소진 현황 · 성과 분석과 개선 제안(자동 + 담당자 코멘트) · 캠페인 · 광고그룹 · 키워드 · 요일별
+// 아래: 광고비 소진 현황 · 성과 분석과 개선 제안(자동 + 담당자 코멘트) · 캠페인 · 광고그룹 · 키워드 TOP 10(주간·월간) · 요일별
 import Link from "next/link";
-import type { NaverReport, Period } from "@/lib/report";
+import type { KeywordWindow, NaverReport, Period, TopKeyword } from "@/lib/report";
 import { budgetStatus, buildInsights, DOW, keywordGrade } from "@/lib/naverInsights";
 import NoteEditor from "./NoteEditor";
 
@@ -24,9 +24,12 @@ function Delta({ now, prev, upGood = true, unit = "%", digits = 0 }: { now: numb
   return <span className={`delta ${good ? "up" : "down"}`}>{ch > 0 ? "▲" : "▼"}{Math.abs(ch).toFixed(0)}{unit} <span className="faint">이전 {fmt(prev, digits)}</span></span>;
 }
 
-export default function NaverAdsView({ data, period, path, note }: {
+type TopKw = { window: KeywordWindow; keywords: TopKeyword[]; sort: "clicks" | "impressions" | "cost" };
+
+export default function NaverAdsView({ data, period, path, note, top, query }: {
   data: NaverReport; period: Period; path: string;
   note: { editable: false } | { editable: true; clientId: string; period: string };
+  top: TopKw; query: Record<string, string | undefined>;
 }) {
   const k = data.kpi, p = data.prev;
   const presets: [Period["key"], string][] = [["yesterday", "어제"], ["7d", "최근 7일"], ["30d", "최근 30일"]];
@@ -43,7 +46,6 @@ export default function NaverAdsView({ data, period, path, note }: {
     { label: "ROAS", value: fmt(k.roas, 1), unit: "%", now: k.roas, prev: p?.roas, digits: 1 },
   ];
   const wdMax = Math.max(1, ...data.weekday.map((w) => Number(w.cost)));
-  const kwTotalCost = data.keywords.reduce((s, x) => s + Number(x.cost), 0) || 1;
 
   return (
     <>
@@ -137,33 +139,8 @@ export default function NaverAdsView({ data, period, path, note }: {
         <PerfTable rows={data.adgroups.map((g) => ({ ...g, key: g.id, sub: g.campaign }))} total={k.cost} />
       </>}
 
-      {/* ── 키워드 ── */}
-      {data.keywords.length > 0 && <>
-        <div className="row mt-l" style={{ justifyContent: "space-between" }}>
-          <h2>키워드별 성과</h2>
-          <span className="faint">노출·비용이 있는 키워드 {data.keywords.length}개 중 비용 순 상위 30개 · 등급 S: 노출 100+ & 클릭 / A: 노출 50+ / B: 저노출 클릭 / C: 노출 10+ / D: 노출 10 미만</span>
-        </div>
-        <div className="card mt tbl-wrap"><table>
-          <thead><tr><th>등급</th><th>키워드</th><th>광고그룹</th><th className="r">광고비</th><th className="r">비중</th><th className="r">노출</th><th className="r">클릭</th><th className="r">CTR</th><th className="r">CPC</th><th className="r">평균순위</th><th className="r">입찰가</th><th>점검</th></tr></thead>
-          <tbody>{data.keywords.slice(0, 30).map((x) => {
-            const g = keywordGrade(Number(x.impressions), Number(x.clicks));
-            const flag = Number(x.impressions) >= 100 && Number(x.clicks) === 0 ? ["클릭 없음", "warn"]
-              : Number(x.impressions) < 100 && Number(x.clicks) >= 2 && Number(x.ctr ?? 0) >= 3 ? ["입찰 상향 후보", "good"]
-              : Number(x.avgRank ?? 0) > 5 ? ["순위 낮음", ""] : null;
-            return (
-              <tr key={x.id}>
-                <td><span className={`badge ${g === "S" ? "good" : g === "A" ? "acc" : g === "D" ? "" : "warn"}`}>{g}</span></td>
-                <td><b>{x.keyword}</b></td><td className="faint">{x.adgroup}</td>
-                <td className="r num">{won(x.cost)}</td><td className="r num faint">{((Number(x.cost) / kwTotalCost) * 100).toFixed(1)}%</td>
-                <td className="r num">{fmt(x.impressions)}</td><td className="r num">{fmt(x.clicks)}</td>
-                <td className="r num">{x.ctr != null ? `${fmt(x.ctr, 2)}%` : "-"}</td><td className="r num">{won(x.cpc)}</td>
-                <td className="r num">{fmt(x.avgRank, 1)}</td><td className="r num faint">{x.bid ? won(x.bid) : "그룹 입찰가"}</td>
-                <td>{flag && <span className={`badge ${flag[1]}`}>{flag[0]}</span>}</td>
-              </tr>
-            );
-          })}</tbody>
-        </table></div>
-      </>}
+      {/* ── 키워드 TOP 10 (주간·월간, 위 기간 선택과 별도) ── */}
+      <KeywordTop10 top={top} path={path} query={query} />
 
       {/* ── 요일별 ── */}
       {data.weekday.length > 0 && <>
@@ -181,6 +158,58 @@ export default function NaverAdsView({ data, period, path, note }: {
           ))}</tbody>
         </table></div>
       </>}
+    </>
+  );
+}
+
+const SORTS: [TopKw["sort"], string][] = [["clicks", "클릭순"], ["impressions", "노출순"], ["cost", "광고비순"]];
+
+function KeywordTop10({ top, path, query }: { top: TopKw; path: string; query: Record<string, string | undefined> }) {
+  const href = (patch: Record<string, string>) => {
+    const q = new URLSearchParams();
+    for (const [k, val] of Object.entries({ ...query, ...patch })) if (val) q.set(k, val);
+    return `${path}?${q.toString()}#keywords`;
+  };
+  const rows = [...top.keywords]
+    .sort((a, b) => Number(b[top.sort]) - Number(a[top.sort]) || Number(b.impressions) - Number(a.impressions))
+    .slice(0, 10);
+  const total = top.keywords.reduce((s, x) => s + Number(x[top.sort]), 0) || 1;
+  return (
+    <>
+      <div id="keywords" className="row mt-l" style={{ justifyContent: "space-between" }}>
+        <h2>키워드 TOP 10</h2>
+        <div className="row">
+          <div className="seg">
+            <Link href={href({ kw: "week" })} className={top.window.mode === "week" ? "on" : ""} scroll={false}>주간</Link>
+            <Link href={href({ kw: "month" })} className={top.window.mode === "month" ? "on" : ""} scroll={false}>월간</Link>
+          </div>
+          <div className="seg">
+            {SORTS.map(([k, label]) => <Link key={k} href={href({ kwsort: k })} className={top.sort === k ? "on" : ""} scroll={false}>{label}</Link>)}
+          </div>
+        </div>
+      </div>
+      <p className="faint">{top.window.label} · 노출된 키워드 {top.keywords.length}개 중 {SORTS.find(([k]) => k === top.sort)?.[1]} 상위 10개 · 위쪽 기간 선택과 별개로 집계</p>
+      {rows.length === 0 ? <div className="card pad mt faint">이 기간에 노출된 키워드가 없습니다.</div> : (
+        <div className="card mt tbl-wrap"><table>
+          <thead><tr><th className="r">순위</th><th>키워드</th><th>광고그룹</th><th className="r">클릭</th><th className="r">노출</th><th className="r">CTR</th><th className="r">광고비</th><th className="r">비중</th><th className="r">CPC</th><th className="r">평균 노출순위</th><th>등급</th></tr></thead>
+          <tbody>{rows.map((x, i) => {
+            const g = keywordGrade(Number(x.impressions), Number(x.clicks));
+            return (
+              <tr key={x.id}>
+                <td className="r num"><b>{i + 1}</b></td>
+                <td><b>{x.keyword}</b></td><td className="faint">{x.adgroup}</td>
+                <td className="r num">{fmt(x.clicks)}</td><td className="r num">{fmt(x.impressions)}</td>
+                <td className="r num">{x.ctr != null ? `${fmt(x.ctr, 2)}%` : "-"}</td>
+                <td className="r num">{won(x.cost)}</td>
+                <td className="r num faint">{((Number(x[top.sort]) / total) * 100).toFixed(1)}%</td>
+                <td className="r num">{won(x.cpc)}</td>
+                <td className="r num">{x.avgRank != null ? `${fmt(x.avgRank, 1)}위` : "-"}</td>
+                <td><span className={`badge ${g === "S" ? "good" : g === "A" ? "acc" : g === "D" ? "" : "warn"}`}>{g}</span></td>
+              </tr>
+            );
+          })}</tbody>
+        </table></div>
+      )}
     </>
   );
 }

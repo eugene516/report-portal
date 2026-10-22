@@ -67,3 +67,24 @@ export function resolvePeriod(sp: { range?: string; from?: string; to?: string }
   if (sp.range === "30d") return { key: "30d", from: kstToday(-30), to: y, label: "최근 30일" };
   return { key: "7d", from: kstToday(-7), to: y, label: "최근 7일" };
 }
+
+// 키워드 TOP 10: 주간(최근 7일) · 월간(이번 달 1일~어제, 1일에는 지난달 전체)
+export type KeywordWindow = { mode: "week" | "month"; from: string; to: string; label: string };
+export type TopKeyword = { id: string; keyword: string; adgroup: string; avgRank: number | null; impressions: number; clicks: number; cost: number; ctr: number | null; cpc: number | null; days: number };
+
+export function resolveKeywordWindow(kw?: string): KeywordWindow {
+  const y = kstToday(-1);
+  if (kw === "month") {
+    const from = `${y.slice(0, 7)}-01`;
+    return { mode: "month", from, to: y, label: `${Number(y.slice(5, 7))}월 (${from.slice(5)} ~ ${y.slice(5)})` };
+  }
+  const from = kstToday(-7);
+  return { mode: "week", from, to: y, label: `최근 7일 (${from.slice(5)} ~ ${y.slice(5)})` };
+}
+
+export async function getNaverTopKeywords(ctx: ReportCtx, w: KeywordWindow): Promise<TopKeyword[]> {
+  const { data } = ctx.mode === "staff"
+    ? await (await supabaseForStaff()).rpc("staff_report_naver_keywords", { p_client: ctx.clientId, p_from: w.from, p_to: w.to })
+    : await supabaseForClientLink().rpc("report_naver_keywords", { p_token: ctx.token, p_from: w.from, p_to: w.to });
+  return ((data as { keywords?: TopKeyword[] } | null)?.keywords ?? []);
+}

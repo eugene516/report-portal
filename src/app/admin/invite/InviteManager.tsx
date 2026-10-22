@@ -1,7 +1,7 @@
 "use client";
 // 직원 초대 화면
 // - 계정 생성·임시 비밀번호 발급·메일 발송은 Supabase staff-admin 함수가 처리 (임시 비밀번호는 서버에서 만들고 저장하지 않음)
-// - 메일을 보내지 못한 경우에만 임시 비밀번호를 이 화면에 한 번 보여준다 → 관리자가 직접 전달
+// - 초대 링크와 임시 비밀번호를 이 화면에 한 번 보여준다 → 관리자가 복사해 직원에게 직접 전달
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -34,9 +34,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
   function show(email: string, data: { mailed: boolean; loginUrl: string; tempPassword?: string }) {
     setCopied(false);
     setIssued({ email, ...data });
-    setMsg(data.mailed
-      ? { ok: true, text: `${email}로 초대 메일을 보냈습니다.` }
-      : { ok: false, text: "계정은 만들었지만 메일을 보내지 못했습니다. 아래 초대 정보를 직원에게 직접 전달해 주세요." });
+    setMsg({ ok: true, text: `${email} 계정을 만들었습니다. 아래 초대 내용을 복사해 직원에게 전달해 주세요.${data.mailed ? " (초대 메일도 발송했습니다)" : ""}` });
     router.refresh();
   }
 
@@ -63,7 +61,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
 
   async function copy() {
     if (!issued?.tempPassword) return;
-    const text = `[믿는구석] 리포트 포털 초대\n\n로그인 주소: ${issued.loginUrl}\n아이디: ${issued.email}\n임시 비밀번호: ${issued.tempPassword}\n\n첫 로그인 후 '내 정보 수정'에서 비밀번호를 바꿔 주세요.`;
+    const text = `[믿는구석] 리포트 포털 초대\n\n초대 링크: ${issued.loginUrl}\n아이디: ${issued.email}\n임시 비밀번호: ${issued.tempPassword}\n\n첫 로그인 후 '내 정보 수정'에서 비밀번호를 바꿔 주세요.`;
     try { await navigator.clipboard.writeText(text); setCopied(true); } catch { setCopied(false); }
   }
 
@@ -83,9 +81,9 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
 
       {issued?.tempPassword && (
         <section className="card pad mt invite-box">
-          <h2>초대 정보 (이 화면을 벗어나면 다시 볼 수 없습니다)</h2>
+          <h2>초대 내용 (이 화면을 벗어나면 임시 비밀번호를 다시 볼 수 없습니다)</h2>
           <table><tbody>
-            <tr><td className="faint">로그인 주소</td><td><code>{issued.loginUrl}</code></td></tr>
+            <tr><td className="faint">초대 링크</td><td><code>{issued.loginUrl}</code></td></tr>
             <tr><td className="faint">아이디</td><td><code>{issued.email}</code></td></tr>
             <tr><td className="faint">임시 비밀번호</td><td><code className="big">{issued.tempPassword}</code></td></tr>
           </tbody></table>
@@ -93,7 +91,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
             <button className="btn primary sm" onClick={copy}>{copied ? "복사했습니다" : "초대 내용 복사"}</button>
             <button className="btn sm" onClick={() => setIssued(null)}>닫기</button>
           </div>
-          <p className="faint mt-s">메신저 등으로 본인에게만 전달하세요. 직원은 첫 로그인 후 비밀번호를 바꿔야 다른 화면을 쓸 수 있습니다.</p>
+          <p className="faint mt-s">메신저 등으로 본인에게만 전달하세요. 초대 링크를 열면 이메일이 미리 입력되어 있고, 임시 비밀번호로 바로 로그인됩니다. 첫 로그인 후 비밀번호를 바꿔야 다른 화면을 쓸 수 있습니다. 임시 비밀번호를 잃어버리면 목록에서 “초대 재발송”으로 새로 발급하세요.</p>
         </section>
       )}
 
@@ -106,7 +104,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
               <td><div className="cname">{s.name}{s.id === meId && <span className="faint"> (나)</span>}</div><div className="faint">{s.email}</div></td>
               <td><span className={`badge ${s.role === "owner" ? "acc" : s.role === "admin" ? "good" : ""}`}>{ROLE[s.role]}</span></td>
               <td>{status(s)}</td>
-              <td className="num faint">{s.invitedAt ? <>{kst(s.invitedAt)}<br />{s.mailedAt && s.mailedAt >= s.invitedAt ? "메일 발송" : "직접 전달"}</> : "-"}</td>
+              <td className="num faint">{s.invitedAt ? kst(s.invitedAt) : "-"}</td>
               <td className="num faint">{kst(s.lastSignIn)}</td>
               <td className="r">{s.role !== "owner" && s.id !== meId && <button className="btn sm" disabled={busy} onClick={() => reinvite(s)}>초대 재발송</button>}</td>
             </tr>

@@ -1,5 +1,5 @@
 // 직원 계정 관리 (관리자 이상)
-// - invite:   직원 초대 (계정 생성 + 임시 비밀번호 자동 발급 + 초대 메일)
+// - invite:   직원 초대 (계정 생성 + 임시 비밀번호 자동 발급, 관리자가 복사해 전달 · 메일 설정 시 메일도 발송)
 // - reinvite: 초대 재발송 (새 임시 비밀번호 발급 + 메일)
 // - create:   직원 계정 생성 (관리자가 정한 임시 비밀번호, 이전 방식)
 // - password: 직원 비밀번호 재설정 (오너 계정은 오너 본인만)
@@ -88,8 +88,9 @@ Deno.serve(async (req) => {
   const { data: me } = await db.from("staff_roles").select("email, display_name").eq("user_id", caller.userId).maybeSingle();
   const inviter = me?.display_name ?? me?.email ?? "관리자";
 
-  // 초대: 계정 생성(이메일 인증 완료 상태) + 임시 비밀번호 발급 + 초대 메일
-  // 메일을 보내지 못하면 임시 비밀번호를 이 응답으로 한 번만 돌려주고, 관리자가 직접 전달한다.
+  // 초대: 계정 생성(이메일 인증 완료 상태) + 임시 비밀번호 발급
+  // 임시 비밀번호는 이 응답으로 한 번만 돌려주고, 관리자가 초대 링크와 함께 복사해 직접 전달한다.
+  // (메일 발송 설정(RESEND_API_KEY·MAIL_FROM)이 있으면 초대 메일도 함께 보낸다)
   if (action === "invite") {
     const email = String(body.email ?? "").trim().toLowerCase();
     const displayName = String(body.displayName ?? "").trim().slice(0, 40) || null;
@@ -110,7 +111,7 @@ Deno.serve(async (req) => {
     const { mailed, loginUrl } = await mailInvite(email, displayName, password, inviter);
     if (mailed) await db.from("staff_roles").update({ invite_mailed_at: now }).eq("user_id", data.user.id);
     log("info", "staff invited", { by: caller.userId, role, mailed });
-    return reply({ ok: true, userId: data.user.id, mailed, loginUrl, ...(mailed ? {} : { tempPassword: password }) });
+    return reply({ ok: true, userId: data.user.id, mailed, loginUrl, tempPassword: password });
   }
 
   const userId = String(body.userId ?? "");
@@ -142,7 +143,7 @@ Deno.serve(async (req) => {
     const { mailed, loginUrl } = await mailInvite(u.user.email, t?.display_name ?? null, password, inviter);
     if (mailed) await db.from("staff_roles").update({ invite_mailed_at: now }).eq("user_id", userId);
     log("info", "staff reinvited", { by: caller.userId, target: userId, mailed });
-    return reply({ ok: true, mailed, loginUrl, ...(mailed ? {} : { tempPassword: password }) });
+    return reply({ ok: true, mailed, loginUrl, tempPassword: password });
   }
 
   if (action === "disable") {

@@ -1,7 +1,7 @@
 // 광고주 리포트 페이지 본문 (직원 경로·광고주 경로 공용, 서버 컴포넌트)
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { basePath, getClientSummary, getNaverReport, resolvePeriod, type ClientSummary, type ReportCtx } from "@/lib/report";
+import { basePath, getClientSummary, getNaverReport, getNaverTopKeywords, resolveKeywordWindow, resolvePeriod, type ClientSummary, type ReportCtx } from "@/lib/report";
 import { captureUrls, getContentForRequest, SERVICE_LABELS, type ReportContent } from "@/lib/content";
 import ReportShell, { AD_CHANNELS, isActiveChannel, MENUS, visibleMenus, type AdChannelId } from "./ReportShell";
 import NaverAdsView from "./NaverAdsView";
@@ -70,12 +70,14 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
     );
   }
   const period = resolvePeriod(sp);
-  const data = await getNaverReport(ctx, period.from, period.to);
+  const kwWindow = resolveKeywordWindow(sp.kw);
+  const [data, topKeywords] = await Promise.all([getNaverReport(ctx, period.from, period.to), getNaverTopKeywords(ctx, kwWindow)]);
   if (!data) return <div className="notice">성과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>;
   if (data.notContracted) return <div className="empty-state off-state"><b>{label}는 집행되지 않는 광고입니다.</b></div>;
   // 담당자 코멘트: 직원 화면에서만 편집, 광고주 링크 화면은 읽기 전용
   const note = ctx.mode === "staff" ? { editable: true as const, clientId: ctx.clientId, period: period.to.slice(0, 7) } : { editable: false as const };
-  return <NaverAdsView data={data} period={period} path={path} note={note} />;
+  const kwSort = sp.kwsort === "impressions" || sp.kwsort === "cost" ? sp.kwsort : "clicks";
+  return <NaverAdsView data={data} period={period} path={path} note={note} top={{ window: kwWindow, keywords: topKeywords, sort: kwSort }} query={sp} />;
 }
 
 function Dashboard({ client, content, base }: { client: ClientSummary; content: ReportContent; base: string }) {
