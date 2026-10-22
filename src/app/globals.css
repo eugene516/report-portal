@@ -675,3 +675,7 @@ a.donut-card.sm.ad .value { font-size: 18px; margin: 4px 0 2px; }
 .logo-edit { border: 0; background: none; padding: 2px 6px; font-size: 11.5px; color: var(--text-3); cursor: pointer; border-radius: 6px; }
 .logo-edit:hover { color: var(--accent); background: var(--accent-soft); }
 @media (max-width: 900px) { .brand { text-align: left; } .logo-edit { display: none; } }
+
+/* 광고주 화면 미리보기 */
+.preview-bar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; padding: 10px 14px; margin: -8px 0 16px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 13px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
+.preview-btn { display: inline-flex; align-items: center; gap: 6px; }

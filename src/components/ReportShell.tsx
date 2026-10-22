@@ -41,10 +41,11 @@ export function visibleMenus(services: string[]) {
 export const isContracted = (services: string[], svc: string | null) => !svc || services.includes(svc);
 
 export default function ReportShell({
-  client, base, section, title, eyebrow, staffTools, services, period, thisMonth, children,
+  client, base, section, title, eyebrow, staffTools, preview = null, services, period, thisMonth, children,
 }: {
   client: ClientSummary; base: string; section: string[]; title: string; eyebrow: string;
   staffTools: boolean; services: string[]; period: string; thisMonth: string; children: React.ReactNode;
+  preview?: string | null;   // 광고주 화면 미리보기 중이면 내부 화면 주소(돌아가기용)
 }) {
   const current = section.join("/");
   const inAds = section[0] === "ads";
@@ -98,8 +99,19 @@ export default function ReportShell({
         )}
       </aside>
       <main className="main">
+        {preview && (
+          <div className="preview-bar">
+            <span><b>광고주 화면 미리보기</b> · 광고주가 링크로 보는 화면과 같습니다</span>
+            <Link href={`${preview}${current ? `/${current}` : ""}${q}`} className="btn sm">← 내부 화면으로 돌아가기</Link>
+          </div>
+        )}
         <div className="topbar">
           <div className="title"><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div>
+          {staffTools && (
+            <Link href={`${base}/preview${current && current !== "contracts" ? `/${current}` : ""}${q}`} className="btn sm preview-btn" title="광고주에게 보내는 링크로 열었을 때와 같은 화면">
+              <span aria-hidden="true">👁</span> 광고주 화면 미리보기
+            </Link>
+          )}
           {past && (
             <div className="row">
               <span className="badge warn">지난 레포트 · {period.replace("-", "년 ")}월</span>

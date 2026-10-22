@@ -46,12 +46,16 @@ async function StaffSectionTools({ clientId, period, kind, contracted, content, 
 }
 
 export default async function ReportPage({
-  ctx, section, searchParams, staffTools,
+  ctx, section: rawSection, searchParams, staffTools,
 }: { ctx: ReportCtx; section: string[]; searchParams: Record<string, string | undefined>; staffTools: boolean }) {
+  // 광고주 화면 미리보기: 직원 경로 /admin/clients/{id}/preview/... → 광고주 링크와 똑같이 그린다 (직원용 도구 없음)
+  const preview = ctx.mode === "staff" && rawSection[0] === "preview";
+  const section = preview ? rawSection.slice(1) : rawSection;
+  const staffView = ctx.mode === "staff" && staffTools && !preview;   // 직원용 도구를 그릴지
   // 광고주 정보와 리포트 내용은 서로 기다릴 필요가 없어 동시에 불러온다
   const [client, content] = await Promise.all([getClientSummary(ctx), getContentForRequest(ctx, searchParams.period)]);
   if (!client || !content) notFound();   // 틀린 링크·권한 없음: 존재 여부를 구분하지 않는다
-  const base = basePath(ctx);
+  const base = basePath(ctx) + (preview ? "/preview" : "");
   const key = section.join("/");
   const services = Object.keys(content.services);
   const monthLabel = `${content.period.replace("-", "년 ")}월`;
@@ -62,13 +66,13 @@ export default async function ReportPage({
     const ch = AD_CHANNELS.find((c) => c.id === section[1]);
     if (!ch || section.length !== 2) notFound();
     title = ch.label;
-    body = await adsBody(ctx, client, ch.id, ch.label, `${base}/ads/${ch.id}`, searchParams);
+    body = await adsBody(ctx, client, ch.id, ch.label, `${base}/ads/${ch.id}`, searchParams, staffView);
   } else if (key === "history") {
     title = "지난 레포트 보기";
     body = <HistorySection months={await getHistory(ctx)} thisMonth={currentPeriod()} base={base} services={services} />;
   } else if (key === "contracts") {
     // 직원 경로에서만 열린다 (광고주 링크로는 이 주소가 없다)
-    if (ctx.mode !== "staff" || !staffTools) notFound();
+    if (ctx.mode !== "staff" || !staffView) notFound();
     title = "계약 · 견적 관리";
     body = <ContractsSection clientId={ctx.clientId} requested={searchParams.period} />;
   } else {
@@ -76,7 +80,7 @@ export default async function ReportPage({
     if (!menu || !visibleMenus(services).includes(menu)) notFound();   // 고정 메뉴가 아니고 계약하지 않은 항목(플레이스)의 주소는 열리지 않는다
     title = menu.label;
     let inner: React.ReactNode;
-    if (key === "") inner = <Dashboard client={client} content={content} base={base} staff={ctx.mode === "staff" && staffTools} />;
+    if (key === "") inner = <Dashboard client={client} content={content} base={base} staff={staffView} />;
     else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} />;
     else if (key === "column") inner = <ColumnSection c={content} />;
     else if (key === "place") inner = <PlaceSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.capture ?? null))} />;
@@ -88,13 +92,13 @@ export default async function ReportPage({
     const contracted = isContracted(services, menu.svc);
     body = (
       <>
-        {!contracted && (ctx.mode === "staff" ? (
+        {!contracted && (staffView ? (
           <div className="empty-state off-state off-banner">
             <b>{eunNeun(menu.label)} 이번 계약에 포함되지 않은 미집행 항목입니다.</b>
             중간에 계약되면 아래 ‘+ 추가 계약’으로 수량과 마감일을 등록하세요.
           </div>
         ) : <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 항목입니다.</p>)}
-        {kind && ctx.mode === "staff" && staffTools && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} add={searchParams.add} />}
+        {kind && ctx.mode === "staff" && staffView && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} add={searchParams.add} />}
         {(contracted || hasContent(content, key)) && inner}
       </>
     );
@@ -103,22 +107,22 @@ export default async function ReportPage({
   return (
     <ReportShell client={client} base={base} section={section} title={title}
       eyebrow={`${client.name} · ${section[0] === "ads" ? "온라인 광고" : key === "history" || key === "contracts" ? "월별 관리" : `${monthLabel} 마케팅 리포트`}`}
-      staffTools={staffTools} services={services} period={content.period} thisMonth={currentPeriod()}>
+      staffTools={staffView} preview={preview ? basePath(ctx) : null} services={services} period={content.period} thisMonth={currentPeriod()}>
       {body}
     </ReportShell>
   );
 }
 
-async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, label: string, path: string, sp: Record<string, string | undefined>) {
+async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, label: string, path: string, sp: Record<string, string | undefined>, staffView: boolean) {
   const state = client.channels[ch];
-  if (!state?.contracted && ctx.mode !== "staff") return <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 광고입니다.</p>;
+  if (!state?.contracted && !staffView) return <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 광고입니다.</p>;
   if (!state?.contracted) {
     const others = AD_CHANNELS.filter((c) => c.id !== ch && isActiveChannel(client, c.id));
     return (
       <div className="empty-state off-state">
         <b>{eunNeun(label)} 집행되지 않는 광고입니다.</b>
         계약된 광고가 아니어서 표시할 성과가 없습니다.
-        {ctx.mode === "staff" && <div className="row mt" style={{ justifyContent: "center" }}><AdContractButton clientId={ctx.clientId} channel={ch} label={label} /></div>}
+        {ctx.mode === "staff" && staffView && <div className="row mt" style={{ justifyContent: "center" }}><AdContractButton clientId={ctx.clientId} channel={ch} label={label} /></div>}
         {others.length > 0 && (
           <div className="row mt" style={{ justifyContent: "center" }}>
             {others.map((o) => <Link key={o.id} className="btn" href={path.replace(/\/ads\/[^/]+$/, `/ads/${o.id}`)}>{o.label} 성과 보기</Link>)}
@@ -141,7 +145,7 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
   if (!data) return <div className="notice">성과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>;
   if (data.notContracted) return <div className="empty-state off-state"><b>{eunNeun(label)} 집행되지 않는 광고입니다.</b></div>;
   // 담당자 코멘트: 직원 화면에서만 편집, 광고주 링크 화면은 읽기 전용
-  const note = ctx.mode === "staff" ? { editable: true as const, clientId: ctx.clientId, period: period.to.slice(0, 7) } : { editable: false as const };
+  const note = ctx.mode === "staff" && staffView ? { editable: true as const, clientId: ctx.clientId, period: period.to.slice(0, 7) } : { editable: false as const };
   const kwSort = sp.kwsort === "impressions" || sp.kwsort === "cost" ? sp.kwsort : "clicks";
   return <NaverAdsView data={data} period={period} path={path} note={note} top={{ window: kwWindow, keywords: topKeywords, sort: kwSort }} query={sp} />;
 }
