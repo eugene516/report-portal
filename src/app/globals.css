@@ -411,3 +411,7 @@ a.cname { color: var(--text); }
 .invite-box table td { padding: 6px 16px 6px 0; border: 0; }
 .invite-box code { font-family: ui-monospace, Consolas, monospace; background: var(--surface-2); padding: 2px 8px; border-radius: 6px; word-break: break-all; }
 .invite-box code.big { font-size: 18px; letter-spacing: 1px; }
+
+/* 화면 이동 중 표시 */
+.loading-bar { height: 3px; width: 100%; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 50% 100%; background-repeat: no-repeat; animation: loading-slide 1s linear infinite; border-radius: 2px; }
+@keyframes loading-slide { from { background-position: -50% 0; } to { background-position: 150% 0; } }

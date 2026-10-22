@@ -10,12 +10,11 @@ import { BlogSection, CafeSection, PlaceSection, SnsSection } from "./ContentSec
 export default async function ReportPage({
   ctx, section, searchParams, staffTools,
 }: { ctx: ReportCtx; section: string[]; searchParams: Record<string, string | undefined>; staffTools: boolean }) {
-  const client = await getClientSummary(ctx);
-  if (!client) notFound();   // 틀린 링크·권한 없음: 존재 여부를 구분하지 않는다
+  // 광고주 정보와 리포트 내용은 서로 기다릴 필요가 없어 동시에 불러온다
+  const [client, content] = await Promise.all([getClientSummary(ctx), getContentForRequest(ctx, searchParams.period)]);
+  if (!client || !content) notFound();   // 틀린 링크·권한 없음: 존재 여부를 구분하지 않는다
   const base = basePath(ctx);
   const key = section.join("/");
-  const content = await getContentForRequest(ctx, searchParams.period);
-  if (!content) notFound();
   const services = Object.keys(content.services);
   const monthLabel = `${content.period.replace("-", "년 ")}월`;
 

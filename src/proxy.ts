@@ -23,7 +23,7 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await supabase.auth.getUser(); // 세션 갱신
+  await supabase.auth.getClaims(); // 세션 갱신 (만료된 토큰만 인증 서버에 갱신 요청)
   res.headers.set("Cache-Control", "private, no-store");
   return res;
 }
