@@ -1,6 +1,6 @@
 "use client";
-// 직원: 파일 검수 관리 — 콘텐츠 등록(유형 · 월 · 제목 · Word · 이미지) → 검수 요청 → 수정 요청 확인 → 수정본 등록(새 버전) → 재검수 요청
-// 검수 완료는 광고주가 처리한다 (직원이 직접 입력하지 않음). 저장소 · 표 규칙이 담당 여부와 버전을 다시 확인한다
+// 직원: 파일 검수 관리 — 콘텐츠 등록(유형 · 월 · Word · 이미지) → 검수 요청 → 수정 요청 확인 → 수정본 등록(새 버전) → 재검수 요청
+// 검수 완료는 광고주가 처리한다. 이미 확정된 콘텐츠만 담당 직원이 '완료 처리'(기록에 남음). 저장소 · 표 규칙이 담당 여부와 버전을 다시 확인한다
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -53,9 +53,13 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
     if (error || !data) { setBusy(false); return toastError("콘텐츠를 만들지 못했습니다."); }
     const ok = await uploadFiles(clientId, data.id, 1, files);
     let msg = `콘텐츠를 등록했습니다 (파일 ${ok}개).`;
-    if (fd.get("request") && ok) {
+    const after = String(fd.get("after"));
+    if (after === "request" && ok) {
       const { error: e2 } = await sb.rpc("review_request", { p_item: data.id });
       msg = e2 ? msg + " 검수 요청은 하지 못했습니다." : `검수를 요청했습니다 (파일 ${ok}개). 광고주 파일 검수 화면에 바로 보입니다.`;
+    } else if (after === "complete" && ok) {
+      const { error: e2 } = await sb.rpc("review_staff_complete", { p_item: data.id, p_comment: "완료된 콘텐츠로 등록" });
+      msg = e2 ? msg + " 완료 처리는 하지 못했습니다." : `검수 완료 콘텐츠로 등록했습니다 (파일 ${ok}개).`;
     }
     setBusy(false); form.reset(); clear(); setOpen(false);
     toast(msg); router.refresh();
@@ -75,7 +79,11 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
             <FileThumbs files={picked.map((x) => ({ id: x.id, name: x.file.name, url: x.url, mime: x.file.type || null, size: x.file.size }))} onRemove={unpick} />
           </div>
         )}
-        <label className="w-all check-row"><input type="checkbox" name="request" defaultChecked /> 등록하면서 바로 광고주에게 검수 요청</label>
+        <div className="w-all review-after" role="radiogroup" aria-label="등록 후 상태">
+          <label className="check-row"><input type="radio" name="after" value="request" defaultChecked /> 바로 광고주에게 검수 요청</label>
+          <label className="check-row"><input type="radio" name="after" value="complete" /> 이미 확정된 콘텐츠 — 검수 완료로 등록</label>
+          <label className="check-row"><input type="radio" name="after" value="draft" /> 작성 중으로 두기</label>
+        </div>
         <div className="st-act"><button className="btn primary" disabled={busy}>{busy ? "올리는 중…" : "등록"}</button><button type="button" className="btn" onClick={() => { clear(); setOpen(false); }}>취소</button></div>
       </div>
     </form>
@@ -113,6 +121,16 @@ export function ReviewStaffActions({ clientId, itemId, status, version, hasDraft
     if (error) return toastError(/no files/.test(error.message) ? `${nextVersion}차 수정본 파일을 먼저 올려 주세요.` : "재검수를 요청하지 못했습니다.");
     toast(`${nextVersion}차 수정본으로 재검수를 요청했습니다.`); router.refresh();
   }
+  // 이미 광고주와 확정한 콘텐츠: 광고주 검수 없이 담당자가 완료로 표시 (기록에 '담당자 완료 처리'로 남음)
+  async function complete() {
+    if (!hasDraftFiles) return toastError("파일을 먼저 올려 주세요.");
+    if (!await ask(`${version}차 원고를 검수 완료로 표시할까요?\n이미 광고주와 확정된 콘텐츠일 때 사용하세요. 기록에 '담당자 완료 처리'로 남습니다.`)) return;
+    setBusy(true);
+    const { error } = await sb.rpc("review_staff_complete", { p_item: itemId });
+    setBusy(false);
+    if (error) return toastError(/no files/.test(error.message) ? "파일을 먼저 올려 주세요." : "완료 처리하지 못했습니다.");
+    toast("검수 완료로 표시했습니다."); router.refresh();
+  }
   async function removeDraft() {
     if (!await ask("작성 중인 콘텐츠를 삭제할까요?\n올린 파일도 함께 지워집니다.")) return;
     const { data: files } = await sb.from("review_files").select("storage_path").eq("item_id", itemId);
@@ -134,6 +152,7 @@ export function ReviewStaffActions({ clientId, itemId, status, version, hasDraft
           </label>
           {status === "draft" && <button className="btn sm primary" disabled={busy || !hasDraftFiles} onClick={request}>검수 요청</button>}
           {status !== "draft" && <button className="btn sm primary" disabled={busy || pendingNext === 0} onClick={resubmit} title={pendingNext ? "" : "수정본 파일을 먼저 올리세요"}>재검수 요청{pendingNext ? ` (${pendingNext}개 파일)` : ""}</button>}
+          {status !== "approved" && <button className="btn sm decide-ok" disabled={busy || !hasDraftFiles} onClick={complete} title="이미 확정된 콘텐츠를 완료로 표시">✓ 완료 처리</button>}
           {status === "draft" && <button className="btn sm" disabled={busy} onClick={removeDraft}>삭제</button>}
         </div>
       </div>

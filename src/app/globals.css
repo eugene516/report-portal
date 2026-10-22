@@ -1039,3 +1039,5 @@ img, svg { max-width: 100%; }
   .file-viewer .modal-panel { width: 100vw; height: 100dvh; border-radius: 0; padding: 12px; }
   .fv-nav { margin-left: 0; width: 100%; } .fv-nav .btn { flex: 1; }
 }
+.review-after { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.review-after .check-row { font-size: 13px; color: var(--text); }

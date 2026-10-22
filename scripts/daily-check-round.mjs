@@ -98,7 +98,15 @@ async function capturePlace(p, kind) {
     let bottom = bx.y + bx.h;
     const sib = box.nextElementSibling;
     if (sib && /\d+\s*\/\s*\d+/.test(sib.innerText || "") && rc(sib).h < 80) bottom = rc(sib).y + rc(sib).h;
-    return { input: input && rc(input), block: { ...bx, h: bottom - bx.y + 6 } };
+    // 스크롤하면 위에 떠 있는 검색창이 하나 더 생겨 캡쳐에 두 줄로 찍힌다 → 맨 위로 돌리고, 떠 있는 머리글은 숨긴다
+    const out = { input: input && rc(input), block: { ...bx, h: bottom - bx.y + 6 } };
+    scrollTo(0, 0);
+    for (const el of document.querySelectorAll("body *")) {
+      const pos = getComputedStyle(el).position;
+      if ((pos === "fixed" || pos === "sticky") && !el.contains(input) && !el.contains(box) && el.getBoundingClientRect().height < 200) el.style.visibility = "hidden";
+    }
+    await new Promise((ok) => setTimeout(ok, 600));
+    return out;
   }, { RED, src: placeBox.toString(), kind });
   if (!rect.input) return null;
   const base = `${job.captureDir}/${p.client}_${String(p.idx).padStart(2, "0")}${kind === "ad" ? "_ad" : ""}`;

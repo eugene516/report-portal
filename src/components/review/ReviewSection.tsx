@@ -63,7 +63,7 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
           <ul className="review-log">
             {events.length === 0 && <li className="faint">아직 기록이 없습니다.</li>}
             {events.map((e) => (
-              <li key={e.id}><span className="num faint">{kst(e.created_at)}</span><b>{ACTION[e.action] ?? e.action}</b><span className="faint">{e.version}차 · {e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자")}</span>{e.comment && <span className="review-comment">{e.comment}</span>}</li>
+              <li key={e.id}><span className="num faint">{kst(e.created_at)}</span><b>{e.action === "approve" && e.actor_kind === "staff" ? "담당자 완료 처리" : ACTION[e.action] ?? e.action}</b><span className="faint">{e.version}차 · {e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자")}</span>{e.comment && <span className="review-comment">{e.comment}</span>}</li>
             ))}
           </ul>
           {older.length > 0 && (
