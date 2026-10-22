@@ -683,3 +683,46 @@ a.donut-card.sm.ad .value { font-size: 18px; margin: 4px 0 2px; }
 .topbar-tools { justify-content: flex-end; }
 .link-state { white-space: normal; }
 .link-row { align-items: flex-start; }
+
+/* ===== 업무 확인 보드 (구글 태스크 형식) ===== */
+.tasks-page { max-width: none; }
+.tasks-head { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
+.btn.danger { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.member-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
+.member-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--text-2); }
+.member-form .search { min-width: 220px; }
+.board { display: flex; gap: 16px; align-items: flex-start; overflow-x: auto; padding-bottom: 16px; }
+.col { flex: 0 0 300px; display: flex; flex-direction: column; gap: 12px; }
+.col-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: 14px 6px 10px; }
+.col-h { display: flex; align-items: center; gap: 8px; padding: 0 12px 8px; }
+.col-h h3 { font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-x { border: 0; background: var(--bad); color: #fff; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 16px; line-height: 1; }
+.add-task { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.add-task .plus { color: var(--accent); font-size: 20px; line-height: 1; width: 20px; text-align: center; }
+.add-task input:not(.add-due) { flex: 1; min-width: 0; border: 0; background: none; font: inherit; color: var(--text); padding: 6px 0; outline: none; }
+.add-task input:not(.add-due)::placeholder { color: var(--accent); }
+.add-due { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; padding: 3px 6px; }
+.add-task .add-due { margin-left: 26px; }
+.tasks { list-style: none; margin: 0; padding: 0; max-height: 62vh; overflow-y: auto; }
+.task { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 8px; }
+.task:hover { background: var(--surface-2); }
+.check { flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; border: 2px solid var(--text-3); background: none; cursor: pointer; color: #fff; font-size: 12px; font-weight: 700; line-height: 1; display: grid; place-items: center; padding: 0; }
+.check:hover { border-color: var(--accent); }
+.task.done .check { background: var(--accent); border-color: var(--accent); }
+.task-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; word-break: break-word; }
+.task.done .task-t span:first-child { text-decoration: line-through; color: var(--text-3); }
+.due { align-self: flex-start; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-2); }
+.due.over { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.task-act { display: none; gap: 2px; flex-shrink: 0; }
+.task:hover .task-act, .task:focus-within .task-act { display: inline-flex; }
+.task-act button { border: 0; background: none; cursor: pointer; padding: 2px 5px; border-radius: 6px; font-size: 14px; color: var(--text-2); }
+.task-act button:hover { background: var(--surface); color: var(--text); }
+.task.editing { flex-direction: column; align-items: stretch; background: var(--accent-soft); }
+.task.editing > input { border: 1px solid var(--accent); border-radius: 6px; padding: 6px 8px; font: inherit; background: var(--surface); color: var(--text); }
+.empty-t { padding: 10px 14px; }
+.later-h { padding: 10px 14px 2px; font-weight: 700; }
+.done-card { padding: 6px; }
+.done-h { width: 100%; display: flex; justify-content: space-between; align-items: center; border: 0; background: none; padding: 8px 12px; font: inherit; font-weight: 500; color: var(--text-2); cursor: pointer; border-radius: 8px; }
+.done-h:hover { background: var(--surface-2); }
+@media (hover: none) { .task-act { display: inline-flex; } }
+@media (max-width: 700px) { .col { flex-basis: 85vw; } }
