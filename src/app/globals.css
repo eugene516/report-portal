@@ -435,7 +435,10 @@ a.cname { color: var(--text); }
 .adm-nav { background: var(--surface); border-right: 1px solid var(--border); padding: 14px 10px 24px; position: sticky; top: var(--bar-h); height: calc(100vh - var(--bar-h)); overflow: auto; min-width: 0; }
 .adm-fly { background: var(--surface-2); border-right: 1px solid var(--border); padding: 14px 10px 24px; width: 220px; position: sticky; top: var(--bar-h); height: calc(100vh - var(--bar-h)); overflow: auto; }
 .adm.collapsed .adm-fly { display: none; }
-.adm-main { min-width: 0; }
+/* 칸을 명시해야 2단 메뉴가 닫혀 있을 때 본문이 좁은 가운데 칸(auto)으로 밀려 들어가지 않는다 */
+.adm-nav { grid-column: 1; }
+.adm-fly { grid-column: 2; }
+.adm-main { min-width: 0; grid-column: 3; }
 .adm-main .side { top: var(--bar-h); height: calc(100vh - var(--bar-h)); }
 .adm-main .shell { min-height: calc(100vh - var(--bar-h)); }
 .nav-sec { margin-top: 18px; }
@@ -459,6 +462,7 @@ a.cname { color: var(--text); }
   .hide-s { display: none; }
   .admin-bar { padding: 10px 12px; }
   .adm, .adm.collapsed { grid-template-columns: minmax(0, 1fr); }
+  .adm-main { grid-column: 1; }
   .adm-nav, .adm-fly { position: fixed; top: var(--bar-h); bottom: 0; height: auto; z-index: 25; width: min(280px, 82vw); left: 0; transform: translateX(-105%); transition: transform .18s; visibility: visible; box-shadow: 0 8px 24px rgba(0, 0, 0, .18); }
   .adm.collapsed .adm-nav { visibility: visible; padding: 14px 10px 24px; border-right: 1px solid var(--border); }
   .adm.m-open .adm-nav { transform: none; }
