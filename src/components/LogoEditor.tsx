@@ -3,6 +3,7 @@
 // - 이미지를 고르면 정사각형 틀 안에서 끌어서 위치를 옮기고, 슬라이더·마우스 휠로 크기를 조절한다
 // - 저장하면 512×512 정사각형(webp)으로 잘라 logos/{client_id}/ 에 올리고 clients.logo_path 를 바꾼다
 // - 저장소·표 규칙(담당·관리자만)이 권한을 다시 확인한다
+import { ask } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -82,7 +83,7 @@ export default function LogoEditor({ clientId, name, current }: { clientId: stri
   }
 
   async function removeLogo() {
-    if (!current || !confirm("로고를 지울까요?")) return;
+    if (!current || !await ask("로고를 지울까요?")) return;
     setBusy(true);
     const sb = supabaseBrowser();
     const { error } = await sb.from("clients").update({ logo_path: null, updated_at: new Date().toISOString() }).eq("id", clientId);

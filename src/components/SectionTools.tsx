@@ -3,6 +3,7 @@
 // - 내용 추가: 블로그 원고 · 홈페이지 칼럼 · 카페/당근 게시글 · 카드뉴스 회차를 이 달 리포트에 바로 등록
 // - 추가 계약: 견적서 확정 내용과 별개로 중간에 추가된 업무(수량·마감일·메모) → add_extra_work
 // 저장은 로그인 세션으로 하며, DB 규칙(RLS·함수)이 담당 여부를 다시 확인한다.
+import { toast } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -30,7 +31,8 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
   const sb = supabaseBrowser();
   const [open, setOpen] = useState<"content" | "extra" | null>(initialOpen);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 저장 결과는 화면 아래 알림으로
+  const setMsg = (m: { ok: boolean; text: string } | null) => { if (m) toast(m.text, { kind: m.ok ? "ok" : "error" }); };
   const n = NAMES[kind];
   const finish = (ok: boolean, text: string, form?: HTMLFormElement) => {
     setBusy(false); setMsg({ ok, text });
@@ -105,7 +107,6 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
           <button className={`btn sm ${open === "extra" ? "primary" : ""}`} onClick={() => { setOpen(open === "extra" ? null : "extra"); setMsg(null); }}>+ 추가 계약</button>
         </div>
       </div>
-      {msg && <div className={`${msg.ok ? "planned" : "notice"} mt-s`}>{msg.text}</div>}
 
       {open === "content" && (
         <form className="st-form" onSubmit={addContent} autoComplete="off">

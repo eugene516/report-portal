@@ -2,6 +2,7 @@
 // 직원 초대 화면
 // - 계정 생성·임시 비밀번호 발급·메일 발송은 Supabase staff-admin 함수가 처리 (임시 비밀번호는 서버에서 만들고 저장하지 않음)
 // - 초대 링크와 임시 비밀번호를 이 화면에 한 번 보여준다 → 관리자가 복사해 직원에게 직접 전달
+import { ask } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -55,7 +56,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
   }
 
   async function reinvite(s: StaffRow) {
-    if (!confirm(`${s.name}(${s.email})의 임시 비밀번호를 다시 발급할까요?\n새 임시 비밀번호가 발급되고, 지금 쓰는 비밀번호로는 더 이상 로그인할 수 없습니다.`)) return;
+    if (!await ask(`${s.name}(${s.email})의 임시 비밀번호를 다시 발급할까요?\n새 임시 비밀번호가 발급되고, 지금 쓰는 비밀번호로는 더 이상 로그인할 수 없습니다.`)) return;
     setBusy(true); setMsg(null); setIssued(null);
     const { data, error } = await sb.functions.invoke("staff-admin", { body: { action: "reinvite", userId: s.id } });
     setBusy(false);

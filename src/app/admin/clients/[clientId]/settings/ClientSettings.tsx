@@ -1,5 +1,6 @@
 "use client";
 // 광고주 설정 화면 (모든 변경은 로그인 세션으로 직접 저장 → DB 규칙이 권한을 다시 확인)
+import { ask, toast } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -26,10 +27,11 @@ export default function ClientSettings(p: Props) {
   const router = useRouter();
   const sb = supabaseBrowser();
   const id = p.client.id;
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 저장 결과는 화면 아래 알림으로
+  const setMsg = (m: { ok: boolean; text: string } | null) => { if (m) toast(m.text, { kind: m.ok ? "ok" : "error" }); };
   const [busy, setBusy] = useState(false);
   const [services, setServices] = useState<ServiceState>(p.services);
-  const done = (ok: boolean, text: string) => { setMsg({ ok, text }); setBusy(false); if (ok) router.refresh(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const done = (ok: boolean, text: string) => { setMsg({ ok, text }); setBusy(false); if (ok) router.refresh(); };
 
   async function saveInfo(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); const fd = new FormData(e.currentTarget); setBusy(true);
@@ -61,7 +63,7 @@ export default function ClientSettings(p: Props) {
     done(!error, error ? "담당자를 추가하지 못했습니다." : "보조 담당을 추가했습니다.");
   }
   async function removeStaff(userId: string) {
-    if (!confirm("담당에서 제외할까요? 제외된 직원은 이 광고주를 더 이상 볼 수 없습니다.")) return;
+    if (!await ask("담당에서 제외할까요? 제외된 직원은 이 광고주를 더 이상 볼 수 없습니다.")) return;
     setBusy(true);
     const { error } = await sb.from("client_staff").delete().eq("client_id", id).eq("user_id", userId);
     done(!error, error ? "담당자를 제외하지 못했습니다." : "담당에서 제외했습니다.");
@@ -84,7 +86,7 @@ export default function ClientSettings(p: Props) {
     if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener");
   }
   async function revoke(tokenId: string) {
-    if (!confirm("이 광고주 링크를 폐기할까요? 폐기한 링크로는 더 이상 접속할 수 없습니다.")) return;
+    if (!await ask("이 광고주 링크를 폐기할까요? 폐기한 링크로는 더 이상 접속할 수 없습니다.")) return;
     setBusy(true);
     const { error } = await sb.from("client_access_tokens").update({ revoked_at: new Date().toISOString() }).eq("id", tokenId);
     done(!error, error ? "링크를 폐기하지 못했습니다." : "링크를 폐기했습니다.");
@@ -94,7 +96,6 @@ export default function ClientSettings(p: Props) {
 
   return (
     <>
-      {msg && <div className={`${msg.ok ? "planned" : "notice"} mt`}>{msg.text}</div>}
 
       <section className="card pad mt">
         <h2>기본 정보</h2>

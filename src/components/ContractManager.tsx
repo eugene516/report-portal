@@ -2,6 +2,7 @@
 // 월 계약 입력 화면: 계약 금액·기간·메모 + 항목별 수량·마감일 + 견적서·계약서 파일
 // - 저장: save_month_contract (DB가 담당 여부·값을 다시 확인, 항목 일괄 교체)
 // - 직접 입력 항목의 진행 수량: client_contract_items.done_count 만 수정 (DB가 그 칸만 허용)
+import { ask, toast } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -33,15 +34,16 @@ export default function ContractManager(p: Props) {
   const [kind, setKind] = useState<"quote" | "contract">("quote");
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 저장 결과는 화면 아래 알림으로
+  const setMsg = (m: { ok: boolean; text: string } | null) => { if (m) toast(m.text, { kind: m.ok ? "ok" : "error" }); };
   const [done, setDone] = useState<Record<string, string>>(Object.fromEntries(p.items.filter((r) => r.id).map((r) => [r.id!, r.doneCount == null ? "" : String(r.doneCount)])));
 
   const finish = (ok: boolean, text: string) => { setMsg({ ok, text }); setBusy(false); if (ok) { setDirty(false); router.refresh(); } };
   const edit = (k: number, patch: Partial<Row>) => { setRows(rows.map((r, i) => (i === k ? { ...r, ...patch } : r))); setDirty(true); };
   const add = (extra = false) => { setRows([...rows, { service: "blog", label: "", quantity: "", dueOn: p.lastDay, extra, note: "" }]); setDirty(true); };
   const remove = (k: number) => { setRows(rows.filter((_, i) => i !== k)); setDirty(true); };
-  function copyPrev() {
-    if (rows.length && !confirm("지금 입력된 항목을 지난달 계약 항목으로 바꿀까요?")) return;
+  async function copyPrev() {
+    if (rows.length && !await ask("지금 입력된 항목을 지난달 계약 항목으로 바꿀까요?")) return;
     const [y, m] = p.period.split("-").map(Number);
     const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
     setRows(p.prevItems.map((i) => ({ service: i.service, label: i.label, quantity: String(i.quantity), dueOn: `${p.period}-${String(Math.min(i.day, days)).padStart(2, "0")}` })));
@@ -89,7 +91,6 @@ export default function ContractManager(p: Props) {
 
   return (
     <>
-      {msg && <div className={`${msg.ok ? "planned" : "notice"} mt`}>{msg.text}</div>}
       {!p.head && <div className="notice mt">{p.monthLabel} 계약 내용이 아직 등록되지 않았습니다. 항목을 입력하거나 ‘지난달 계약 불러오기’로 시작하세요.</div>}
 
       <section className="card pad mt">

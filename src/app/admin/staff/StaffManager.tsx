@@ -3,6 +3,7 @@
 // - 비밀번호 재설정·비활성화 (새 직원 초대는 /admin/invite): Supabase staff-admin 함수로 직접 전송 (웹 서버를 거치지 않음)
 // - 관리자 지정·해제, 오너 양도: DB 함수(set_staff_role / transfer_ownership)가 권한을 다시 확인
 // - 이름 · 직급 · 담당 업무: set_staff_profile (오너·관리자만, 업무 확인 보드 멤버에도 함께 반영)
+import { ask } from "@/components/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -35,7 +36,7 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
   }
 
   async function transfer(s: StaffRow) {
-    if (!confirm(`${s.name}(${s.email})에게 오너 권한을 양도할까요?\n양도 후 본인은 관리자가 되며, 되돌리려면 새 오너가 다시 양도해야 합니다.`)) return;
+    if (!await ask(`${s.name}(${s.email})에게 오너 권한을 양도할까요?\n양도 후 본인은 관리자가 되며, 되돌리려면 새 오너가 다시 양도해야 합니다.`)) return;
     setBusy(true);
     const { error } = await sb.rpc("transfer_ownership", { p_new_owner: s.id });
     done(!error, error ? "양도하지 못했습니다." : "오너 권한을 양도했습니다.");
@@ -62,7 +63,7 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
   }
 
   async function disable(s: StaffRow) {
-    if (!confirm(`${s.name}(${s.email}) 계정을 비활성화할까요?\n로그인이 차단되고 담당 배정도 모두 해제됩니다.`)) return;
+    if (!await ask(`${s.name}(${s.email}) 계정을 비활성화할까요?\n로그인이 차단되고 담당 배정도 모두 해제됩니다.`)) return;
     setBusy(true);
     const { error } = await sb.functions.invoke("staff-admin", { body: { action: "disable", userId: s.id } });
     if (error) return done(false, await fnError(error, "비활성화하지 못했습니다."));

@@ -5,6 +5,8 @@ import { supabaseForStaff } from "@/lib/supabase/server";
 import { kstDate } from "@/lib/month";
 import TaskBoard, { type Member, type Task } from "./TaskBoard";
 
+const COLS = "id, member_id, title, due_on, done, done_at, sort, created_at, client_id, note, repeat, auto";
+
 // 완료 업무는 최근 7일치만 보여준다
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
@@ -15,11 +17,13 @@ export default async function TasksPage() {
   const me = await requireStaff();
   const db = await supabaseForStaff();
   const weekAgo = daysAgo(7);
-  const [members, open, done, dir] = await Promise.all([
+  await db.rpc("sync_deadline_tasks");   // 계약 마감 3일 전 항목을 주담당 열에 올린다 (예약 작업과 같은 함수)
+  const [members, open, done, dir, clients] = await Promise.all([
     db.from("task_members").select("id, name, user_id, sort, job_title, duty").order("sort").order("created_at"),
-    db.from("team_tasks").select("id, member_id, title, due_on, done, done_at, sort, created_at").eq("done", false).order("due_on", { ascending: true, nullsFirst: false }).order("sort").order("created_at"),
-    db.from("team_tasks").select("id, member_id, title, due_on, done, done_at, sort, created_at").eq("done", true).gte("done_at", weekAgo).order("done_at", { ascending: false }),
+    db.from("team_tasks").select(COLS).eq("done", false).order("due_on", { ascending: true, nullsFirst: false }).order("sort").order("created_at"),
+    db.from("team_tasks").select(COLS).eq("done", true).gte("done_at", weekAgo).order("done_at", { ascending: false }),
     db.rpc("staff_directory"),
+    db.from("clients").select("id, name").order("name"),
   ]);
   return (
     <div className="ops tasks-page">
@@ -30,6 +34,7 @@ export default async function TasksPage() {
         members={(members.data ?? []) as Member[]}
         tasks={[...(open.data ?? []), ...(done.data ?? [])] as Task[]}
         directory={(dir.data ?? []) as { id: string; name: string; email: string }[]}
+        clients={clients.data ?? []}
       />
     </div>
   );
