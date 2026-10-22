@@ -1,27 +1,32 @@
-import Link from "next/link";
-import { requireStaff } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { Suspense } from "react";
+import { isAdminRole, requireStaff } from "@/lib/auth";
+import { getStaffOverview } from "@/lib/dashboard";
+import { supabaseForStaff } from "@/lib/supabase/server";
+import AdminFrame from "./AdminFrame";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const staff = await requireStaff({ allowPendingPassword: true });   // 화면별 검사는 각 페이지에서
+  const isAdmin = isAdminRole(staff.role);
+  const navCollapsed = (await cookies()).get("rp_nav")?.value === "c";   // AdminFrame 의 메뉴 접힘 기억
+  // 좌측 메뉴: 관리자 = 직원별 담당 업체, 직원 = 내 담당 광고주
+  const [staffList, mine] = await Promise.all([
+    isAdmin && !staff.mustChangePassword ? getStaffOverview() : Promise.resolve([]),
+    !isAdmin && !staff.mustChangePassword
+      ? (await supabaseForStaff()).from("client_staff").select("is_primary, clients(id, name)").eq("user_id", staff.userId)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const myClients = ((mine.data ?? []) as unknown as { is_primary: boolean; clients: { id: string; name: string } | null }[])
+    .filter((r) => r.clients).map((r) => ({ id: r.clients!.id, name: r.clients!.name, primary: r.is_primary }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
   return (
-    <>
-      <header className="admin-bar">
-        <div className="row">
-          <Link href="/admin" className="admin-brand">리포트 포털</Link>
-          <span className="faint">믿는구석 · 내부용</span>
-        </div>
-        <div className="row">
-          {(staff.role === "owner" || staff.role === "admin") && <Link href="/admin/invite" className="btn sm primary">직원 초대</Link>}
-          {(staff.role === "owner" || staff.role === "admin") && <Link href="/admin/assignments" className="btn sm">담당 직원 배정</Link>}
-          {(staff.role === "owner" || staff.role === "admin") && <Link href="/admin/settings/naver-keys" className="btn sm">API 키 현황</Link>}
-          <span className="faint">{staff.name} ({{ owner: "오너", admin: "관리자", staff: "직원" }[staff.role]})</span>
-          <Link href="/admin/account" className="btn sm">내 정보 수정</Link>
-          <form action="/auth/signout" method="post"><button className="btn sm">로그아웃</button></form>
-        </div>
-      </header>
-      {children}
-    </>
+    <Suspense>
+      <AdminFrame me={{ name: staff.name, role: staff.role }} myClients={myClients} navCollapsed={navCollapsed}
+        staff={staffList.map((s) => ({ id: s.id, name: s.name, role: s.role, clients: s.clients }))}>
+        {children}
+      </AdminFrame>
+    </Suspense>
   );
 }

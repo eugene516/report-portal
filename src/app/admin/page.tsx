@@ -1,157 +1,202 @@
-// 메인 대시보드 (prototype/index.html 운영 대시보드 형식)
-// - 오너·관리자: 전체 광고주 + 담당 직원별 필터 + 직원별 담당 현황
-// - 직원: 본인 담당 광고주만 + 상단 탭(전체보기 | 광고주별)
-// 어떤 광고주를 볼 수 있는지는 DB 함수(dashboard_overview)가 호출자 권한으로 결정한다.
+// 내부용 메인 대시보드: 당월(1일~말일) 계약 수량 진행과 업무 마감 중심
+// - 오너·관리자: 전체 광고주 (담당 직원별로 좁혀 보기)
+// - 직원: 본인 담당 광고주만
+// 어떤 광고주를 볼 수 있는지는 DB 함수(month_overview)가 호출자 권한으로 결정한다. 순위는 표시하지 않는다.
 import Link from "next/link";
-import { requireStaff } from "@/lib/auth";
-import { buildAlerts, getOverview, getStaffOverview, type ClientRow } from "@/lib/dashboard";
-import { currentPeriod } from "@/lib/content";
-import IssueLinkButton from "./IssueLinkButton";
+import { isAdminRole, requireStaff } from "@/lib/auth";
+import { getStaffOverview } from "@/lib/dashboard";
+import { currentPeriod, SERVICE_LABELS } from "@/lib/content";
+import { daysLeft, dday, getMonthOverview, itemLabel, itemState, monthInfo, totals, type MonthClient } from "@/lib/month";
+import { Donut } from "@/components/charts";
 
 export const metadata = { title: "운영 대시보드 · 리포트 포털" };
 export const dynamic = "force-dynamic";
 
-const kst = (iso: string | null | undefined) => (iso ? new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(5, 16).replace("T", " ").replace("-", ".") : "-");
-const pct = (a: number, b: number) => (b ? Math.min(100, (a / b) * 100) : 0);
-const ROLE: Record<string, string> = { owner: "오너", admin: "관리자", staff: "직원" };
+type Alert = { level: "high" | "mid" | "info"; client: MonthClient; text: string; href: string };
+
+function alertsOf(rows: MonthClient[], period: string, today: string): Alert[] {
+  const out: Alert[] = [];
+  for (const c of rows) {
+    const base = `/admin/clients/${c.id}`;
+    if (c.sync_failed_7d > 0) out.push({ level: "high", client: c, text: `네이버 광고 수집 실패 ${c.sync_failed_7d}건 (최근 7일)`, href: `${base}/settings` });
+    if (c.cafe_deleted > 0) out.push({ level: "high", client: c, text: `카페 게시글 삭제 ${c.cafe_deleted}건 → AS 확인`, href: `${base}/cafe` });
+    for (const i of c.items) {
+      if (itemState(i, period, today) === "late") out.push({ level: "high", client: c, text: `${itemLabel(i)} 마감 지남 (${i.done}/${i.quantity})`, href: `/admin/progress/${c.id}` });
+    }
+    if (!c.contract) out.push({ level: "mid", client: c, text: "이번 달 계약 내용이 등록되지 않았습니다", href: `${base}/contracts` });
+    else if (c.files === 0) out.push({ level: "info", client: c, text: "이번 달 견적서·계약서 파일이 없습니다", href: `${base}/contracts` });
+    if (!c.staff.some((s) => s.primary)) out.push({ level: "mid", client: c, text: "주담당 직원이 지정되지 않았습니다", href: `${base}/settings` });
+    if (c.channels.naver?.contracted && !c.channels.naver.apiConnected) out.push({ level: "mid", client: c, text: "네이버 광고 계약 · API 키 미등록", href: `${base}/settings` });
+  }
+  const order = { high: 0, mid: 1, info: 2 };
+  return out.sort((a, b) => order[a.level] - order[b.level]);
+}
 
 export default async function AdminHome({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const me = await requireStaff();
   const sp = await searchParams;
-  const period = sp.period && /^\d{4}-\d{2}$/.test(sp.period) ? sp.period : currentPeriod();
-  const isAdmin = me.role === "owner" || me.role === "admin";
-  const [all, staffList] = await Promise.all([getOverview(period), isAdmin ? getStaffOverview() : Promise.resolve([])]);
+  const period = sp.period && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.period) ? sp.period : currentPeriod();
+  const isAdmin = isAdminRole(me.role);
+  const [all, staffList] = await Promise.all([getMonthOverview(period), isAdmin ? getStaffOverview() : Promise.resolve([])]);
+  const mi = monthInfo(period);
+  // 지난 달은 말일 기준, 다가오는 달은 1일 기준으로 마감 상태를 판단한다
+  const today = mi.isCurrent ? mi.today : period < mi.today.slice(0, 7) ? mi.last : `${period}-01`;
 
-  // 필터: 관리자 = 담당 직원별, 직원 = 광고주 탭
   const staffFilter = isAdmin ? sp.staff : undefined;
-  const clientTab = !isAdmin ? sp.client : undefined;
-  const q = (sp.q ?? "").trim();
-  let rows = all;
-  if (staffFilter) rows = rows.filter((c) => c.staff.some((s) => s.id === staffFilter));
-  if (q) rows = rows.filter((c) => c.name.includes(q));
-  const selected = clientTab ? all.find((c) => c.id === clientTab) : undefined;
-  if (selected) rows = [selected];
+  const rows = staffFilter ? all.filter((c) => c.staff.some((s) => s.id === staffFilter)) : all;
+  const items = rows.flatMap((c) => c.items.map((i) => ({ ...i, client: c, st: itemState(i, period, today) })));
+  const t = totals(items);
+  const open = items.filter((i) => i.st !== "done").sort((a, b) => a.dueOn.localeCompare(b.dueOn));
+  const soon = open.filter((i) => { const l = daysLeft(i.dueOn, today); return l >= 0 && l <= 3; });
+  const late = open.filter((i) => i.st === "late");
+  const noContract = rows.filter((c) => !c.contract);
+  const alerts = alertsOf(rows, period, today);
+  const pace = mi.days ? mi.elapsed / mi.days : 0;
 
-  const alerts = buildAlerts(rows, period);
-  const sum = (k: keyof ClientRow) => rows.reduce((s, r) => s + (Number(r[k]) || 0), 0);
-  const blogTarget = rows.reduce((s, r) => s + (r.services.blog ?? 0), 0);
-  const placeTotal = sum("place_total"), placeTop3 = sum("place_top3");
-  const qs = (extra: Record<string, string | undefined>) => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ period, staff: staffFilter, client: clientTab, q: q || undefined, ...extra })) if (v) p.set(k, v);
-    return `/admin?${p.toString()}`;
-  };
+  // 업무 종류별 합계
+  const bySvc = new Map<string, { done: number; total: number; count: number }>();
+  for (const i of items) {
+    const v = bySvc.get(i.service) ?? { done: 0, total: 0, count: 0 };
+    v.done += Math.min(i.done, i.quantity); v.total += i.quantity; v.count += 1;
+    bySvc.set(i.service, v);
+  }
+  // 광고주별 진행률 (마감 지남 → 지연 위험 → 진행률 낮은 순)
+  const clientRates = rows.map((c) => {
+    const sts = c.items.map((i) => itemState(i, period, today));
+    return { c, ...totals(c.items), late: sts.includes("late"), risk: sts.includes("risk") };
+  }).sort((a, b) => Number(b.late) - Number(a.late) || Number(b.risk) - Number(a.risk) || a.rate - b.rate);
+  // 직원별 업무량 (주담당 기준)
+  const byStaff = staffList.map((s) => {
+    const mine = all.filter((c) => c.staff.some((x) => x.id === s.id && x.primary));
+    return { s, clients: mine.length, ...totals(mine.flatMap((c) => c.items)), late: mine.reduce((n, c) => n + c.items.filter((i) => itemState(i, period, today) === "late").length, 0) };
+  }).filter((x) => x.clients > 0);
+  const maxStaffQty = Math.max(1, ...byStaff.map((x) => x.quantity));
+  const staffName = staffList.find((s) => s.id === staffFilter)?.name;
+  const stripNote = mi.isCurrent ? `오늘 ${today.slice(5).replace("-", "/")} · ${mi.elapsed}/${mi.days}일 경과 · 말일까지 ${mi.days - mi.elapsed}일`
+    : mi.elapsed === mi.days ? "지난 달 (마감된 기간)" : "다가오는 달";
 
   return (
     <div className="ops">
       {sp.denied && <div className="notice">관리자만 사용할 수 있는 메뉴입니다.</div>}
       <header className="ops-head-in">
         <div>
-          <div className="faint">믿는구석 · {isAdmin ? `${ROLE[me.role]} 화면 (전체 광고주)` : "내 담당 광고주"}</div>
-          <h1>리포트 운영 대시보드</h1>
+          <div className="faint">믿는구석 · {isAdmin ? (staffName ? `${staffName} 담당 광고주` : "전체 광고주") : "내 담당 광고주"}</div>
+          <h1>{mi.label} 운영 현황</h1>
         </div>
-        <div className="row">
-          <form className="row" method="get">
-            {staffFilter && <input type="hidden" name="staff" value={staffFilter} />}
-            <label className="faint" htmlFor="period">보고 월</label>
-            <input id="period" type="month" name="period" defaultValue={period} className="search date" />
-            <input type="search" name="q" defaultValue={q} placeholder="광고주 검색" className="search" />
-            <button className="btn sm">적용</button>
-          </form>
-          <Link href="/admin/clients/new" className="btn primary">+ 새 광고주</Link>
-          {isAdmin && <Link href="/admin/assignments" className="btn">광고주별 담당 직원</Link>}
-          {isAdmin && <Link href="/admin/staff" className="btn">직원 · 권한 관리</Link>}
-        </div>
+        <form className="row" method="get">
+          <label className="faint" htmlFor="period">보고 월</label>
+          <input id="period" type="month" name="period" defaultValue={period} className="search date" />
+          {isAdmin && (
+            <select name="staff" defaultValue={staffFilter ?? ""} aria-label="담당 직원">
+              <option value="">전체 직원</option>
+              {staffList.filter((s) => s.clients.length > 0).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          <button className="btn sm">보기</button>
+        </form>
       </header>
 
-      {/* 상단 탭 */}
-      {isAdmin ? (
-        <div className="seg mt">
-          <Link href={qs({ staff: undefined })} className={!staffFilter ? "on" : ""}>전체 담당</Link>
-          {staffList.filter((s) => s.clients.length > 0).map((s) => (
-            <Link key={s.id} href={qs({ staff: s.id })} className={staffFilter === s.id ? "on" : ""}>{s.name}</Link>
-          ))}
+      {/* 이번 달 경과 vs 업무 진행 */}
+      <section className="card pad mt month-strip">
+        <div className="ms-l">
+          <b>{period.slice(5)}/01 ~ {mi.last.slice(5).replace("-", "/")}</b>
+          <span className="faint">{stripNote}</span>
         </div>
-      ) : (
-        <div className="seg mt">
-          <Link href={qs({ client: undefined })} className={!clientTab ? "on" : ""}>전체보기</Link>
-          {all.map((c) => <Link key={c.id} href={qs({ client: c.id })} className={clientTab === c.id ? "on" : ""}>{c.name}</Link>)}
+        <div className="ms-bars" title={`기간 경과 ${Math.round(pace * 100)}% · 계약 수량 진행 ${Math.round(t.rate * 100)}%`}>
+          <div className="ms-row"><span className="faint">기간 경과</span><div className="bar"><i className="time" style={{ width: `${pace * 100}%` }} /></div><span className="num">{Math.round(pace * 100)}%</span></div>
+          <div className="ms-row"><span className="faint">업무 진행</span><div className="bar"><i style={{ width: `${t.rate * 100}%` }} /></div><span className="num">{Math.round(t.rate * 100)}%</span></div>
         </div>
-      )}
+      </section>
 
-      {/* 요약 지표 */}
-      <div className="grid g-kpi5 mt">
-        <div className="card kpi static"><div className="label">{isAdmin ? "운영 광고주" : "담당 광고주"}</div><div className="value num">{rows.length}<small>곳</small></div><div className="foot">{period.replace("-", "년 ")}월 기준</div></div>
-        <div className="card kpi static"><div className="label">블로그 발행</div><div className="value num">{sum("blog_count")}<small>{blogTarget ? `/ ${blogTarget}건` : "건"}</small></div>{blogTarget > 0 && <div className="bar mt-s"><i style={{ width: `${pct(sum("blog_count"), blogTarget)}%` }} /></div>}</div>
-        <div className="card kpi static"><div className="label">블로그 5위 이내</div><div className="value num">{sum("blog_top5")}<small>/ {sum("blog_count")}건</small></div><div className="foot">네이버 메인 · 블로그 탭 기준</div></div>
-        <div className="card kpi static"><div className="label">플레이스 Top 3</div><div className="value num">{placeTop3}<small>/ {placeTotal}개</small></div><div className="foot">최근 수집 기준</div></div>
-        <div className={`card kpi static ${alerts.some((a) => a.level === "high") ? "alert" : ""}`}><div className="label">확인 필요</div><div className="value num">{alerts.length}<small>건</small></div><div className="foot">긴급 {alerts.filter((a) => a.level === "high").length} · 주의 {alerts.filter((a) => a.level === "mid").length}</div></div>
+      {/* 요약 */}
+      <div className="grid dash-kpi mt">
+        <div className="card kpi static donut-card">
+          <Donut done={t.done} total={t.quantity} label="계약 수량 진행" sub={`광고주 ${rows.length}곳 · 항목 ${items.length}개`} size={104} />
+        </div>
+        <a href="#deadlines" className={`card kpi ${soon.length ? "warn-b" : ""}`}><div className="label">마감 임박 (3일 이내)</div><div className="value num">{soon.length}<small>건</small></div><div className="foot">아직 끝나지 않은 업무</div></a>
+        <a href="#deadlines" className={`card kpi ${late.length ? "alert" : ""}`}><div className="label">마감 지남</div><div className="value num">{late.length}<small>건</small></div><div className="foot">수량 미달인 채 마감일 경과</div></a>
+        <Link href="/admin/clients" className={`card kpi ${noContract.length ? "warn-b" : ""}`}><div className="label">계약 미등록</div><div className="value num">{noContract.length}<small>/ {rows.length}곳</small></div><div className="foot">이번 달 견적·계약 등록 필요</div></Link>
+        <a href="#alerts" className={`card kpi ${alerts.some((a) => a.level === "high") ? "alert" : ""}`}><div className="label">확인 필요</div><div className="value num">{alerts.length}<small>건</small></div><div className="foot">긴급 {alerts.filter((a) => a.level === "high").length} · 주의 {alerts.filter((a) => a.level === "mid").length}</div></a>
       </div>
 
       <div className="ops-main mt">
-        <section className="card">
-          <div className="card-h pad-h"><h2>{selected ? selected.name : "광고주 현황"}</h2><span className="faint">리포트 열기 = 직원 화면 · 광고주 링크 = 광고주에게 보내는 주소</span></div>
-          <div className="tbl-wrap"><table className="ops-table">
-            <thead><tr><th>광고주</th><th>담당</th><th>블로그 발행</th><th className="r">5위 이내</th><th>플레이스</th><th>카페 · SNS</th><th>온라인 광고</th><th></th></tr></thead>
-            <tbody>
-              {rows.length === 0 && <tr><td colSpan={8} className="faint">{isAdmin ? "등록된 광고주가 없습니다." : "담당 광고주가 없습니다. '+ 새 광고주'로 만들거나 관리자에게 배정을 요청하세요."}</td></tr>}
-              {rows.map((c) => (
-                <tr key={c.id}>
-                  <td><Link href={`/admin/clients/${c.id}?period=${period}`} className="cname">{c.name}</Link><div className="faint">{[c.category, c.area].filter(Boolean).join(" · ")}</div></td>
-                  <td>{c.staff.length === 0 ? <span className="badge warn">미배정</span> : c.staff.map((s) => <div key={s.id} className="nowrap">{s.name}{s.primary ? <span className="faint"> (주)</span> : ""}</div>)}</td>
-                  <td>{"blog" in c.services ? <><div className="num">{c.blog_count}<span className="faint">{c.services.blog ? ` / ${c.services.blog}` : ""}</span></div>{c.services.blog ? <div className="bar thin"><i style={{ width: `${pct(c.blog_count, c.services.blog)}%` }} /></div> : null}</> : <span className="faint">계약 없음</span>}</td>
-                  <td className="r num">{"blog" in c.services ? <>{c.blog_top5}<span className="faint">/{c.blog_count}</span></> : "-"}</td>
-                  <td>{"place" in c.services ? <><div className="num">평균 {c.place_avg ?? "-"}위</div><div className="faint">Top3 {c.place_top3}/{c.place_total} · {kst(c.place_last_at)}</div></> : <span className="faint">계약 없음</span>}</td>
-                  <td>
-                    {"cafe" in c.services && <div className="num">카페 {c.cafe_count}건{c.cafe_deleted > 0 && <span className="badge bad"> 삭제 {c.cafe_deleted}</span>}</div>}
-                    {"cardnews" in c.services && <div className="faint">카드뉴스 {c.card_rounds}회차</div>}
-                    {!("cafe" in c.services) && !("cardnews" in c.services) && <span className="faint">-</span>}
-                  </td>
-                  <td>{(["naver", "daangn", "kakao"] as const).map((k) => {
-                    const s = c.channels[k]; const label = { naver: "네이버", daangn: "당근", kakao: "카카오" }[k];
-                    if (!s?.contracted) return null;
-                    return <span key={k} className={`badge ${s.apiConnected ? "good" : "warn"}`}>{label}{s.apiConnected ? "" : " 연결 전"}</span>;
-                  })}{!Object.values(c.channels).some((s) => s.contracted) && <span className="faint">미집행</span>}</td>
-                  <td className="r">
-                    <div className="actions">
-                      <Link className="btn sm" href={`/admin/clients/${c.id}?period=${period}`}>리포트 열기</Link>
-                      <Link className="btn sm" href={`/admin/clients/${c.id}/settings`}>설정</Link>
-                      <IssueLinkButton clientId={c.id} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+        <section className="card pad">
+          <div className="card-h"><h2>광고주별 진행률</h2><span className="faint">막대 = 계약 수량 진행 · 세로선 = 오늘까지 기간 경과</span></div>
+          {clientRates.length === 0 && <div className="empty-state">{isAdmin ? "등록된 광고주가 없습니다." : "담당 광고주가 없습니다."}</div>}
+          <ul className="crates">
+            {clientRates.map(({ c, done, quantity, rate, late: isLate, risk }) => (
+              <li key={c.id}>
+                <Link href={`/admin/progress/${c.id}${staffFilter ? `?staff=${staffFilter}` : ""}`} title={`${c.name}: ${done}/${quantity} (${Math.round(rate * 100)}%)`}>
+                  <span className="cr-name"><b>{c.name}</b><span className="faint">{c.staff.find((s) => s.primary)?.name ?? "주담당 없음"}{!c.contract && " · 계약 미등록"}</span></span>
+                  <span className={`cr-bar ${isLate ? "late" : risk ? "risk" : rate >= 1 ? "done" : "ok"}`}>
+                    <i style={{ width: `${rate * 100}%` }} />
+                    {mi.isCurrent && <s style={{ left: `${pace * 100}%` }} />}
+                  </span>
+                  <span className="cr-v num">{quantity ? `${Math.round(rate * 100)}%` : "-"}<span className="faint"> {done}/{quantity}</span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="legend mt-s">
+            <span><i className="lg ok" />순조</span><span><i className="lg risk" />지연 위험</span><span><i className="lg late" />마감 지남</span><span><i className="lg done" />완료</span>
+          </div>
         </section>
 
-        <section className="card">
-          <div className="card-h pad-h"><h2>확인 필요</h2><span className="faint">{alerts.length}건</span></div>
-          <ul className="alerts">
-            {alerts.length === 0 && <li className="faint pad-x">확인할 항목이 없습니다.</li>}
-            {alerts.slice(0, 40).map((a, i) => (
-              <li key={i}><Link href={a.href}><span className={`lv ${a.level}`} /><span className="t"><b>{a.client.name}</b><span>{a.text}</span></span></Link></li>
+        <section className="card" id="deadlines">
+          <div className="card-h pad-h"><h2>다가오는 마감</h2><span className="faint">미완료 {open.length}건</span></div>
+          <ul className="dl-list">
+            {open.length === 0 && <li className="faint pad-x">남은 업무가 없습니다.</li>}
+            {open.slice(0, 30).map((i, k) => (
+              <li key={`${i.client.id}-${i.id ?? i.service}-${k}`}>
+                <Link href={`/admin/progress/${i.client.id}`}>
+                  <span className={`dd ${i.st}`}>{dday(daysLeft(i.dueOn, today))}</span>
+                  <span className="t"><b>{i.client.name}</b><span>{itemLabel(i)} · {i.done}/{i.quantity} · {i.dueOn.slice(5).replace("-", "/")} 마감</span>
+                    <span className="bar thin"><i style={{ width: `${i.quantity ? Math.min(100, (i.done / i.quantity) * 100) : 0}%` }} /></span>
+                  </span>
+                </Link>
+              </li>
             ))}
           </ul>
         </section>
       </div>
 
-      {isAdmin && (
-        <section className="card mt-l">
-          <div className="card-h pad-h"><h2>직원별 담당 현황</h2><Link href="/admin/staff" className="btn sm">직원 · 권한 관리</Link></div>
-          <div className="tbl-wrap"><table className="ops-table">
-            <thead><tr><th>직원</th><th>권한</th><th className="r">담당 광고주</th><th>담당 목록</th></tr></thead>
-            <tbody>{staffList.map((s) => (
-              <tr key={s.id}>
-                <td><Link href={qs({ staff: s.id })} className="cname">{s.name}</Link><div className="faint">{s.email}</div></td>
-                <td><span className={`badge ${s.role === "owner" ? "acc" : s.role === "admin" ? "good" : ""}`}>{ROLE[s.role]}</span></td>
-                <td className="r num">{s.clients.length}</td>
-                <td>{s.clients.length === 0 ? <span className="faint">-</span> : s.clients.map((c) => <span key={c.id} className="chip-s">{c.name}{c.primary ? " (주)" : ""}</span>)}</td>
-              </tr>
-            ))}</tbody>
-          </table></div>
+      <section className="card pad mt">
+        <div className="card-h"><h2>업무별 진행</h2><span className="faint">광고주 합계</span></div>
+        {bySvc.size === 0 ? <div className="empty-state">이번 달 계약 항목이 없습니다.</div> : (
+          <div className="donuts">
+            {[...bySvc.entries()].sort((a, b) => b[1].total - a[1].total).map(([k, v]) => (
+              <Donut key={k} done={v.done} total={v.total} label={k === "etc" ? "기타 업무" : SERVICE_LABELS[k] ?? k} sub={`항목 ${v.count}개`} size={92} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {isAdmin && !staffFilter && byStaff.length > 0 && (
+        <section className="card pad mt">
+          <div className="card-h"><h2>직원별 업무 현황</h2><span className="faint">주담당 광고주 기준 · 막대 길이 = 계약 수량, 진한 부분 = 완료</span></div>
+          <ul className="crates">
+            {byStaff.map((x) => (
+              <li key={x.s.id}>
+                <Link href={`/admin?period=${period}&staff=${x.s.id}`} title={`${x.s.name}: ${x.done}/${x.quantity}건 · 광고주 ${x.clients}곳`}>
+                  <span className="cr-name"><b>{x.s.name}</b><span className="faint">광고주 {x.clients}곳{x.late ? ` · 마감 지남 ${x.late}` : ""}</span></span>
+                  <span className="sb-track"><span className="sb-total" style={{ width: `${(x.quantity / maxStaffQty) * 100}%` }}><i style={{ width: `${x.quantity ? (x.done / x.quantity) * 100 : 0}%` }} /></span></span>
+                  <span className="cr-v num">{x.done}<span className="faint"> / {x.quantity}건</span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
+
+      <section className="card mt" id="alerts">
+        <div className="card-h pad-h"><h2>확인 필요</h2><span className="faint">{alerts.length}건</span></div>
+        <ul className="alerts">
+          {alerts.length === 0 && <li className="faint pad-x">확인할 항목이 없습니다.</li>}
+          {alerts.slice(0, 40).map((a, i) => (
+            <li key={i}><Link href={a.href}><span className={`lv ${a.level}`} /><span className="t"><b>{a.client.name}</b><span>{a.text}</span></span></Link></li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

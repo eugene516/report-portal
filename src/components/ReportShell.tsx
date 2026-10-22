@@ -1,6 +1,8 @@
 // 광고주 리포트 공통 틀 (서버 컴포넌트)
 // - 같은 화면을 직원 경로(/admin/clients/...)와 광고주 경로(/r/...)가 함께 쓴다.
 // - 좌측 메뉴는 계약 항목(client_services)에 따라 구성한다. 온라인 광고는 항상 표시(미계약은 안내).
+// - 리포트는 당월 내용만 기본으로 보여주고, 지난 달은 "지난 레포트 보기"에서 골라 연다(?period=YYYY-MM).
+// - "계약 · 견적 관리"는 직원 경로에서만 그린다.
 // - "홈으로 돌아가기", "설정", "데이터 업로드"는 직원 경로에서 서버가 권한을 확인한 경우에만 그린다.
 //   서버에서만 렌더링되므로 광고주 링크 페이지의 HTML·스크립트에는 포함되지 않는다.
 import Link from "next/link";
@@ -31,14 +33,16 @@ export function visibleMenus(services: string[]) {
 }
 
 export default function ReportShell({
-  client, base, section, title, eyebrow, staffTools, services, period, periods, children,
+  client, base, section, title, eyebrow, staffTools, services, period, thisMonth, children,
 }: {
   client: ClientSummary; base: string; section: string[]; title: string; eyebrow: string;
-  staffTools: boolean; services: string[]; period: string | null; periods: string[]; children: React.ReactNode;
+  staffTools: boolean; services: string[]; period: string; thisMonth: string; children: React.ReactNode;
 }) {
   const current = section.join("/");
   const inAds = section[0] === "ads";
-  const q = period ? `?period=${period}` : "";
+  const tool = current === "history" || current === "contracts";
+  const past = period !== thisMonth && !inAds && !tool;
+  const q = past ? `?period=${period}` : "";
   return (
     <div className="shell">
       <aside className="side">
@@ -64,6 +68,9 @@ export default function ReportShell({
               })}
             </div>
           </details>
+          <div className="nav-div" />
+          <Link href={`${base}/history`} className={current === "history" || past ? "on" : ""}>지난 레포트 보기</Link>
+          {staffTools && <Link href={`${base}/contracts`} className={current === "contracts" ? "on" : ""}>계약 · 견적 관리<span className="cnt">직원용</span></Link>}
         </nav>
         {staffTools && (
           <div className="side-foot">
@@ -77,14 +84,12 @@ export default function ReportShell({
       <main className="main">
         <div className="topbar">
           <div className="title"><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div>
-          {period && periods.length > 0 && !inAds && (
-            <form className="row" method="get">
-              <label className="faint" htmlFor="period">보고 월</label>
-              <select id="period" name="period" defaultValue={period}>
-                {periods.map((p) => <option key={p} value={p}>{p.replace("-", "년 ")}월</option>)}
-              </select>
-              <button className="btn sm">보기</button>
-            </form>
+          {past && (
+            <div className="row">
+              <span className="badge warn">지난 레포트 · {period.replace("-", "년 ")}월</span>
+              <Link href={`${base}/history`} className="btn sm">다른 달 보기</Link>
+              <Link href={current ? `${base}/${current}` : base} className="btn sm primary">이번 달로 돌아가기</Link>
+            </div>
           )}
         </div>
         {children}

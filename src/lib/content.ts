@@ -31,13 +31,18 @@ export async function getContent(ctx: ReportCtx, period: string): Promise<Report
   return error ? null : (data as ReportContent | null);
 }
 
-// 보고 월: 요청한 월이 자료 있는 월이면 그대로, 아니면 자료가 있는 가장 최근 월
+// 보고 월: 요청한 월이 있으면 그 달(지난 레포트 보기), 없으면 이번 달 (리포트는 당월 내용만 기본으로 보여준다)
 export async function getContentForRequest(ctx: ReportCtx, requested?: string): Promise<ReportContent | null> {
-  const want = requested && /^\d{4}-\d{2}$/.test(requested) ? requested : currentPeriod();
-  const first = await getContent(ctx, want);
-  if (!first) return null;
-  if (requested || first.periods.length === 0 || first.periods.includes(want)) return first;
-  return getContent(ctx, first.periods[0]);
+  const want = requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) && requested <= currentPeriod() ? requested : currentPeriod();
+  return getContent(ctx, want);
+}
+
+export type HistoryMonth = { period: string; blog: number; cafe: number; cardnews: number; column: number; adCost: number | null };
+export async function getHistory(ctx: ReportCtx): Promise<HistoryMonth[]> {
+  const { data } = ctx.mode === "staff"
+    ? await (await supabaseForStaff()).rpc("staff_report_history", { p_client: ctx.clientId })
+    : await supabaseForClientLink().rpc("report_history", { p_token: ctx.token });
+  return (data as HistoryMonth[] | null) ?? [];
 }
 
 // 캡쳐 주소
