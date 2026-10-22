@@ -498,7 +498,7 @@ a.cname { color: var(--text); }
 .donut-s { font-size: 10.5px; fill: var(--text-3); text-anchor: middle; font-variant-numeric: tabular-nums; }
 .donuts { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 16px; }
 .g-donut { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-a.donut-card { color: var(--text); }
+a.donut-card { color: var(--text); display: flex; }   /* a.kpi 의 display: block 보다 우선 */
 
 /* 진행률 막대 (광고주별 · 직원별) */
 .crates { list-style: none; margin: 0; padding: 0; }
