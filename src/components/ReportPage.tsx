@@ -70,7 +70,7 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
     );
   }
   const period = resolvePeriod(sp);
-  const kwWindow = resolveKeywordWindow(sp.kw);
+  const kwWindow = resolveKeywordWindow(sp.kwm, period.to);
   const [data, topKeywords] = await Promise.all([getNaverReport(ctx, period.from, period.to), getNaverTopKeywords(ctx, kwWindow)]);
   if (!data) return <div className="notice">성과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>;
   if (data.notContracted) return <div className="empty-state off-state"><b>{label}는 집행되지 않는 광고입니다.</b></div>;

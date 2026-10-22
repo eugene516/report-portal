@@ -68,18 +68,26 @@ export function resolvePeriod(sp: { range?: string; from?: string; to?: string }
   return { key: "7d", from: kstToday(-7), to: y, label: "최근 7일" };
 }
 
-// 키워드 TOP 10: 주간(최근 7일) · 월간(이번 달 1일~어제, 1일에는 지난달 전체)
-export type KeywordWindow = { mode: "week" | "month"; from: string; to: string; label: string };
+// 월간 상위 키워드 10개 (월말 리포트 기준: 매월 1일~말일)
+// 기본은 위쪽 조회 기간이 끝나는 달. 진행 중인 달은 어제까지 집계한다.
+export type KeywordWindow = { month: string; from: string; to: string; label: string; partial: boolean };
 export type TopKeyword = { id: string; keyword: string; adgroup: string; avgRank: number | null; impressions: number; clicks: number; cost: number; ctr: number | null; cpc: number | null; days: number };
 
-export function resolveKeywordWindow(kw?: string): KeywordWindow {
+export function resolveKeywordWindow(requested: string | undefined, fallbackDate: string): KeywordWindow {
   const y = kstToday(-1);
-  if (kw === "month") {
-    const from = `${y.slice(0, 7)}-01`;
-    return { mode: "month", from, to: y, label: `${Number(y.slice(5, 7))}월 (${from.slice(5)} ~ ${y.slice(5)})` };
-  }
-  const from = kstToday(-7);
-  return { mode: "week", from, to: y, label: `최근 7일 (${from.slice(5)} ~ ${y.slice(5)})` };
+  const month = requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) && requested <= y.slice(0, 7) ? requested : fallbackDate.slice(0, 7);
+  const from = `${month}-01`;
+  const [yy, mm] = month.split("-").map(Number);
+  const last = new Date(Date.UTC(yy, mm, 0)).toISOString().slice(0, 10);   // 그달 말일
+  const partial = last > y;
+  const to = partial ? y : last;
+  return { month, from, to, partial, label: `${yy}년 ${mm}월 (${from.slice(5).replace("-", "/")} ~ ${last.slice(5).replace("-", "/")})` };
+}
+
+// 월 선택 목록: 이번 달(어제 기준)부터 12개월
+export function recentMonths(n = 12): string[] {
+  const [yy, mm] = kstToday(-1).split("-").map(Number);
+  return Array.from({ length: n }, (_, i) => new Date(Date.UTC(yy, mm - 1 - i, 1)).toISOString().slice(0, 7));
 }
 
 export async function getNaverTopKeywords(ctx: ReportCtx, w: KeywordWindow): Promise<TopKeyword[]> {

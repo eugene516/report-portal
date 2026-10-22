@@ -1,8 +1,8 @@
 // 네이버 광고 성과 (서버 컴포넌트, DB 데이터만 사용)
 // 상단: 기간 선택 · 지표 카드(이전 기간 대비) · 일별 그래프
-// 아래: 광고비 소진 현황 · 성과 분석과 개선 제안(자동 + 담당자 코멘트) · 캠페인 · 광고그룹 · 키워드 TOP 10(주간·월간) · 요일별
+// 아래: 광고비 소진 현황 · 성과 분석과 개선 제안(자동 + 담당자 코멘트) · 캠페인 · 광고그룹 · 월간 상위 키워드 10(1일~말일) · 요일별
 import Link from "next/link";
-import type { KeywordWindow, NaverReport, Period, TopKeyword } from "@/lib/report";
+import { recentMonths, type KeywordWindow, type NaverReport, type Period, type TopKeyword } from "@/lib/report";
 import { budgetStatus, buildInsights, DOW, keywordGrade } from "@/lib/naverInsights";
 import NoteEditor from "./NoteEditor";
 
@@ -139,7 +139,7 @@ export default function NaverAdsView({ data, period, path, note, top, query }: {
         <PerfTable rows={data.adgroups.map((g) => ({ ...g, key: g.id, sub: g.campaign }))} total={k.cost} />
       </>}
 
-      {/* ── 키워드 TOP 10 (주간·월간, 위 기간 선택과 별도) ── */}
+      {/* ── 월간 상위 키워드 10 (1일~말일, 위 기간 선택과 별도) ── */}
       <KeywordTop10 top={top} path={path} query={query} />
 
       {/* ── 요일별 ── */}
@@ -177,19 +177,22 @@ function KeywordTop10({ top, path, query }: { top: TopKw; path: string; query: R
   return (
     <>
       <div id="keywords" className="row mt-l" style={{ justifyContent: "space-between" }}>
-        <h2>키워드 TOP 10</h2>
+        <h2>월간 상위 키워드 10</h2>
         <div className="row">
-          <div className="seg">
-            <Link href={href({ kw: "week" })} className={top.window.mode === "week" ? "on" : ""} scroll={false}>주간</Link>
-            <Link href={href({ kw: "month" })} className={top.window.mode === "month" ? "on" : ""} scroll={false}>월간</Link>
-          </div>
+          <form className="row" action={`${path}#keywords`} method="get">
+            {Object.entries(query).filter(([k, val]) => val && k !== "kwm").map(([k, val]) => <input key={k} type="hidden" name={k} value={val} />)}
+            <select name="kwm" defaultValue={top.window.month} aria-label="집계 월">
+              {recentMonths().map((m) => <option key={m} value={m}>{m.replace("-", "년 ")}월</option>)}
+            </select>
+            <button className="btn sm">보기</button>
+          </form>
           <div className="seg">
             {SORTS.map(([k, label]) => <Link key={k} href={href({ kwsort: k })} className={top.sort === k ? "on" : ""} scroll={false}>{label}</Link>)}
           </div>
         </div>
       </div>
-      <p className="faint">{top.window.label} · 노출된 키워드 {top.keywords.length}개 중 {SORTS.find(([k]) => k === top.sort)?.[1]} 상위 10개 · 위쪽 기간 선택과 별개로 집계</p>
-      {rows.length === 0 ? <div className="card pad mt faint">이 기간에 노출된 키워드가 없습니다.</div> : (
+      <p className="faint">{top.window.label}{top.window.partial ? ` · 진행 중인 달이라 ${top.window.to.slice(5).replace("-", "/")}까지 집계` : ""} · 이달 노출된 키워드 {top.keywords.length}개 중 {SORTS.find(([k]) => k === top.sort)?.[1]} 상위 10개 · 월말 리포트 기준(1일~말일)</p>
+      {rows.length === 0 ? <div className="card pad mt faint">이 달에 노출된 키워드가 없습니다.</div> : (
         <div className="card mt tbl-wrap"><table>
           <thead><tr><th className="r">순위</th><th>키워드</th><th>광고그룹</th><th className="r">클릭</th><th className="r">노출</th><th className="r">CTR</th><th className="r">광고비</th><th className="r">비중</th><th className="r">CPC</th><th className="r">평균 노출순위</th><th>등급</th></tr></thead>
           <tbody>{rows.map((x, i) => {
