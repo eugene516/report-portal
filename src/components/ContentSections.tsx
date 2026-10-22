@@ -119,7 +119,7 @@ export function PlaceSection({ c, urls }: { c: ReportContent; urls: Map<string, 
           return (
             <figure key={r.keyword} className="place-card card">
               <figcaption>
-                <div className="pk"><span className="faint num">{i + 1}</span><b>{r.keyword}</b></div>
+                <div className="pk"><span className="faint num">{i + 1}</span><b>{r.keyword}</b>{r.important && <span className="badge warn" title="중점 관리 키워드">중점</span>}</div>
                 <div className="row"><Rank v={r.place?.rank} collected={!!r.place} />{r.place?.adRank && <span className="badge acc">광고 {r.place.adRank}번째</span>}</div>
               </figcaption>
               {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -6,9 +6,9 @@
 // 실행: node scripts/daily-check.mjs            (예약: Windows 작업 "ReportPortal-DailyCheck" 매일 09:00, scripts/schedule-tasks.ps1)
 //       node scripts/daily-check.mjs --dry      (대상만 확인, 브라우저 실행 · 저장 안 함)
 // 네이버 광고 성과는 Supabase 예약 작업(매일 09:00)이 따로 수집한다.
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { APP, json, kst, kstDate, sql } from "./lib/db.mjs";
 
@@ -26,12 +26,16 @@ const prevPeriod = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.s
 const blog = sql(`select b.client_id as client, b.keyword, b.url from public.blog_posts b where b.period = '${period}' order by b.client_id, b.sort`)
   .map((b) => { const m = b.url.match(/blog\.naver\.com\/([^/?#]+)\/(\d+)/); return m ? { ...b, account: m[1], post: m[2] } : null; })
   .filter(Boolean);
-const place = sql(`select k.client_id as client, k.keyword, c.name as "placeName" from public.tracked_keywords k join public.clients c on c.id = k.client_id
-                    where k.kind = 'place' and k.active order by c.name, k.sort, k.keyword`);
+const place = sql(`select k.client_id as client, k.keyword, c.name as "placeName",
+                           row_number() over (partition by k.client_id order by k.important desc, k.sort, k.keyword) as idx
+                      from public.tracked_keywords k join public.clients c on c.id = k.client_id
+                     where k.kind = 'place' and k.active order by c.name, idx`);
 const cafe = sql(`select p.id, p.url from public.cafe_posts p where p.status = '게시중' and p.period in ('${period}', '${prevPeriod}') order by p.posted_on`);
 const first = sql(`select id from public.clients order by name limit 1`)[0];
 const portal = [["대시보드", "/admin"], ["광고주 현황", "/admin/clients"], ["업무 확인", "/admin/tasks"], ...(first ? [["광고주 리포트", `/admin/clients/${first.id}`]] : [])];
-const job = { site: SITE, blog, place, cafe, portal };
+const captureDir = join(dir, "captures").replace(/\\/g, "/");
+mkdirSync(captureDir, { recursive: true });
+const job = { site: SITE, blog, place, cafe, portal, captureDir };
 const input = join(dir, "input.json"), output = join(dir, "result.json");
 writeFileSync(input, JSON.stringify(job, null, 1), "utf8");
 log(`대상: 블로그 ${blog.length} · 플레이스 ${place.length} · 게시글 ${cafe.length} · 화면 ${portal.length}`);
@@ -55,9 +59,20 @@ if (r.blog?.length) sql(`
   insert into public.blog_rank_results (client_id, keyword, post_url, main_rank, blog_tab_rank, main_other, tab_other, collected_at, method)
   select (x->>'client')::uuid, x->>'keyword', x->>'url', (x->>'main')::int, (x->>'blogTab')::int, x->'mainOther', x->'tabOther', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
     from jsonb_array_elements(${json(r.blog)}) x`);
+// 플레이스 캡쳐 → 비공개 저장소 captures/{광고주}/place/{시각}/{번호}.jpg (CLI 로그인으로 업로드)
+const stampDir = kst().toISOString().slice(0, 16).replace("T", "_").replace(":", "");
+for (const p of r.place ?? []) {
+  if (!p.capture || !existsSync(p.capture)) { p.capturePath = null; continue; }
+  const dest = `${p.client}/place/${stampDir}/${String(p.idx).padStart(2, "0")}.jpg`;
+  try {
+    // 원본은 상대 경로로 넘긴다 (CLI 가 "G:" 같은 드라이브 문자를 원격 주소로 오해함)
+    execFileSync(process.execPath, [join(APP, "node_modules/supabase/dist/supabase.js"), "storage", "cp", "--linked", "--experimental", "--workdir", APP, "--content-type", "image/jpeg", "./" + basename(p.capture), `ss:///captures/${dest}`], { cwd: dirname(p.capture), stdio: "ignore" });
+    p.capturePath = dest;
+  } catch { p.capturePath = null; log(`캡쳐 업로드 실패: ${p.keyword}`); }
+}
 if (r.place?.length) sql(`
-  insert into public.place_rank_results (client_id, keyword, rank, ad_rank, collected_at, method)
-  select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, (x->>'at')::timestamptz, 'ego-browser 매일 점검'
+  insert into public.place_rank_results (client_id, keyword, rank, ad_rank, capture_path, collected_at, method)
+  select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, x->>'capturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
     from jsonb_array_elements(${json(r.place.filter((p) => !p.noBlock))}) x`);
 if (r.cafe?.length) sql(`
   update public.cafe_posts p
@@ -72,7 +87,8 @@ if (r.cafe?.length) sql(`
 const deleted = (r.cafe ?? []).filter((c) => c.deleted).length;
 const ranked = (r.blog ?? []).filter((b) => b.main != null || b.blogTab != null).length;
 const top3 = (r.place ?? []).filter((p) => p.rank != null && p.rank <= 3).length;
-log(`저장: 블로그 ${r.blog?.length ?? 0}건(노출 ${ranked}) · 플레이스 ${r.place?.length ?? 0}건(Top3 ${top3}) · 게시글 ${r.cafe?.length ?? 0}건(삭제 감지 ${deleted})`);
+const shots = (r.place ?? []).filter((p) => p.capturePath).length;
+log(`저장: 블로그 ${r.blog?.length ?? 0}건(노출 ${ranked}) · 플레이스 ${r.place?.length ?? 0}건(Top3 ${top3} · 캡쳐 ${shots}) · 게시글 ${r.cafe?.length ?? 0}건(삭제 감지 ${deleted})`);
 for (const p of r.portal ?? []) log(`화면 ${p.name}: ${p.ok ? "정상" : `확인 필요 (${p.note})`}`);
 for (const e of r.errors ?? []) log(`오류: ${e}`);
 if (r.portal?.some((p) => p.note === "로그인이 풀려 있음")) log("※ ego 브라우저에서 리포트 포털에 다시 로그인해 주세요.");

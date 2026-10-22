@@ -10,6 +10,22 @@ const job = JSON.parse(await fs.readFile(input, "utf8"));
 const task = await taskSpace("리포트 포털 매일 점검");
 const page = task.page("p1");
 const pause = (a, b) => page.waitForTimeout(a + Math.random() * (b - a));
+// 캡쳐 두 장을 합치는 빈 페이지 (네이버 페이지 보안 정책과 무관하게 그리기 위해 따로 둔다)
+const tool = job.captureDir ? await task.newPage() : null;
+if (tool) await tool.goto("about:blank");
+async function stitch(files, out) {
+  const data = await Promise.all(files.map(async (f) => "data:image/png;base64," + (await fs.readFile(f)).toString("base64")));
+  const jpg = await tool.evaluate(async (srcs) => {
+    const imgs = await Promise.all(srcs.map((s) => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = s; })));
+    const gap = 12, w = Math.max(...imgs.map((i) => i.naturalWidth)), h = imgs.reduce((a, i) => a + i.naturalHeight, 0) + gap * (imgs.length - 1);
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+    let y = 0; for (const i of imgs) { x.drawImage(i, 0, y); y += i.naturalHeight + gap; }
+    return c.toDataURL("image/jpeg", 0.85);
+  }, data);
+  await fs.writeFile(out, Buffer.from(jpg.split(",")[1], "base64"));
+  for (const f of files) await fs.rm(f, { force: true });
+}
 const result = { startedAt: new Date().toISOString(), blog: [], place: [], cafe: [], portal: [], errors: [] };
 const save = () => fs.writeFile(output, JSON.stringify(result, null, 1), "utf8");
 
@@ -65,6 +81,9 @@ for (const p of job.place) {
     await page.goto("https://search.naver.com/search.naver?where=nexearch&query=" + encodeURIComponent(p.keyword));
     await page.waitForLoadState(); await page.waitForTimeout(1500);
     const r = await page.evaluate((NAME) => {
+      const RED = "3px solid #e5322d";
+      const input = document.querySelector("#nx_query");
+      if (input) { input.style.outline = RED; input.style.outlineOffset = "4px"; }
       const box = [...document.querySelectorAll(".api_subject_bx")].find((b) => /^플레이스/.test((b.innerText || "").trim()) && b.querySelector("a[href*='place']"));
       if (!box) return { noBlock: true };
       const lis = [...box.querySelectorAll("li")].filter((li) => li.querySelector("a[href*='place']") && !li.parentElement.closest("li"));
@@ -73,11 +92,22 @@ for (const p of job.place) {
         const text = (li.innerText || "").replace(/\s+/g, " ");
         if (/(^| )광고( |$)/.test(text)) { ads++; if (adRank == null && text.includes(NAME)) adRank = ads; continue; }
         organic++;
-        if (rank == null && text.includes(NAME)) rank = organic;
+        if (rank == null && text.includes(NAME)) { rank = organic; li.style.outline = RED; li.style.outlineOffset = "2px"; }
       }
-      return { rank, adRank };
+      const rc = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, w: b.width, h: b.height }; };
+      return { rank, adRank, input: input && rc(input), block: rc(box) };
     }, p.placeName);
-    result.place.push({ client: p.client, keyword: p.keyword, rank: r.rank ?? null, adRank: r.adRank ?? null, noBlock: !!r.noBlock, at: new Date().toISOString() });
+    let capture = null;
+    if (tool && !r.noBlock && r.input) {
+      try {
+        const base = `${job.captureDir}/${p.client}_${String(p.idx).padStart(2, "0")}`;
+        await page.screenshot({ path: base + "_head.png", clip: { x: r.block.x, y: Math.max(0, r.input.y - 16), width: r.block.w, height: r.input.h + 32 } });
+        await page.screenshot({ path: base + "_block.png", fullPage: true, clip: { x: r.block.x, y: r.block.y, width: r.block.w, height: r.block.h } });
+        await stitch([base + "_head.png", base + "_block.png"], base + ".jpg");
+        capture = base + ".jpg";
+      } catch (e) { result.errors.push(`캡쳐 ${p.keyword}: ${String(e).slice(0, 100)}`); }
+    }
+    result.place.push({ client: p.client, keyword: p.keyword, idx: p.idx, rank: r.rank ?? null, adRank: r.adRank ?? null, noBlock: !!r.noBlock, capture, at: new Date().toISOString() });
   } catch (e) { result.errors.push(`플레이스 ${p.keyword}: ${String(e).slice(0, 120)}`); }
   await save(); await pause(2000, 4000);
 }
