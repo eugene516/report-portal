@@ -448,7 +448,10 @@ a.cname { color: var(--text); }
 .nav-btn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 10px; border: 0; border-radius: 8px; background: none; color: var(--text-2); font-weight: 500; cursor: pointer; text-align: left; }
 .nav-btn:hover { background: var(--surface-2); }
 .nav-btn.on { background: var(--accent-soft); color: var(--accent); }
-.nav-btn .chev { margin-left: 6px; font-size: 15px; }
+.nav-btn .chev { display: inline-block; margin-left: 6px; font-size: 12px; transition: transform .15s; transform: rotate(-90deg); }
+.nav-btn.open { color: var(--text); font-weight: 700; }
+.nav-btn.open .chev { transform: none; }
+.adm-nav .subnav a { display: flex; justify-content: space-between; gap: 6px; }
 .nav-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-div { height: 1px; background: var(--border); margin: 10px 4px; }
 .adm-fly .nav a { font-size: 13.5px; }

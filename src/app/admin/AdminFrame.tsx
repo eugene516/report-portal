@@ -1,6 +1,6 @@
 "use client";
-// 내부용 화면 틀: 상단 바(햄버거) + 좌측 메뉴 + (관리자) 직원 → 담당 업체 2단 메뉴
-// - 넓은 화면: 좌측 메뉴 고정. 햄버거로 접고 펼친다(이 브라우저에 기억).
+// 내부용 화면 틀: 상단 바(햄버거) + 좌측 메뉴 + (관리자) 직원 이름 아래로 펼쳐지는 담당 업체 하위 메뉴
+// - 넓은 화면: 좌측 메뉴 고정. 햄버거로 접고 펼친다(쿠키에 기억).
 // - 광고주 리포트 화면(/admin/clients/{id})은 자체 좌측 메뉴가 있어 기본으로 접어 둔다.
 // - 좁은 화면: 햄버거를 누르면 메뉴가 화면 위로 열린다.
 // 메뉴는 화면 표시용일 뿐이고, 각 화면은 서버와 DB가 권한을 다시 확인한다.
@@ -28,7 +28,7 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
   const [pref, setPref] = useState(navCollapsed);          // 일반 화면에서 접힘 (쿠키에 기억)
   const [reportOpen, setReportOpen] = useState(false);     // 리포트 화면에서 펼침 (기본 접힘)
   const [mobileAt, setMobileAt] = useState<string | null>(null);   // 좁은 화면: 연 화면 주소 (다른 화면으로 가면 자동으로 닫힘)
-  const [openStaff, setOpenStaff] = useState<string | null>(sp.get("staff"));
+  const [openStaff, setOpenStaff] = useState<string[]>(sp.get("staff") ? [sp.get("staff")!] : []);   // 펼친 직원 (여러 명 동시에 가능)
   const collapsed = inReport ? !reportOpen : pref;
   const mobileOpen = mobileAt === path;
 
@@ -39,7 +39,6 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
     setPref(!pref);
   }
 
-  const flyout = isAdmin && openStaff ? staff.find((s) => s.id === openStaff) : undefined;
   const clientId = path.match(/^\/admin\/(?:progress|clients)\/([0-9a-f-]{36})/)?.[1];
   const on = (href: string, exact = true) => (exact ? path === href : path.startsWith(href)) ? "on" : "";
 
@@ -61,7 +60,7 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
         </div>
       </header>
 
-      <div className={`adm ${collapsed ? "collapsed" : ""} ${mobileOpen ? "m-open" : ""} ${flyout ? "has-fly" : ""}`}>
+      <div className={`adm ${collapsed ? "collapsed" : ""} ${mobileOpen ? "m-open" : ""}`}>
         {mobileOpen && <div className="adm-dim" onClick={() => setMobileAt(null)} />}
         <aside className="adm-nav" aria-label="내부 메뉴">
           <nav className="nav">
@@ -73,12 +72,29 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
             <div className="nav-sec">
               <div className="nav-sec-h"><span>직원</span><Link href="/admin/invite" className="nav-add" title="직원 추가 (초대)">+ 추가</Link></div>
               <nav className="nav">
-                {staff.map((s) => (
-                  <button key={s.id} className={`nav-btn ${openStaff === s.id ? "on" : ""}`} onClick={() => setOpenStaff(openStaff === s.id ? null : s.id)} aria-expanded={openStaff === s.id}>
-                    <span className="nav-t">{s.name}{s.role !== "staff" && <span className="faint"> · {ROLE[s.role]}</span>}</span>
-                    <span className="cnt">{s.clients.length}<span className="chev" aria-hidden="true">›</span></span>
-                  </button>
-                ))}
+                {staff.map((s) => {
+                  const open = openStaff.includes(s.id);
+                  return (
+                    <div key={s.id}>
+                      <button className={`nav-btn ${open ? "open" : ""}`} aria-expanded={open}
+                        onClick={() => setOpenStaff(open ? openStaff.filter((x) => x !== s.id) : [...openStaff, s.id])}>
+                        <span className="nav-t">{s.name}{s.role !== "staff" && <span className="faint"> · {ROLE[s.role]}</span>}</span>
+                        <span className="cnt">{s.clients.length}<span className="chev" aria-hidden="true">▾</span></span>
+                      </button>
+                      {open && (
+                        <div className="subnav">
+                          <Link href={`/admin/clients?staff=${s.id}`} className={path === "/admin/clients" && sp.get("staff") === s.id ? "on" : ""}>한눈에 보기</Link>
+                          {s.clients.length === 0 && <span className="faint pad-x">담당 업체 없음</span>}
+                          {s.clients.map((c) => (
+                            <Link key={c.id} href={`/admin/progress/${c.id}?staff=${s.id}`} className={clientId === c.id && sp.get("staff") === s.id ? "on" : ""}>
+                              <span className="nav-t">{c.name}</span><span className="cnt">{c.primary ? "주" : "보조"}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </nav>
             </div>
           ) : (
@@ -105,24 +121,6 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
             </nav>
           </div>
         </aside>
-
-        {flyout && (
-          <aside className="adm-fly" aria-label={`${flyout.name} 담당 업체`}>
-            <div className="fly-h">
-              <button className="link-x" onClick={() => setOpenStaff(null)} aria-label="닫기">‹</button>
-              <div><b>{flyout.name}</b><div className="faint">담당 업체 {flyout.clients.length}곳</div></div>
-            </div>
-            <nav className="nav">
-              {flyout.clients.length === 0 && <span className="faint pad-x">담당 업체가 없습니다</span>}
-              {flyout.clients.map((c) => (
-                <Link key={c.id} href={`/admin/progress/${c.id}?staff=${flyout.id}`} className={clientId === c.id ? "on" : ""}>
-                  <span className="nav-t">{c.name}</span><span className="cnt">{c.primary ? "주담당" : "보조"}</span>
-                </Link>
-              ))}
-            </nav>
-            <Link href={`/admin/clients?staff=${flyout.id}`} className="btn sm fly-all">담당 업체 한눈에 보기</Link>
-          </aside>
-        )}
 
         <div className="adm-main">{children}</div>
       </div>
