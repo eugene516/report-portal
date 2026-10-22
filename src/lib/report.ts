@@ -9,7 +9,7 @@ export type ReportCtx = { mode: "staff"; clientId: string } | { mode: "client"; 
 
 export type ChannelState = { contracted: boolean; apiConnected: boolean };
 export type ClientSummary = {
-  id: string; slug: string; name: string; category: string | null; area: string | null;
+  id: string; slug: string; name: string; category: string | null; area: string | null; logo: string | null;
   channels: Partial<Record<"naver" | "daangn" | "kakao", ChannelState>>;
 };
 

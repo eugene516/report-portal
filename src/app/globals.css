@@ -654,3 +654,20 @@ a.donut-card.sm.ad .value { font-size: 18px; margin: 4px 0 2px; }
 .contract-table td:first-child select { min-width: 72px; }
 .contract-table td:nth-child(7) { min-width: 160px; }
 @media (max-width: 700px) { .st-form { grid-template-columns: 1fr 1fr; } .st-form .w2 { grid-column: 1 / -1; } }
+
+/* 광고주 로고 (리포트 좌측 상단) */
+.brand { display: flex; gap: 10px; align-items: center; }
+.brand-t { min-width: 0; }
+.brand-logo, .logo-btn { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; border: 1px solid var(--border); background: #fff; object-fit: cover; }
+.logo-btn { padding: 0; overflow: hidden; cursor: pointer; display: grid; place-items: center; }
+.logo-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.logo-btn:hover { border-color: var(--accent); }
+.logo-btn.empty { border-style: dashed; background: var(--surface-2); font-size: 11px; font-weight: 700; color: var(--text-3); }
+.logo-panel { width: min(420px, calc(100vw - 32px)); }
+.crop-wrap { display: flex; justify-content: center; margin-top: 14px; }
+.crop { position: relative; overflow: hidden; border-radius: 12px; background: var(--surface-2); box-shadow: 0 0 0 1px var(--border); touch-action: none; cursor: grab; display: grid; place-items: center; }
+.crop:active { cursor: grabbing; }
+.crop img { position: absolute; left: 0; top: 0; max-width: none; user-select: none; pointer-events: none; }
+.zoom-row { display: grid; grid-template-columns: 32px 1fr 44px; gap: 8px; align-items: center; margin-top: 12px; }
+.logo-actions .btn { white-space: nowrap; }
+@media (max-width: 900px) { .brand { padding-bottom: 8px; } }

@@ -7,6 +7,8 @@
 //   서버에서만 렌더링되므로 광고주 링크 페이지의 HTML·스크립트에는 포함되지 않는다.
 import Link from "next/link";
 import type { ClientSummary } from "@/lib/report";
+import { logoUrl } from "@/lib/logo";
+import LogoEditor from "./LogoEditor";
 
 export const AD_CHANNELS = [
   { id: "naver", label: "네이버 광고" },
@@ -53,8 +55,14 @@ export default function ReportShell({
     <div className="shell">
       <aside className="side">
         <div className="brand">
-          <div className="name">{client.name}</div>
-          <div className="sub">{[client.category, client.area].filter(Boolean).join(" · ")}</div>
+          {/* 로고: 직원 화면은 눌러서 등록·변경, 광고주 링크는 등록된 경우에만 표시 */}
+          {staffTools ? <LogoEditor clientId={client.id} name={client.name} current={client.logo ?? null} />
+            // eslint-disable-next-line @next/next/no-img-element
+            : client.logo && <img className="brand-logo" src={logoUrl(client.logo)} alt={`${client.name} 로고`} />}
+          <div className="brand-t">
+            <div className="name">{client.name}</div>
+            <div className="sub">{[client.category, client.area].filter(Boolean).join(" · ")}</div>
+          </div>
         </div>
         <nav className="nav">
           {visibleMenus(services).map((m) => (
