@@ -6,9 +6,9 @@ import type { ReviewFile } from "@/lib/review";
 
 export type ThumbFile = { id: string; name: string; url: string | null; mime: string | null; size: number | null; download?: string };
 
-const isImage = (f: ThumbFile) => /^image\//.test(f.mime ?? "") || /\.(png|jpe?g|webp|gif)$/i.test(f.name);
-const isDocx = (f: ThumbFile) => /\.docx$/i.test(f.name) || f.mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const isPdf = (f: ThumbFile) => /\.pdf$/i.test(f.name) || f.mime === "application/pdf";
+export const isImage = (f: ThumbFile) => /^image\//.test(f.mime ?? "") || /\.(png|jpe?g|webp|gif)$/i.test(f.name);
+export const isDocx = (f: ThumbFile) => /\.docx$/i.test(f.name) || f.mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const isPdf = (f: ThumbFile) => /\.pdf$/i.test(f.name) || f.mime === "application/pdf";
 const size = (n: number | null) => (n == null ? "" : n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 const ext = (name: string) => (name.match(/\.([A-Za-z0-9]{1,5})$/)?.[1] ?? "파일").toUpperCase();
 const dl = (f: ReviewFile) => (f.url ? `${f.url}${f.url.includes("?") ? "&" : "?"}download=${encodeURIComponent(f.file_name)}` : undefined);
@@ -44,7 +44,7 @@ function useDocx(url: string) {
   return state?.url === url ? state : { url, html: null, err: false };
 }
 
-function DocxView({ url, thumb }: { url: string; thumb?: boolean }) {
+export function DocxView({ url, thumb }: { url: string; thumb?: boolean }) {
   const { html, err } = useDocx(url);
   if (err) return thumb ? <span className="thumb-icon">DOCX</span> : <div className="notice">미리보기를 만들지 못했습니다. 파일을 내려받아 확인해 주세요.</div>;
   if (html === null) return thumb ? <span className="thumb-icon faint">불러오는 중…</span> : <div className="faint pad-x">원고 불러오는 중…</div>;

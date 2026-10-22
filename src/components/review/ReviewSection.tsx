@@ -3,15 +3,16 @@
 // - 직원(staffView): 콘텐츠 등록 · 검수 요청 · 수정 요청 확인 · 수정본 등록 · 광고주 계정 관리
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getReviewDetail, getReviewList, getReviewViewer, REVIEW_KINDS, REVIEW_STATUS, type ReviewItem } from "@/lib/review";
+import { getReviewDetail, getReviewList, getReviewViewer, REVIEW_KINDS, REVIEW_STATUS, withFilesAndEvents } from "@/lib/review";
 import { supabaseForStaff } from "@/lib/supabase/server";
 import { ReviewChangePassword, ReviewLogin, ReviewLogout } from "./ReviewAuth";
 import ReviewFiles from "./ReviewFiles";
 import ReviewDecide from "./ReviewDecide";
+import ReviewList from "./ReviewList";
 import { ClientAccounts, ReviewCreate, ReviewStaffActions } from "./ReviewStaff";
 
 const kst = (iso: string | null) => (iso ? new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ") : "-");
-const ACTION: Record<string, string> = { request: "검수 요청", resubmit: "수정본 재검수 요청", approve: "검수 완료", changes: "수정 요청" };
+const ACTION: Record<string, string> = { request: "검수 요청", resubmit: "수정본 검수 요청", approve: "검수 완료", changes: "재검수 요청" };
 const Status = ({ s }: { s: string }) => <span className={`badge ${REVIEW_STATUS[s]?.badge ?? ""}`}>{REVIEW_STATUS[s]?.label ?? s}</span>;
 
 export default async function ReviewSection({ clientId, clientName, base, itemId, period, staffView, thisMonth, siteLogin }: {
@@ -49,7 +50,7 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
             <dt>검수 요청일</dt><dd>{kst(item.requested_at)}</dd>
             <dt>버전</dt><dd>{item.version}차 원고{item.approved_version ? ` · ${item.approved_version}차 검수 완료 (${kst(item.approved_at)})` : ""}</dd>
           </dl>
-          {lastChange && <div className="notice mt-s">수정 요청 ({lastChange.actor_name ?? "광고주"}, {kst(lastChange.created_at)}): {lastChange.comment}</div>}
+          {lastChange && <div className="notice mt-s">재검수 요청 ({lastChange.actor_name ?? "광고주"}, {kst(lastChange.created_at)}): {lastChange.comment}</div>}
         </section>
         {staffView && <ReviewStaffActions clientId={clientId} itemId={item.id} status={item.status} version={item.version} hasDraftFiles={current.length > 0} pendingNext={next.length} base={base} />}
         {staffView && next.length > 0 && <><h3 className="mt">{item.version + 1}차 수정본 (재검수 요청 전)</h3><ReviewFiles files={next} /></>}
@@ -57,7 +58,7 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
         <ReviewFiles files={current} />
         {!staffView && item.status === "pending" && <ReviewDecide itemId={item.id} version={item.version} title={item.title} />}
         {item.status === "approved" && !staffView && <div className="planned mt">이 콘텐츠는 검수 완료되었습니다.</div>}
-        {item.status === "changes" && !staffView && <div className="planned mt">수정 요청을 보냈습니다. 담당자가 수정본을 올리면 다시 검수할 수 있습니다.</div>}
+        {item.status === "changes" && !staffView && <div className="planned mt">재검수 요청을 보냈습니다. 담당자가 수정본을 올리면 다시 검수할 수 있습니다.</div>}
         <section className="card pad mt">
           <h3>검수 기록</h3>
           <ul className="review-log">
@@ -84,7 +85,8 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
     return { k, total: list.length, done: list.filter((i) => i.status === "approved").length };
   }).filter((x) => x.total > 0);
   const accounts = staffView ? ((await (await supabaseForStaff()).from("client_users").select("user_id, name, email, must_change_password").eq("client_id", clientId).order("created_at")).data ?? []) : [];
-  const action = (i: ReviewItem) => (!staffView && i.status === "pending" ? "검수하기" : "보기");
+  // 원고 번호 순 (10월블로그01 → 02 …)
+  const rows = await withFilesAndEvents([...visible].sort((a, b) => a.title.localeCompare(b.title, "ko", { numeric: true })));
 
   return (
     <>
@@ -110,18 +112,7 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
         </div>
       )}
       {visible.length === 0 ? <div className="empty-state mt">{staffView ? "이 달에 등록한 검수 콘텐츠가 없습니다. ‘+ 검수 콘텐츠 등록’으로 시작하세요." : "이 달에 검수할 콘텐츠가 없습니다."}</div> : (
-        <div className="card tbl-wrap mt"><table className="rtable review-table">
-          <thead><tr><th>콘텐츠 제목</th><th>유형</th><th>검수 상태</th><th>요청일</th><th></th></tr></thead>
-          <tbody>{visible.map((i) => (
-            <tr key={i.id}>
-              <td><Link href={`${base}/review/${i.id}`} className="cname">{i.title}</Link>{i.version > 1 && <span className="faint"> · {i.version}차</span>}</td>
-              <td data-label="유형">{REVIEW_KINDS[i.kind] ?? i.kind}</td>
-              <td data-label="검수 상태"><Status s={i.status} /></td>
-              <td data-label="요청일" className="num faint">{kst(i.requested_at)}</td>
-              <td className="r"><Link className={`btn sm ${action(i) === "검수하기" ? "primary" : ""}`} href={`${base}/review/${i.id}`}>{action(i)}</Link></td>
-            </tr>
-          ))}</tbody>
-        </table></div>
+        <ReviewList rows={rows} staff={staffView} base={base} />
       )}
     </>
   );

@@ -9,6 +9,8 @@ import { FileThumbs } from "./ReviewFiles";
 
 const KINDS = [["blog", "블로그"], ["column", "홈페이지 칼럼"], ["cardnews", "SNS 카드뉴스"], ["etc", "기타"]] as const;
 const ACCEPT = ".docx,.doc,.pdf,.hwp,.txt,image/png,image/jpeg,image/webp,image/gif";
+const DOC = /\.(docx?|hwp|pdf|txt)$/i;
+const kindOf = (name: string, fallback: string) => (/칼럼|홈페이지/.test(name) ? "column" : /블로그/.test(name) ? "blog" : /카드\s*뉴스|인스타/.test(name) ? "cardnews" : fallback);
 const safe = (name: string) => name.replace(/[^\w.\-가-힣 ()]/g, "_").slice(-100);
 
 async function uploadFiles(clientId: string, itemId: string, version: number, files: File[]) {
@@ -44,25 +46,32 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
     const form = e.currentTarget; const fd = new FormData(form);
     const files = picked.map((x) => x.file);
     if (!files.length) return toastError("원고나 이미지 파일을 하나 이상 올려 주세요.");
-    // 제목은 따로 받지 않고 원고 파일명(없으면 첫 파일명)에서 확장자를 뺀 이름으로
-    const main = files.find((f) => /\.(docx?|hwp|pdf|txt)$/i.test(f.name)) ?? files[0];
-    const title = (main.name.replace(/\.[^.]+$/, "").trim() || "검수 콘텐츠").slice(0, 200);
+    // 원고 1개 = 검수 1건. 제목은 원고 파일명(확장자 뺌), 구분은 파일명으로 자동(블로그 · 칼럼/홈페이지 · 카드뉴스), 없으면 고른 유형
+    // 이미지는 원고가 1개면 그 원고에 붙이고, 원고가 여러 개면 이미지끼리 1건으로 묶는다
+    const docs = files.filter((f) => DOC.test(f.name));
+    const images = files.filter((f) => !DOC.test(f.name));
+    const groups: File[][] = docs.length === 0 ? [images] : docs.length === 1 ? [[docs[0], ...images]] : [...docs.map((d) => [d]), ...(images.length ? [images] : [])];
+    const fallback = String(fd.get("kind"));
+    const after = String(fd.get("after"));
     setBusy(true);
     const sb = supabaseBrowser();
-    const { data, error } = await sb.from("review_items").insert({ client_id: clientId, kind: String(fd.get("kind")), period: String(fd.get("period")), title }).select("id").single();
-    if (error || !data) { setBusy(false); return toastError("콘텐츠를 만들지 못했습니다."); }
-    const ok = await uploadFiles(clientId, data.id, 1, files);
-    let msg = `콘텐츠를 등록했습니다 (파일 ${ok}개).`;
-    const after = String(fd.get("after"));
-    if (after === "request" && ok) {
-      const { error: e2 } = await sb.rpc("review_request", { p_item: data.id });
-      msg = e2 ? msg + " 검수 요청은 하지 못했습니다." : `검수를 요청했습니다 (파일 ${ok}개). 광고주 파일 검수 화면에 바로 보입니다.`;
-    } else if (after === "complete" && ok) {
-      const { error: e2 } = await sb.rpc("review_staff_complete", { p_item: data.id, p_comment: "완료된 콘텐츠로 등록" });
-      msg = e2 ? msg + " 완료 처리는 하지 못했습니다." : `검수 완료 콘텐츠로 등록했습니다 (파일 ${ok}개).`;
+    let made = 0, uploaded = 0, failed = 0;
+    for (const g of groups) {
+      const title = ((g.length > 1 && !DOC.test(g[0].name) ? `이미지 ${g.length}장 — ` : "") + g[0].name.replace(/\.[^.]+$/, "").trim() || "검수 콘텐츠").slice(0, 200);
+      const { data, error } = await sb.from("review_items").insert({ client_id: clientId, kind: kindOf(g[0].name, fallback), period: String(fd.get("period")), title }).select("id").single();
+      if (error || !data) { failed++; continue; }
+      const ok = await uploadFiles(clientId, data.id, 1, g);
+      made++; uploaded += ok;
+      if (!ok) continue;
+      const { error: e2 } = after === "request" ? await sb.rpc("review_request", { p_item: data.id })
+        : after === "complete" ? await sb.rpc("review_staff_complete", { p_item: data.id, p_comment: "완료된 콘텐츠로 등록" }) : { error: null };
+      if (e2) failed++;
     }
     setBusy(false); form.reset(); clear(); setOpen(false);
-    toast(msg); router.refresh();
+    const what = after === "request" ? "검수를 요청했습니다" : after === "complete" ? "검수 완료로 등록했습니다" : "작성 중으로 등록했습니다";
+    if (failed) toastError(`원고 ${made}건 · 파일 ${uploaded}개를 올렸지만 ${failed}건은 처리하지 못했습니다. 목록에서 확인해 주세요.`);
+    else toast(`원고 ${made}건(파일 ${uploaded}개) ${what}.`);
+    router.refresh();
   }
   if (!open) return <button className="btn primary" onClick={() => setOpen(true)}>+ 검수 콘텐츠 등록</button>;
   const tooBig = picked.filter((x) => x.file.size > 30 * 1024 * 1024).length;
@@ -70,12 +79,12 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
     <form className="card pad review-create" onSubmit={create}>
       <h3>검수 콘텐츠 등록</h3>
       <div className="st-form">
-        <label>유형<select name="kind" defaultValue="blog">{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <label>구분 (파일명에 ‘블로그’ · ‘칼럼’이 있으면 자동)<select name="kind" defaultValue="blog">{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label>대상 월<input name="period" type="month" defaultValue={period} required className="search" /></label>
         <label className="w-all">원고 · 이미지 (여러 개 선택, 파일당 30MB 이하)<input type="file" multiple accept={ACCEPT} className="search" onChange={(e) => { pick([...(e.target.files ?? [])]); e.target.value = ""; }} /></label>
         {picked.length > 0 && (
           <div className="w-all">
-            <p className="faint">선택한 파일 {picked.length}개 — 썸네일을 누르면 전체 내용을 볼 수 있습니다{tooBig ? ` · 30MB가 넘는 ${tooBig}개는 올라가지 않습니다` : ""}</p>
+            <p className="faint">선택한 파일 {picked.length}개 — 원고 1개가 목록 1줄로 등록됩니다. 썸네일을 누르면 전체 내용을 볼 수 있습니다{tooBig ? ` · 30MB가 넘는 ${tooBig}개는 올라가지 않습니다` : ""}</p>
             <FileThumbs files={picked.map((x) => ({ id: x.id, name: x.file.name, url: x.url, mime: x.file.type || null, size: x.file.size }))} onRemove={unpick} />
           </div>
         )}
@@ -118,8 +127,8 @@ export function ReviewStaffActions({ clientId, itemId, status, version, hasDraft
     setBusy(true);
     const { error } = await sb.rpc("review_request", { p_item: itemId, p_new_version: true, p_comment: comment });
     setBusy(false);
-    if (error) return toastError(/no files/.test(error.message) ? `${nextVersion}차 수정본 파일을 먼저 올려 주세요.` : "재검수를 요청하지 못했습니다.");
-    toast(`${nextVersion}차 수정본으로 재검수를 요청했습니다.`); router.refresh();
+    if (error) return toastError(/no files/.test(error.message) ? `${nextVersion}차 수정본 파일을 먼저 올려 주세요.` : "수정본 검수를 요청하지 못했습니다.");
+    toast(`${nextVersion}차 수정본으로 검수를 요청했습니다.`); router.refresh();
   }
   // 이미 광고주와 확정한 콘텐츠: 광고주 검수 없이 담당자가 완료로 표시 (기록에 '담당자 완료 처리'로 남음)
   async function complete() {
@@ -144,14 +153,14 @@ export function ReviewStaffActions({ clientId, itemId, status, version, hasDraft
     <section className="card pad sec-tools">
       <div className="st-head">
         <div className="st-sum"><span className="badge acc">직원용</span>
-          <span className="faint">{status === "draft" ? "작성 중 — 파일을 확인하고 검수를 요청하세요." : status === "changes" ? "광고주가 수정을 요청했습니다. 수정본을 올리고 재검수를 요청하세요." : status === "pending" ? "광고주 검수 대기 중입니다." : "검수 완료. 수정이 생기면 수정본을 올려 다시 검수받을 수 있습니다."}</span>
+          <span className="faint">{status === "draft" ? "작성 중 — 파일을 확인하고 검수를 요청하세요." : status === "changes" ? "재검수 요청 상태입니다. 수정본을 올리고 수정본 검수 요청을 보내세요." : status === "pending" ? "광고주 검수 대기 중입니다." : "검수 완료. 수정이 생기면 수정본을 올려 다시 검수받을 수 있습니다."}</span>
         </div>
         <div className="row">
           <label className={`btn sm ${busy ? "disabled" : ""}`}>{status === "draft" ? "+ 파일 추가" : `+ ${nextVersion}차 수정본 파일 올리기`}
             <input type="file" hidden multiple accept={ACCEPT} onChange={(e) => { add([...(e.target.files ?? [])]); e.target.value = ""; }} />
           </label>
           {status === "draft" && <button className="btn sm primary" disabled={busy || !hasDraftFiles} onClick={request}>검수 요청</button>}
-          {status !== "draft" && <button className="btn sm primary" disabled={busy || pendingNext === 0} onClick={resubmit} title={pendingNext ? "" : "수정본 파일을 먼저 올리세요"}>재검수 요청{pendingNext ? ` (${pendingNext}개 파일)` : ""}</button>}
+          {status !== "draft" && <button className="btn sm primary" disabled={busy || pendingNext === 0} onClick={resubmit} title={pendingNext ? "" : "수정본 파일을 먼저 올리세요"}>수정본 검수 요청{pendingNext ? ` (${pendingNext}개 파일)` : ""}</button>}
           {status !== "approved" && <button className="btn sm decide-ok" disabled={busy || !hasDraftFiles} onClick={complete} title="이미 확정된 콘텐츠를 완료로 표시">✓ 완료 처리</button>}
           {status === "draft" && <button className="btn sm" disabled={busy} onClick={removeDraft}>삭제</button>}
         </div>

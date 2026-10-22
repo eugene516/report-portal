@@ -1,4 +1,4 @@
--- 파일 검수 직원 완료 처리 점검 (원격 DB에서 실행해도 데이터가 남지 않음)
+-- 파일 검수 직원 완료 처리 · 재검수 요청 표시 점검 (원격 DB에서 실행해도 데이터가 남지 않음)
 -- 실행: npx supabase db query --linked -f supabase/tests/review_staff_complete_check.sql
 do $$
 declare
@@ -49,5 +49,19 @@ begin
   -- 8. 대시보드 요약에 완료로 반영
   perform set_config('request.jwt.claims', json_build_object('sub', st, 'role', 'authenticated')::text, true);
   r := r || '8 ' || case when (public.staff_review_summary(a, cur) -> 'kinds' -> 0 ->> 'approved')::int = 2 then 'OK' else 'FAIL' end || ';';
+  -- 9. 직원 재검수 요청: 코멘트 없으면 불가
+  begin perform public.review_staff_changes(i1, '  '); r := r || '9 FAIL;';
+  exception when others then r := r || case when sqlerrm = 'comment required' then '9 OK;' else '9 FAIL(' || sqlerrm || ');' end; end;
+  -- 10. 완료된 원고를 재검수 요청으로 → 상태 · 기록(직원)
+  perform public.review_staff_changes(i1, '광고주가 전화로 제목 수정 요청');
+  r := r || '10 ' || case when (select status from public.review_items where id = i1) = 'changes'
+        and exists (select 1 from public.review_events where item_id = i1 and action = 'changes' and actor_kind = 'staff') then 'OK' else 'FAIL' end || ';';
+  -- 11. 담당 아닌 직원 · 광고주 계정은 불가
+  perform set_config('request.jwt.claims', json_build_object('sub', ot, 'role', 'authenticated')::text, true);
+  begin perform public.review_staff_changes(i2, 'x'); r := r || '11 FAIL;';
+  exception when insufficient_privilege then r := r || '11 OK;'; end;
+  perform set_config('request.jwt.claims', json_build_object('sub', ca, 'role', 'authenticated')::text, true);
+  begin perform public.review_staff_changes(i2, 'x'); r := r || '12 FAIL;';
+  exception when insufficient_privilege then r := r || '12 OK;'; end;
   raise exception 'RESULT %', r;
 end $$;

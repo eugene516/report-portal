@@ -11,7 +11,7 @@ export const REVIEW_STATUS: Record<string, { label: string; badge: string }> = {
   draft: { label: "작성 중", badge: "" },
   pending: { label: "검수 대기", badge: "warn" },
   approved: { label: "검수 완료", badge: "good" },
-  changes: { label: "수정 요청", badge: "bad" },
+  changes: { label: "재검수 요청", badge: "bad" },
 };
 
 export type ReviewSummary = { pending: number; kinds: { kind: string; requested: number; approved: number; target: number }[] };
@@ -65,4 +65,25 @@ export async function getReviewDetail(itemId: string) {
   const { data: signed } = list.length ? await db.storage.from("reviews").createSignedUrls(list.map((f) => f.storage_path), 1800) : { data: [] };
   const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
   return { item: item as ReviewItem, files: list.map((f) => ({ ...f, url: url.get(f.storage_path) ?? null })), events: (events ?? []) as ReviewEvent[] };
+}
+
+// 목록에서 바로 원문 보기 · 검수: 항목마다 지금 버전 파일(서명 주소)과 코멘트 기록을 함께 읽는다
+export type ReviewRow = ReviewItem & { files: ReviewFile[]; events: ReviewEvent[] };
+export async function withFilesAndEvents(items: ReviewItem[]): Promise<ReviewRow[]> {
+  if (items.length === 0) return [];
+  const db = await supabaseForStaff();
+  const ids = items.map((i) => i.id);
+  const [{ data: files }, { data: events }] = await Promise.all([
+    db.from("review_files").select("id, item_id, version, file_name, storage_path, mime_type, size_bytes, sort").in("item_id", ids).order("sort").order("created_at"),
+    db.from("review_events").select("id, item_id, version, action, comment, actor_name, actor_kind, created_at").in("item_id", ids).order("created_at", { ascending: false }),
+  ]);
+  const ver = new Map(items.map((i) => [i.id, i.version]));
+  const cur = ((files ?? []) as ReviewFile[]).filter((x) => x.version === ver.get(x.item_id));
+  const { data: signed } = cur.length ? await db.storage.from("reviews").createSignedUrls(cur.map((x) => x.storage_path), 1800) : { data: [] };
+  const url = new Map((signed ?? []).map((x) => [x.path, x.signedUrl]));
+  return items.map((i) => ({
+    ...i,
+    files: cur.filter((x) => x.item_id === i.id).map((x) => ({ ...x, url: url.get(x.storage_path) ?? null })),
+    events: ((events ?? []) as ReviewEvent[]).filter((e) => e.item_id === i.id),
+  }));
 }
