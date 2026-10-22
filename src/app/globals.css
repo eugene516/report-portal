@@ -1000,3 +1000,9 @@ img, svg { max-width: 100%; }
 .review-accounts summary { cursor: pointer; }
 @media (max-width: 600px) { .review-gallery { grid-template-columns: 1fr 1fr; } .decide-act .btn { flex: 1; min-width: 0; } .docx-view { padding: 12px; font-size: 14.5px; } }
 @media print { .no-print { display: none !important; } }
+
+/* 상세보기: 한 탭 안의 여러 항목 (카페 · 당근, 온라인 광고) */
+.sheet-sub { font-size: 16px; margin: 4px 0 12px; padding-left: 10px; border-left: 4px solid var(--accent); }
+.sheet-block + .sheet-block { margin-top: 32px; padding-top: 20px; border-top: 1px dashed var(--border); }
+.sheet-pane > .sheet-sub ~ .sheet-sub { margin-top: 28px; }
+@media print { .sheet-block { break-inside: auto; } .sheet-block + .sheet-block { break-before: page; border-top: 0; } }
