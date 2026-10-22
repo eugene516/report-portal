@@ -4,7 +4,7 @@ import { requireStaff } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const staff = await requireStaff();
+  const staff = await requireStaff({ allowPendingPassword: true });   // 화면별 검사는 각 페이지에서
   return (
     <>
       <header className="admin-bar">
@@ -13,9 +13,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <span className="faint">믿는구석 · 내부용</span>
         </div>
         <div className="row">
+          {(staff.role === "owner" || staff.role === "admin") && <Link href="/admin/invite" className="btn sm primary">직원 초대</Link>}
           {(staff.role === "owner" || staff.role === "admin") && <Link href="/admin/assignments" className="btn sm">담당 직원 배정</Link>}
           {(staff.role === "owner" || staff.role === "admin") && <Link href="/admin/settings/naver-keys" className="btn sm">API 키 현황</Link>}
-          <Link href="/admin/account" className="faint">{staff.name} ({{ owner: "오너", admin: "관리자", staff: "직원" }[staff.role]})</Link>
+          <span className="faint">{staff.name} ({{ owner: "오너", admin: "관리자", staff: "직원" }[staff.role]})</span>
+          <Link href="/admin/account" className="btn sm">내 정보 수정</Link>
           <form action="/auth/signout" method="post"><button className="btn sm">로그아웃</button></form>
         </div>
       </header>

@@ -1,6 +1,6 @@
 // 수집 작업 공통: Supabase 클라이언트, 호출자 권한 확인, 실패 알림, 한국시간 날짜
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { log, mask } from "./log.ts";
+import { errorMessage, log, mask } from "./log.ts";
 
 // 서비스 롤 클라이언트: RLS를 우회하므로 이 수집 작업 안에서만 쓴다.
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 는 Supabase Edge Function 런타임이 자동으로 넣어 준다.
@@ -105,4 +105,35 @@ export async function notifyFailure(subject: string, lines: string[]) {
     }
   }
   log(failed ? "error" : "info", "failure alert sent", { recipients: to.length, failed });
+}
+
+// 메일 한 통 발송 (Resend). 설정이 없거나 실패하면 false — 호출한 쪽이 대체 안내를 한다.
+// MAIL_FROM(없으면 ALERT_FROM): Resend에서 인증한 발신 주소. 예) 리포트 포털 <no-reply@believe-corner.com>
+export async function sendMail(to: string, subject: string, text: string, html?: string): Promise<boolean> {
+  const apiKey = Deno.env.get("RESEND_API_KEY");
+  const from = Deno.env.get("MAIL_FROM") ?? Deno.env.get("ALERT_FROM");
+  if (!apiKey || !from) {
+    log("warn", "mail not sent (email not configured)", { subject });
+    return false;
+  }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [to], subject, text, html }),
+    });
+    if (!res.ok) log("warn", "mail send failed", { subject, status: res.status });
+    return res.ok;
+  } catch (e) {
+    log("warn", "mail send failed", { subject, error: errorMessage(e) });
+    return false;
+  }
+}
+
+// 사이트 주소: SITE_URL, 없으면 SITE_ORIGINS 중 https 주소
+export function siteUrl(): string {
+  const explicit = Deno.env.get("SITE_URL");
+  if (explicit) return explicit.replace(/\/$/, "");
+  const origins = (Deno.env.get("SITE_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return origins.find((o) => o.startsWith("https://")) ?? origins[0] ?? "";
 }

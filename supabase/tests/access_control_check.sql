@@ -67,7 +67,7 @@ begin
   r := r || '16 ' || case when (select count(*) from public.naver_daily_stats) = 1 then 'OK' else 'FAIL' end || ';';          -- 담당(B) 성과만
   r := r || '17 ' || case when (select count(*) from public.admin_naver_account_status()) = 0 then 'OK' else 'FAIL' end || ';'; -- 담당 아닌 A의 키 상태는 안 보임
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated"}', true);
-  r := r || '18 ' || case when (select customer_id_last4 from public.admin_naver_account_status() limit 1) = '0000' then 'OK' else 'FAIL' end || ';';  -- 관리자는 끝 4자리만
+  r := r || '18 ' || case when (select customer_id_last4 from public.admin_naver_account_status() s where s.client_id = a) = '0000' then 'OK' else 'FAIL' end || ';';  -- 관리자는 끝 4자리만
   begin perform 1 from public.naver_ad_accounts limit 1; r := r || '19 FAIL;';
   exception when insufficient_privilege then r := r || '19 OK;'; end;                       -- 관리자도 키 원문 테이블 직접 조회 불가
 

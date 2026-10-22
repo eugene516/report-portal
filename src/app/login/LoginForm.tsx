@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-export default function LoginForm() {
+export default function LoginForm({ email = "" }: { email?: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,9 +33,9 @@ export default function LoginForm() {
   return (
     <form onSubmit={submit} className="login-form">
       <label htmlFor="email" className="faint">직원 이메일</label>
-      <input id="email" name="email" type="email" required autoComplete="username" className="search" placeholder="name@believe-corner.com" />
+      <input id="email" name="email" type="email" required autoComplete="username" className="search" placeholder="name@believe-corner.com" defaultValue={email} />
       <label htmlFor="password" className="faint">비밀번호</label>
-      <input id="password" name="password" type="password" required autoComplete="current-password" className="search" />
+      <input id="password" name="password" type="password" required autoComplete="current-password" className="search" autoFocus={!!email} />
       <button className="btn primary" disabled={busy}>{busy ? "확인 중…" : "로그인"}</button>
       {error && <div className="notice">{error}</div>}
     </form>

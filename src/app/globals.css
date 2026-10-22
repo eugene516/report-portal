@@ -406,3 +406,8 @@ a.cname { color: var(--text); }
 /* 담당 직원 배정: 보조 담당 제외 버튼 */
 .link-x { border: 0; background: none; padding: 0 0 0 2px; color: var(--text-2); cursor: pointer; font-size: 13px; line-height: 1; }
 .link-x:hover { color: var(--text); }
+
+/* 직원 초대: 메일 발송 실패 시 한 번만 보여주는 초대 정보 */
+.invite-box table td { padding: 6px 16px 6px 0; border: 0; }
+.invite-box code { font-family: ui-monospace, Consolas, monospace; background: var(--surface-2); padding: 2px 8px; border-radius: 6px; word-break: break-all; }
+.invite-box code.big { font-size: 18px; letter-spacing: 1px; }

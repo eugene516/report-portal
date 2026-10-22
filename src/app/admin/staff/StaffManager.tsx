@@ -1,7 +1,8 @@
 "use client";
 // 직원 관리 화면
-// - 계정 생성·비밀번호 재설정·비활성화: Supabase staff-admin 함수로 직접 전송 (웹 서버를 거치지 않음)
+// - 비밀번호 재설정·비활성화 (새 직원 초대는 /admin/invite): Supabase staff-admin 함수로 직접 전송 (웹 서버를 거치지 않음)
 // - 관리자 지정·해제, 오너 양도: DB 함수(set_staff_role / transfer_ownership)가 권한을 다시 확인
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -23,18 +24,6 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
   const [pwFor, setPwFor] = useState<string | null>(null);
 
   const done = (ok: boolean, text: string) => { setMsg({ ok, text }); setBusy(false); if (ok) router.refresh(); };
-
-  async function create(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget; const fd = new FormData(form);
-    const password = String(fd.get("password") ?? "");
-    if (!RULE.test(password)) { setMsg({ ok: false, text: "임시 비밀번호는 10자 이상, 영문 대·소문자와 숫자를 포함해야 합니다." }); return; }
-    setBusy(true);
-    const { error } = await sb.functions.invoke("staff-admin", { body: { action: "create", email: fd.get("email"), displayName: fd.get("name"), password, role: fd.get("role") } });
-    form.reset();
-    if (error) return done(false, await fnError(error, "직원을 추가하지 못했습니다."));
-    done(true, "직원을 추가했습니다. 임시 비밀번호를 직원에게 따로 전달하고, 첫 로그인 후 '내 계정'에서 바꾸도록 안내하세요.");
-  }
 
   async function setRole(id: string, role: "admin" | "staff") {
     setBusy(true);
@@ -70,16 +59,7 @@ export default function StaffManager({ staff, me }: { staff: StaffRow[]; me: { i
 
   return (
     <>
-      <section className="card pad mt">
-        <h2>직원 추가</h2>
-        <form onSubmit={create} className="key-form mt" autoComplete="off">
-          <label>이메일<input name="email" type="email" required className="search" autoComplete="off" /></label>
-          <label>이름<input name="name" required className="search" maxLength={40} /></label>
-          <label>임시 비밀번호<input name="password" type="password" required className="search" autoComplete="new-password" /></label>
-          <label>권한<select name="role" defaultValue="staff"><option value="staff">직원</option><option value="admin">관리자</option></select></label>
-          <button className="btn primary" disabled={busy}>추가</button>
-        </form>
-      </section>
+      <div className="row mt"><Link href="/admin/invite" className="btn primary">+ 직원 초대</Link><span className="faint">새 직원은 초대 메뉴에서 이메일로 초대합니다.</span></div>
 
       {msg && <div className={`${msg.ok ? "planned" : "notice"} mt`}>{msg.text}</div>}
 
