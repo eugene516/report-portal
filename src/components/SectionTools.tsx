@@ -94,7 +94,7 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
               <span className="num">진행 {summary.done}건</span>
               {summary.dueOn && <span className="faint">· 마감 {summary.dueOn.slice(5).replace("-", "/")}</span>}
             </>
-          ) : <span className="faint">{contracted ? "이번 달 계약 수량이 등록되지 않았습니다." : "계약되지 않은 항목입니다. 중간에 계약되면 ‘추가 계약’으로 등록하세요."}</span>}
+          ) : <span className="faint">{contracted ? "이번 달 계약 수량이 등록되지 않았습니다." : "미집행 · 이번 달 계약 수량 없음"}</span>}
         </div>
         <div className="row">
           <button className={`btn sm ${open === "content" ? "primary" : ""}`} onClick={() => { setOpen(open === "content" ? null : "content"); setMsg(null); }}>+ {n.item} 추가</button>

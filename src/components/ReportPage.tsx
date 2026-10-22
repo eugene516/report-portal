@@ -12,6 +12,12 @@ import AdContractButton from "./AdContractButton";
 import { getMonthOverview, monthInfo } from "@/lib/month";
 import { Donut } from "./charts";
 
+// 받침 있으면 "은", 없으면 "는" (예: 당근마켓 바이럴은, 홈페이지 칼럼은, SNS 카드뉴스는)
+const eunNeun = (w: string) => {
+  const c = w.charCodeAt(w.length - 1);
+  return `${w}${c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? "은" : "는"}`;
+};
+
 const SECTION_KIND: Partial<Record<string, SectionKind>> = { blog: "blog", column: "column", cafe: "cafe", daangn: "daangn", sns: "cardnews" };
 
 // 미집행 메뉴라도 등록된 내용이 있으면 보여준다
@@ -83,8 +89,8 @@ export default async function ReportPage({
       <>
         {!contracted && (
           <div className="empty-state off-state off-banner">
-            <b>{menu.label}는 이번 계약에 포함되지 않은 미집행 항목입니다.</b>
-            {ctx.mode === "staff" ? "중간에 계약되면 아래 ‘추가 계약’으로 수량과 마감일을 등록하고 내용을 추가하세요." : "진행이 시작되면 이곳에 내용이 표시됩니다."}
+            <b>{eunNeun(menu.label)} 이번 계약에 포함되지 않은 미집행 항목입니다.</b>
+            {ctx.mode === "staff" ? "중간에 계약되면 아래 ‘+ 추가 계약’으로 수량과 마감일을 등록하세요." : "진행이 시작되면 이곳에 내용이 표시됩니다."}
           </div>
         )}
         {kind && ctx.mode === "staff" && staffTools && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} />}
@@ -108,7 +114,7 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
     const others = AD_CHANNELS.filter((c) => c.id !== ch && isActiveChannel(client, c.id));
     return (
       <div className="empty-state off-state">
-        <b>{label}는 집행되지 않는 광고입니다.</b>
+        <b>{eunNeun(label)} 집행되지 않는 광고입니다.</b>
         계약된 광고가 아니어서 표시할 성과가 없습니다.
         {ctx.mode === "staff" && <div className="row mt" style={{ justifyContent: "center" }}><AdContractButton clientId={ctx.clientId} channel={ch} label={label} /></div>}
         {others.length > 0 && (
@@ -131,7 +137,7 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
   const kwWindow = resolveKeywordWindow(sp.kwm, period.to);
   const [data, topKeywords] = await Promise.all([getNaverReport(ctx, period.from, period.to), getNaverTopKeywords(ctx, kwWindow)]);
   if (!data) return <div className="notice">성과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>;
-  if (data.notContracted) return <div className="empty-state off-state"><b>{label}는 집행되지 않는 광고입니다.</b></div>;
+  if (data.notContracted) return <div className="empty-state off-state"><b>{eunNeun(label)} 집행되지 않는 광고입니다.</b></div>;
   // 담당자 코멘트: 직원 화면에서만 편집, 광고주 링크 화면은 읽기 전용
   const note = ctx.mode === "staff" ? { editable: true as const, clientId: ctx.clientId, period: period.to.slice(0, 7) } : { editable: false as const };
   const kwSort = sp.kwsort === "impressions" || sp.kwsort === "cost" ? sp.kwsort : "clicks";
