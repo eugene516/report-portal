@@ -51,7 +51,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
   }
 
   async function reinvite(s: StaffRow) {
-    if (!confirm(`${s.name}(${s.email})에게 초대를 다시 보낼까요?\n새 임시 비밀번호가 발급되고, 지금 쓰는 비밀번호로는 더 이상 로그인할 수 없습니다.`)) return;
+    if (!confirm(`${s.name}(${s.email})의 임시 비밀번호를 다시 발급할까요?\n새 임시 비밀번호가 발급되고, 지금 쓰는 비밀번호로는 더 이상 로그인할 수 없습니다.`)) return;
     setBusy(true); setMsg(null); setIssued(null);
     const { data, error } = await sb.functions.invoke("staff-admin", { body: { action: "reinvite", userId: s.id } });
     setBusy(false);
