@@ -26,7 +26,9 @@ export default async function SettingsPage({ params, searchParams }: { params: P
     db.rpc("admin_naver_account_status"),
   ]);
   const directory = (dir.data ?? []) as { id: string; name: string; email: string }[];
-  const assigned = (assign.data ?? []).map((a) => ({ id: a.user_id, primary: a.is_primary, name: directory.find((d) => d.id === a.user_id)?.name ?? "(알 수 없음)" }));
+  // 주담당 먼저, 나머지는 직급 순(직원 목록 순서)
+  const assigned = (assign.data ?? []).map((a) => ({ id: a.user_id, primary: a.is_primary, name: directory.find((d) => d.id === a.user_id)?.name ?? "(알 수 없음)" }))
+    .sort((a, b) => Number(b.primary) - Number(a.primary) || directory.findIndex((d) => d.id === a.id) - directory.findIndex((d) => d.id === b.id));
   const canManageStaff = isAdminRole(me.role) || assigned.some((a) => a.id === me.userId && a.primary);
   const key = ((keys.data ?? []) as { client_id: string; customer_id_last4: string; access_license_last4: string; secret_key_last4: string; is_active: boolean; updated_at: string }[]).find((k) => k.client_id === clientId) ?? null;
 

@@ -7,7 +7,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import { JOB_TITLES, NEW_JOB_TITLES } from "@/lib/titles";
+import { JOB_TITLES, jobRank, NEW_JOB_TITLES } from "@/lib/titles";
 
 export type Member = { id: string; name: string; user_id: string | null; sort: number; job_title: string | null; duty: string | null };
 export type Task = { id: string; member_id: string; title: string; due_on: string | null; done: boolean; done_at: string | null; sort: number; created_at: string };
@@ -128,7 +128,7 @@ export default function TaskBoard({ today, meId, canManageMembers, members: init
 
       <div className="board">
         {members.length === 0 && <div className="empty-state">멤버가 없습니다. ‘+ 멤버 추가’로 시작하세요.</div>}
-        {members.map((m) => (
+        {[...members].sort((a, b) => jobRank(a.job_title) - jobRank(b.job_title) || a.sort - b.sort).map((m) => (
           <Column key={m.id} m={m} today={today} removing={removing} canEdit={canManageMembers} onEditMember={(p) => editMember(m, p)}
             open={tasks.filter((t) => t.member_id === m.id && !t.done)
               .sort((a, b) => (a.due_on ?? "9999").localeCompare(b.due_on ?? "9999") || a.created_at.localeCompare(b.created_at))}
