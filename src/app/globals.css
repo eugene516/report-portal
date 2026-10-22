@@ -636,6 +636,10 @@ a.donut-card { color: var(--text); }
 .off-card .label { font-weight: 700; color: var(--text-2); }
 .off-card .value { font-size: 18px; color: var(--text-3); margin: 6px 0 0; }
 .off-act { margin-top: 10px; }
+/* 광고주 링크: 미집행은 작게 */
+.off-card.mini { min-height: 0; padding: 14px 16px; gap: 6px; }
+.off-card.mini .label { font-weight: 500; font-size: 13px; }
+.off-note { display: flex; gap: 8px; align-items: center; color: var(--text-3); font-size: 13px; margin: 0 0 16px; }
 .tag-extra { margin-left: 6px; font-size: 11px; vertical-align: middle; }
 .contract-table tr.row-extra > td { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
 .contract-table td:first-child select { min-width: 72px; }

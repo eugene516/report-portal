@@ -88,12 +88,12 @@ export default async function ReportPage({
     const contracted = isContracted(services, menu.svc);
     body = (
       <>
-        {!contracted && (
+        {!contracted && (ctx.mode === "staff" ? (
           <div className="empty-state off-state off-banner">
             <b>{eunNeun(menu.label)} 이번 계약에 포함되지 않은 미집행 항목입니다.</b>
-            {ctx.mode === "staff" ? "중간에 계약되면 아래 ‘+ 추가 계약’으로 수량과 마감일을 등록하세요." : "진행이 시작되면 이곳에 내용이 표시됩니다."}
+            중간에 계약되면 아래 ‘+ 추가 계약’으로 수량과 마감일을 등록하세요.
           </div>
-        )}
+        ) : <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 항목입니다.</p>)}
         {kind && ctx.mode === "staff" && staffTools && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} add={searchParams.add} />}
         {(contracted || hasContent(content, key)) && inner}
       </>
@@ -166,15 +166,17 @@ function Dashboard({ client, content, base, staff }: { client: ClientSummary; co
     { id: "daangn", label: "당근마켓 바이럴", on: !!s.daangn, done: daangn.filter((x) => x.status !== "삭제됨").length, target: s.daangn?.target ?? null, unit: "건", foot: `조회 ${views(daangn)}` },
     { id: "sns", label: "SNS 카드뉴스", on: !!s.cardnews, done: content.cardnews.length, target: s.cardnews?.target ?? null, unit: "회차", foot: `인스타·카카오·당근 소식 ${content.cardnews.reduce((a, r) => a + r.links.length, 0)}개` },
   ];
-  const off = (label: string, foot: string, action: React.ReactNode) => (
-    <><div className="label">{label}</div><div className="value">미집행</div><div className="foot">{foot}</div>{action && <div className="off-act">{action}</div>}</>
-  );
+  // 직원 화면: 크게 "미집행" + [+ 추가하기] / 광고주 링크: 작은 "미집행" 표시만
+  const off = (label: string, foot: string, action: React.ReactNode) => staff
+    ? <><div className="label">{label}</div><div className="value">미집행</div><div className="foot">{foot}</div>{action && <div className="off-act">{action}</div>}</>
+    : <><div className="label">{label}</div><span className="badge">미집행</span></>;
+  const offCls = `card kpi donut-card off-card ${staff ? "" : "mini"}`;
   return (
     <>
       <h2>마케팅 업무</h2>
       <div className="grid g-donut mt">
         {cards.map((c) => !c.on && !c.done ? (
-          <div key={c.id} className="card kpi donut-card off-card">
+          <div key={c.id} className={offCls}>
             {off(c.label, "계약에 포함되지 않음", staff && <Link className="btn sm primary" href={`${base}/${c.id}?add=extra`}>+ 추가하기</Link>)}
           </div>
         ) : (
@@ -189,7 +191,7 @@ function Dashboard({ client, content, base, staff }: { client: ClientSummary; co
         {AD_CHANNELS.map((c) => {
           const st = client.channels[c.id];
           if (!st?.contracted) return (
-            <div key={c.id} className="card kpi donut-card off-card">
+            <div key={c.id} className={offCls}>
               {off(c.label, "집행하지 않는 광고", staff && <AdContractButton clientId={client.id} channel={c.id} label={c.label} compact />)}
             </div>
           );
