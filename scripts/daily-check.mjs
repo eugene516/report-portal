@@ -52,7 +52,10 @@ const first = sql(`select id from public.clients order by name limit 1`)[0];
 const portal = [["대시보드", "/admin"], ["광고주 현황", "/admin/clients"], ["업무 확인", "/admin/tasks"], ...(first ? [["광고주 리포트", `/admin/clients/${first.id}`]] : [])];
 const captureDir = join(dir, "captures").replace(/\\/g, "/");
 mkdirSync(captureDir, { recursive: true });
-const job = { site: SITE, period, blog, place, cafe, portal, captureDir, sources: sources.filter((x) => x.kind !== "blog") };
+// --only=place 처럼 일부만 다시 확인할 수 있다 (blog · place · cafe · channels · portal)
+const only = process.argv.find((x) => x.startsWith("--only="))?.slice(7).split(",");
+const pick = (k, v) => (!only || only.includes(k) ? v : []);
+const job = { site: SITE, period, blog: pick("blog", blog), place: pick("place", place), cafe: pick("cafe", cafe), portal: pick("portal", portal), captureDir, sources: pick("channels", sources.filter((x) => x.kind !== "blog")) };
 const input = join(dir, "input.json"), output = join(dir, "result.json");
 writeFileSync(input, JSON.stringify(job, null, 1), "utf8");
 log(`대상: 블로그 ${blog.length} · 플레이스 ${place.length} · 게시글 ${cafe.length} · 화면 ${portal.length}`);

@@ -102,9 +102,9 @@ for (const p of job.place) {
             li.style.outline = RED; li.style.outlineOffset = "-4px"; li.style.position = "relative"; li.style.zIndex = "5";
           }
         }
-        // 다음 페이지 버튼 (없거나 비활성이면 null)
-        const next = [...box.querySelectorAll("a, button")].find((el) => /다음|next/i.test((el.getAttribute("aria-label") || "") + " " + (el.className || "") + " " + (el.textContent || "").trim()))
-          ?? null;
+        // 아래쪽 페이지 버튼 (위쪽 필터 칸의 '다음' 버튼과 구분: cmm_pg_next, 없으면 마지막 '다음')
+        const next = (box.querySelector(".cmm_pg_next") ?? [...box.querySelectorAll("a, button")].filter((el) => (el.textContent || "").trim() === "다음").pop())
+
         const disabled = !next || next.getAttribute("aria-disabled") === "true" || next.hasAttribute("disabled") || /disabled|off/.test(String(next.className));
         return { organic, rank, adRank, hasNext: !disabled };
       }, { NAME: p.placeName, RED, organicBefore, src: placeBox.toString() });
@@ -115,7 +115,7 @@ for (const p of job.place) {
       if (!r.hasNext) break;
       await page.evaluate((src) => {
         const box = new Function("return " + src)()();
-        const next = [...box.querySelectorAll("a, button")].find((el) => /다음|next/i.test((el.getAttribute("aria-label") || "") + " " + (el.className || "") + " " + (el.textContent || "").trim()));
+        const next = (box.querySelector(".cmm_pg_next") ?? [...box.querySelectorAll("a, button")].filter((el) => (el.textContent || "").trim() === "다음").pop());
         next?.click();
       }, placeBox.toString());
       await page.waitForTimeout(1500);
