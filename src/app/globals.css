@@ -893,3 +893,14 @@ img, svg { max-width: 100%; }
   a { color: inherit; }
   .main[data-print-title]::before { content: attr(data-print-title); display: block; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
 }
+
+/* 휴대폰 · 태블릿 세로 보완 */
+.issue-link .btn { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 900px) {
+  .side-foot { display: none; }   /* 광고주 설정 · 데이터 업로드는 위쪽 탭, 홈은 햄버거 메뉴 */
+  .nav { align-items: center; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { padding: 8px 12px; }
+  .nav-div { display: none; }
+  .actions { gap: 6px; }
+}
