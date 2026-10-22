@@ -905,3 +905,16 @@ img, svg { max-width: 100%; }
   .actions { gap: 6px; }
 }
 .notice .btn { white-space: nowrap; flex-shrink: 0; }
+
+/* 집행 중인 광고 소재 */
+.creatives { margin-bottom: 16px; }
+.cr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.cr-card { margin: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); display: flex; flex-direction: column; }
+.cr-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: var(--surface-2); display: block; }
+.cr-card figcaption { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 8px 10px; font-size: 13px; border-top: 1px solid var(--border); }
+.cr-act { gap: 2px; flex-wrap: nowrap; }
+.btn.disabled { opacity: .6; pointer-events: none; }
+@media (max-width: 600px) { .cr-grid { grid-template-columns: 1fr 1fr; } }
+.sources-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 14px; align-items: end; }
+.sources-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--text-2); }
+.sources-form .search { min-width: 0; width: 100%; }

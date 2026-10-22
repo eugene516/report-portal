@@ -3,7 +3,8 @@
 // 1) 블로그 원고: 네이버 메인(통합검색) · 블로그 탭 순위, 같은 블로그의 다른 글 순위
 // 2) 플레이스 키워드: 플레이스 영역 순위(광고 제외) · 광고 자리
 // 3) 카페 · 당근 게시글: 삭제 여부 · 현재 조회수 · 댓글 수
-// 4) 리포트 포털 화면 점검: 주요 화면이 오류 없이 열리는지
+// 4) 홈페이지 칼럼 · 인스타그램 · 카카오 채널 · 당근 소식: 이번 달 게시물 링크와 제목 (캡쳐 없음)
+// 5) 리포트 포털 화면 점검: 주요 화면이 오류 없이 열리는지
 const fs = await import("node:fs/promises");
 const { input, output } = globalThis.__RP_CHECK;
 const job = JSON.parse(await fs.readFile(input, "utf8"));
@@ -81,9 +82,9 @@ for (const p of job.place) {
     await page.goto("https://search.naver.com/search.naver?where=nexearch&query=" + encodeURIComponent(p.keyword));
     await page.waitForLoadState(); await page.waitForTimeout(1500);
     const r = await page.evaluate((NAME) => {
-      const RED = "3px solid #e5322d";
+      const RED = "4px solid #ff0000";
       const input = document.querySelector("#nx_query");
-      if (input) { input.style.outline = RED; input.style.outlineOffset = "4px"; }
+      if (input) { input.style.outline = RED; input.style.outlineOffset = "5px"; input.style.borderRadius = "2px"; }
       const box = [...document.querySelectorAll(".api_subject_bx")].find((b) => /^플레이스/.test((b.innerText || "").trim()) && b.querySelector("a[href*='place']"));
       if (!box) return { noBlock: true };
       const lis = [...box.querySelectorAll("li")].filter((li) => li.querySelector("a[href*='place']") && !li.parentElement.closest("li"));
@@ -92,7 +93,7 @@ for (const p of job.place) {
         const text = (li.innerText || "").replace(/\s+/g, " ");
         if (/(^| )광고( |$)/.test(text)) { ads++; if (adRank == null && text.includes(NAME)) adRank = ads; continue; }
         organic++;
-        if (rank == null && text.includes(NAME)) { rank = organic; li.style.outline = RED; li.style.outlineOffset = "2px"; }
+        if (rank == null && text.includes(NAME)) { rank = organic; li.style.outline = RED; li.style.outlineOffset = "-4px"; li.style.position = "relative"; li.style.zIndex = "5"; }
       }
       const rc = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, w: b.width, h: b.height }; };
       return { rank, adRank, input: input && rc(input), block: rc(box) };
@@ -101,7 +102,7 @@ for (const p of job.place) {
     if (tool && !r.noBlock && r.input) {
       try {
         const base = `${job.captureDir}/${p.client}_${String(p.idx).padStart(2, "0")}`;
-        await page.screenshot({ path: base + "_head.png", clip: { x: r.block.x, y: Math.max(0, r.input.y - 16), width: r.block.w, height: r.input.h + 32 } });
+        await page.screenshot({ path: base + "_head.png", clip: { x: r.block.x, y: Math.max(0, r.input.y - 22), width: r.block.w, height: r.input.h + 44 } });
         await page.screenshot({ path: base + "_block.png", fullPage: true, clip: { x: r.block.x, y: r.block.y, width: r.block.w, height: r.block.h } });
         await stitch([base + "_head.png", base + "_block.png"], base + ".jpg");
         capture = base + ".jpg";
@@ -131,7 +132,72 @@ for (const c of job.cafe) {
   await save(); await pause(1500, 3000);
 }
 
-// 4) 리포트 포털 화면 점검 (로그인된 브라우저)
+// 4) 채널 게시물 (이번 달만)
+const inMonth = (d) => d && d.slice(0, 7) === job.period;
+const kstDay = (iso) => new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+const relDay = (t) => {
+  const s = (t ?? "").replace(/\s+/g, "");
+  let m = s.match(/(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = s.match(/(\d+)일전/); if (m) return kstDay(Date.now() - Number(m[1]) * 86_400_000);
+  if (/(\d+)(시간|분|초)전|방금/.test(s)) return kstDay(Date.now());
+  return null;
+};
+result.columns = []; result.sns = [];
+for (const src of job.sources ?? []) {
+  try {
+    await page.goto(src.url);
+    await page.waitForLoadState(); await page.waitForTimeout(3500);
+    if (src.kind === "column") {
+      const cards = await page.evaluate(() => [...new Map([...document.querySelectorAll("a[href*='bmode=view'][href*='idx=']")].map((a) => {
+        const card = a.closest("[class*=card], li, article, .item") ?? a;
+        const lines = (card.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean);
+        return [a.href.match(/idx=(\d+)/)?.[1], { url: a.href, title: lines[0] ?? "", text: lines.join(" ") }];
+      })).values()]);
+      for (const c of cards) { const d = relDay(c.text.match(/(\d{4}-\d{2}-\d{2}|\d+\s*일\s*전|\d+\s*시간\s*전|방금)/)?.[1]); if (inMonth(d) && c.title) result.columns.push({ client: src.client, url: c.url, title: c.title, date: d }); }
+    } else if (src.kind === "daangn") {
+      for (let i = 0; i < 3; i++) { await page.evaluate(() => window.scrollBy(0, 1500)); await page.waitForTimeout(700); }
+      const posts = await page.evaluate(() => [...new Map([...document.querySelectorAll("a[href*='/business-post/']")].map((a) => {
+        const card = a.closest("li, article, [class*=item], [class*=post]") ?? a;
+        const t = card.querySelector("time")?.getAttribute("datetime");
+        const title = (card.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean)[0] ?? "";
+        return [a.href.split("?")[0], { url: a.href.split("?")[0], title, at: t }];
+      })).values()]);
+      for (const p of posts) { const d = p.at ? kstDay(p.at) : null; if (inMonth(d)) result.sns.push({ client: src.client, media: "당근마켓", url: p.url, title: p.title, date: d }); }
+    } else if (src.kind === "kakao") {
+      for (let i = 0; i < 2; i++) { await page.evaluate(() => window.scrollBy(0, 1500)); await page.waitForTimeout(700); }
+      const posts = await page.evaluate(() => {
+        const out = new Map();
+        for (const d of document.querySelectorAll(".item_date, [class*=date]")) {
+          let card = d.parentElement;
+          while (card && !card.querySelector("a[href*='/contents/posts/'], a[href*='/posts/']")) card = card.parentElement;
+          const a = card?.querySelector("a[href*='/contents/posts/'], a[href*='/posts/']");
+          const id = a?.getAttribute("href")?.match(/(\d{6,})/)?.[1];
+          if (!id || out.has(id)) continue;
+          const title = (card.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean)[0] ?? "";
+          out.set(id, { id, title, dateText: d.textContent.trim() });
+        }
+        return [...out.values()];
+      });
+      const ch = src.url.match(/pf\.kakao\.com\/(_[A-Za-z0-9]+)/)?.[1];
+      for (const p of posts) { const d = relDay(p.dateText); if (inMonth(d) && ch) result.sns.push({ client: src.client, media: "카카오채널", url: `https://pf.kakao.com/${ch}/${p.id}`, title: p.title, date: d }); }
+    } else if (src.kind === "instagram") {
+      const links = await page.evaluate(() => [...new Set([...document.querySelectorAll("a[href*='/p/'], a[href*='/reel/']")].map((a) => a.href.split("?")[0]))].slice(0, 12));
+      let older = 0;
+      for (const url of links) {
+        await page.goto(url); await page.waitForLoadState(); await page.waitForTimeout(2200);
+        const info = await page.evaluate(() => ({ at: document.querySelector("time[datetime]")?.getAttribute("datetime"), og: document.querySelector('meta[property="og:title"]')?.content ?? "" }));
+        const d = info.at ? kstDay(info.at) : null;
+        const title = (info.og.match(/[“"]([^\n"”]+)/)?.[1] ?? "").trim();
+        if (inMonth(d)) { result.sns.push({ client: src.client, media: "인스타그램", url: url.replace(/\/[^/]+\/(p|reel)\//, "/$1/"), title, date: d }); older = 0; }
+        else if (d && d < job.period + "-01" && ++older >= 3) break;   // 고정 게시물 때문에 순서가 섞일 수 있어 3개 연속 지난달이면 멈춤
+        await pause(1200, 2200);
+      }
+    }
+  } catch (e) { result.errors.push(`${src.kind} ${src.url.slice(0, 50)}: ${String(e).slice(0, 120)}`); }
+  await save(); await pause(1500, 3000);
+}
+
+// 5) 리포트 포털 화면 점검 (로그인된 브라우저)
 for (const [name, path] of job.portal) {
   try {
     await page.goto(job.site + path);

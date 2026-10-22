@@ -11,6 +11,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { APP, json, kst, kstDate, sql } from "./lib/db.mjs";
+import { blogPostsThisMonth, keywordFromTitle, roundKey } from "./lib/channels.mjs";
 
 const SITE = "https://report-portal-rho.vercel.app";
 const ROOT = "G:\\공유 드라이브\\15. 회사 자체 PJT\\report-portal\\collection-scripts\\daily-check";
@@ -21,6 +22,22 @@ const log = (m) => { const line = `[${kst().toISOString().slice(11, 19)}] ${m}`;
 const period = day.slice(0, 7);
 // period · prevPeriod 는 이 스크립트가 만든 YYYY-MM 값이라 SQL 에 바로 넣는다
 const prevPeriod = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
+
+// 0) 자동 수집 채널 · 블로그 새 글 (RSS, 브라우저 없이) ---------------------------------------
+const sources = sql(`select s.client_id as client, s.kind, s.url, c.name from public.client_sources s join public.clients c on c.id = s.client_id order by c.name, s.kind`);
+for (const s of sources.filter((x) => x.kind === "blog")) {
+  try {
+    const posts = await blogPostsThisMonth(s.url, period);
+    // 이미 등록된 글(주소의 글 번호가 같은 글)은 건너뛴다. 이번 달 글이 없으면 아무것도 넣지 않는다
+    const added = sql(`
+      insert into public.blog_posts (client_id, period, keyword, title, url, post_type, published_on, sort)
+      select '${s.client}'::uuid, '${period}', x->>'keyword', x->>'title', x->>'url', '일반', (x->>'publishedOn')::date, 100 + (row_number() over (order by x->>'publishedOn'))::int
+        from jsonb_array_elements(${json(posts.map((p) => ({ ...p, keyword: keywordFromTitle(p.title) })))}) x
+       where not exists (select 1 from public.blog_posts b where b.client_id = '${s.client}'::uuid and b.url ~ ('/' || (x->>'postId') || '($|[/?#])'))
+      returning id`);
+    log(`${s.name} 블로그: 이번 달 글 ${posts.length}개 · 새로 등록 ${added.length}개`);
+  } catch (e) { log(`${s.name} 블로그 RSS 오류: ${String(e).slice(0, 120)}`); }
+}
 
 // 1) 대상 ---------------------------------------------------------------------------------
 const blog = sql(`select b.client_id as client, b.keyword, b.url from public.blog_posts b where b.period = '${period}' order by b.client_id, b.sort`)
@@ -35,7 +52,7 @@ const first = sql(`select id from public.clients order by name limit 1`)[0];
 const portal = [["대시보드", "/admin"], ["광고주 현황", "/admin/clients"], ["업무 확인", "/admin/tasks"], ...(first ? [["광고주 리포트", `/admin/clients/${first.id}`]] : [])];
 const captureDir = join(dir, "captures").replace(/\\/g, "/");
 mkdirSync(captureDir, { recursive: true });
-const job = { site: SITE, blog, place, cafe, portal, captureDir };
+const job = { site: SITE, period, blog, place, cafe, portal, captureDir, sources: sources.filter((x) => x.kind !== "blog") };
 const input = join(dir, "input.json"), output = join(dir, "result.json");
 writeFileSync(input, JSON.stringify(job, null, 1), "utf8");
 log(`대상: 블로그 ${blog.length} · 플레이스 ${place.length} · 게시글 ${cafe.length} · 화면 ${portal.length}`);
@@ -82,6 +99,50 @@ if (r.cafe?.length) sql(`
          checked_at = (x->>'at')::timestamptz
     from jsonb_array_elements(${json(r.cafe)}) x
    where p.id = (x->>'id')::uuid`);
+
+// 홈페이지 칼럼: 이번 달 글 중 아직 없는 것만 (주소의 idx 로 비교)
+if (r.columns?.length) {
+  const n = sql(`
+    insert into public.web_columns (client_id, period, title, url, published_on, sort)
+    select (x->>'client')::uuid, '${period}', x->>'title', x->>'url', (x->>'date')::date, 100 + (row_number() over (order by x->>'date'))::int
+      from jsonb_array_elements(${json(r.columns)}) x
+     where not exists (select 1 from public.web_columns w where w.client_id = (x->>'client')::uuid and substring(w.url from 'idx=(\\d+)') = substring(x->>'url' from 'idx=(\\d+)'))
+    returning id`).length;
+  log(`홈페이지 칼럼: 이번 달 ${r.columns.length}개 · 새로 등록 ${n}개`);
+}
+// SNS 소식 → 카드뉴스 회차 (같은 제목이면 한 회차, 채널별 링크). 이미 있는 링크는 건너뛴다
+if (r.sns?.length) {
+  const groups = new Map();
+  for (const p of r.sns) {
+    const key = `${p.client}|${roundKey(p.title) || p.url}`;
+    const g = groups.get(key) ?? { client: p.client, key: roundKey(p.title) || p.url, title: p.title, date: p.date, links: [] };
+    if (p.date < g.date) g.date = p.date;
+    if (p.media === "인스타그램" || !g.title) g.title = p.title || g.title;
+    g.links.push({ media: p.media, url: p.url });
+    groups.set(key, g);
+  }
+  const list = [...groups.values()].sort((a, b) => a.date.localeCompare(b.date));
+  sql(`
+    do $do$
+    declare g jsonb; v_round uuid; v_no int;
+    begin
+      for g in select * from jsonb_array_elements(${json(list)}) loop
+        select id into v_round from public.cardnews_rounds
+         where client_id = (g->>'client')::uuid and period = '${period}'
+           and (auto_key = g->>'key' or exists (select 1 from public.cardnews_links l, jsonb_array_elements(g->'links') k where l.round_id = cardnews_rounds.id and l.url = k->>'url'))
+         limit 1;
+        if v_round is null then
+          select coalesce(max(round_no), 0) + 1 into v_no from public.cardnews_rounds where client_id = (g->>'client')::uuid and period = '${period}';
+          insert into public.cardnews_rounds (client_id, period, round_no, posted_on, topic, auto_key)
+          values ((g->>'client')::uuid, '${period}', v_no, (g->>'date')::date, nullif(g->>'title', ''), g->>'key') returning id into v_round;
+        end if;
+        insert into public.cardnews_links (round_id, client_id, media, url)
+        select v_round, (g->>'client')::uuid, k->>'media', k->>'url' from jsonb_array_elements(g->'links') k
+         where not exists (select 1 from public.cardnews_links l where l.client_id = (g->>'client')::uuid and l.url = k->>'url');
+      end loop;
+    end $do$`);
+  log(`SNS 소식: 이번 달 게시물 ${r.sns.length}개 · 회차 ${list.length}개로 정리`);
+}
 
 // 4) 요약 ----------------------------------------------------------------------------------
 const deleted = (r.cafe ?? []).filter((c) => c.deleted).length;

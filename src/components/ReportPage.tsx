@@ -9,6 +9,8 @@ import { BlogSection, CafeSection, ColumnSection, PlaceSection, SnsSection } fro
 import ContractsSection from "./ContractsSection";
 import SectionTools, { type SectionKind } from "./SectionTools";
 import AdContractButton from "./AdContractButton";
+import AdCreatives, { type Creative } from "./AdCreatives";
+import { supabaseForClientLink, supabaseForStaff } from "@/lib/supabase/server";
 import { getLinkStatus } from "@/lib/links";
 import { getMonthOverview, monthInfo } from "@/lib/month";
 import { Donut } from "./charts";
@@ -69,7 +71,14 @@ export default async function ReportPage({
     const ch = AD_CHANNELS.find((c) => c.id === section[1]);
     if (!ch || section.length !== 2) notFound();
     title = ch.label;
-    body = await adsBody(ctx, client, ch.id, ch.label, `${base}/ads/${ch.id}`, searchParams, staffView);
+    // 집행 중인 광고 소재를 성과보다 먼저 (계약한 채널만)
+    const creatives = client.channels[ch.id]?.contracted ? await getCreatives(ctx, ch.id) : null;
+    body = (
+      <>
+        {creatives && <AdCreatives items={creatives} editable={staffView} clientId={ctx.mode === "staff" ? ctx.clientId : undefined} channel={ch.id} label={ch.label} />}
+        {await adsBody(ctx, client, ch.id, ch.label, `${base}/ads/${ch.id}`, searchParams, staffView)}
+      </>
+    );
   } else if (key === "history") {
     title = "지난 레포트 보기";
     body = <HistorySection months={await getHistory(ctx)} thisMonth={currentPeriod()} base={base} services={services} />;
@@ -114,6 +123,16 @@ export default async function ReportPage({
       {body}
     </ReportShell>
   );
+}
+
+// 광고 소재 목록 + 이미지 주소 (직원: 로그인 세션 서명 주소, 광고주 링크: 토큰 확인 함수)
+async function getCreatives(ctx: ReportCtx, channel: string): Promise<Creative[]> {
+  const rows = ctx.mode === "staff"
+    ? ((await (await supabaseForStaff()).from("ad_creatives").select("id, title, storage_path").eq("client_id", ctx.clientId).eq("channel", channel).eq("active", true).order("sort").order("created_at", { ascending: false })).data ?? [])
+        .map((r) => ({ id: r.id, title: r.title, path: r.storage_path }))
+    : (((await supabaseForClientLink().rpc("report_ad_creatives", { p_token: ctx.token, p_channel: channel })).data ?? []) as { id: string; title: string | null; path: string }[]);
+  const urls = await captureUrls(ctx, rows.map((r) => r.path));
+  return rows.map((r) => ({ ...r, url: urls.get(r.path) ?? null }));
 }
 
 async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, label: string, path: string, sp: Record<string, string | undefined>, staffView: boolean) {

@@ -17,6 +17,10 @@ function Rank({ v, collected }: { v: number | null | undefined; collected: boole
 const Other = ({ o }: { o: { rank: number; url: string } | null }) =>
   o ? <div className="faint other"><a href={o.url} target="_blank" rel="noopener noreferrer">다른 글 {o.rank}위</a></div> : null;
 
+// 네이버 메인 · 블로그 탭 중 더 높은 순위 (숫자가 작은 쪽)
+const best = (a: number | null | undefined, b: number | null | undefined) => (a == null ? (b ?? null) : b == null ? a : Math.min(a, b));
+const bestOther = (a: { rank: number; url: string } | null, b: { rank: number; url: string } | null) => (!a ? b : !b ? a : a.rank <= b.rank ? a : b);
+
 const naverSearch = (k: string) => `https://search.naver.com/search.naver?query=${encodeURIComponent(k)}`;
 
 // ── 블로그 · 콘텐츠 ──────────────────────────────────────────────────────
@@ -36,17 +40,16 @@ export function BlogSection({ c, tab, path }: { c: ReportContent; tab: string; p
       <div className="tabs">{tabs.map((t) => <Link key={t.id} href={href(t.id)} className={t.id === on ? "on" : ""}>{t.label}</Link>)}</div>
       {on === "posts" && (
         <>
-          <p className="muted">키워드를 <b>네이버 메인(통합검색)</b>과 <b>블로그 탭</b>에서 각각 검색해 몇 번째로 노출되는지 확인합니다. &quot;다른 글&quot;은 해당 원고 대신 같은 블로그의 다른 글이 노출된 경우입니다.</p>
+          <p className="muted">키워드를 네이버에서 검색했을 때 해당 원고가 노출되는 순위입니다(네이버 메인 · 블로그 탭 중 더 높은 순위). 제목을 누르면 블로그 글이 열립니다. &quot;다른 글&quot;은 해당 원고 대신 같은 블로그의 다른 글이 노출된 경우입니다.</p>
           <div className="card tbl-wrap"><table>
-            <thead><tr><th>No</th><th>키워드</th><th>포스팅 제목</th><th className="r">네이버 메인</th><th className="r">블로그 탭</th><th>수집 시각</th></tr></thead>
+            <thead><tr><th>No</th><th>키워드</th><th>포스팅 제목</th><th className="r">순위</th><th>수집 시각</th></tr></thead>
             <tbody>
-              {c.blog.length === 0 && <tr><td colSpan={6} className="faint">이 달에 등록된 블로그 원고가 없습니다.</td></tr>}
+              {c.blog.length === 0 && <tr><td colSpan={5} className="faint">이 달에 발행된 블로그 원고가 없습니다.</td></tr>}
               {c.blog.map((b, i) => (
                 <tr key={b.id}>
                   <td className="faint num">{i + 1}</td><td><b>{b.keyword}</b></td>
                   <td className="ellipsis"><a href={b.url} target="_blank" rel="noopener noreferrer" title={b.url}>{b.title}</a></td>
-                  <td className="r"><Rank v={b.rank?.main} collected={!!b.rank} />{b.rank && b.rank.main == null && <Other o={b.rank.mainOther} />}</td>
-                  <td className="r"><Rank v={b.rank?.blogTab} collected={!!b.rank} />{b.rank && b.rank.blogTab == null && <Other o={b.rank.tabOther} />}</td>
+                  <td className="r"><Rank v={best(b.rank?.main, b.rank?.blogTab)} collected={!!b.rank} />{b.rank && best(b.rank.main, b.rank.blogTab) == null && <Other o={bestOther(b.rank.mainOther, b.rank.tabOther)} />}</td>
                   <td className="faint num">{kst(b.rank?.at)}</td>
                 </tr>
               ))}
@@ -56,10 +59,10 @@ export function BlogSection({ c, tab, path }: { c: ReportContent; tab: string; p
       )}
       {on === "extra" && (
         <div className="card tbl-wrap"><table>
-          <thead><tr><th>No</th><th>키워드</th><th className="r">네이버 메인</th><th className="r">블로그 탭</th><th>수집 시각</th></tr></thead>
+          <thead><tr><th>No</th><th>키워드</th><th className="r">순위</th><th>수집 시각</th></tr></thead>
           <tbody>{extra.map((k, i) => (
             <tr key={k.keyword}><td className="faint num">{i + 1}</td><td><b>{k.keyword}</b></td>
-              <td className="r"><Rank v={k.blogRank?.main} collected={!!k.blogRank} /></td><td className="r"><Rank v={k.blogRank?.blogTab} collected={!!k.blogRank} /></td>
+              <td className="r"><Rank v={best(k.blogRank?.main, k.blogRank?.blogTab)} collected={!!k.blogRank} /></td>
               <td className="faint num">{kst(k.blogRank?.at)}</td></tr>
           ))}</tbody>
         </table></div>
