@@ -402,3 +402,7 @@ a.cname { color: var(--text); }
 @media (max-width: 1200px) { .g-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .g-4 { grid-template-columns: 1fr; } }
 .num-in.wide { width: 130px; }
+
+/* 담당 직원 배정: 보조 담당 제외 버튼 */
+.link-x { border: 0; background: none; padding: 0 0 0 2px; color: var(--text-2); cursor: pointer; font-size: 13px; line-height: 1; }
+.link-x:hover { color: var(--text); }

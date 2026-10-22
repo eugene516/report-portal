@@ -59,6 +59,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
             <button className="btn sm">적용</button>
           </form>
           <Link href="/admin/clients/new" className="btn primary">+ 새 광고주</Link>
+          {isAdmin && <Link href="/admin/assignments" className="btn">광고주별 담당 직원</Link>}
           {isAdmin && <Link href="/admin/staff" className="btn">직원 · 권한 관리</Link>}
         </div>
       </header>
