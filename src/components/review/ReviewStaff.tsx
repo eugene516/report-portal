@@ -36,9 +36,12 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
     const form = e.currentTarget; const fd = new FormData(form);
     const files = (fd.getAll("files") as File[]).filter((f) => f.size > 0);
     if (!files.length) return toastError("원고나 이미지 파일을 하나 이상 올려 주세요.");
+    // 제목은 따로 받지 않고 원고 파일명(없으면 첫 파일명)에서 확장자를 뺀 이름으로
+    const main = files.find((f) => /\.(docx?|hwp|pdf|txt)$/i.test(f.name)) ?? files[0];
+    const title = (main.name.replace(/\.[^.]+$/, "").trim() || "검수 콘텐츠").slice(0, 200);
     setBusy(true);
     const sb = supabaseBrowser();
-    const { data, error } = await sb.from("review_items").insert({ client_id: clientId, kind: String(fd.get("kind")), period: String(fd.get("period")), title: String(fd.get("title")).trim() }).select("id").single();
+    const { data, error } = await sb.from("review_items").insert({ client_id: clientId, kind: String(fd.get("kind")), period: String(fd.get("period")), title }).select("id").single();
     if (error || !data) { setBusy(false); return toastError("콘텐츠를 만들지 못했습니다."); }
     const ok = await uploadFiles(clientId, data.id, 1, files);
     let msg = `콘텐츠를 등록했습니다 (파일 ${ok}개).`;
@@ -56,7 +59,6 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
       <div className="st-form">
         <label>유형<select name="kind" defaultValue="blog">{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label>대상 월<input name="period" type="month" defaultValue={period} required className="search" /></label>
-        <label className="w2">콘텐츠 제목<input name="title" required maxLength={200} className="search" placeholder="예: 백내장 초기 증상" /></label>
         <label className="w-all">원고 · 이미지 (여러 개 선택, 파일당 30MB 이하)<input name="files" type="file" multiple accept={ACCEPT} className="search" /></label>
         <label className="w-all check-row"><input type="checkbox" name="request" defaultChecked /> 등록하면서 바로 광고주에게 검수 요청</label>
         <div className="st-act"><button className="btn primary" disabled={busy}>{busy ? "올리는 중…" : "등록"}</button><button type="button" className="btn" onClick={() => setOpen(false)}>취소</button></div>
