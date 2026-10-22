@@ -4,7 +4,9 @@ import { isAdminRole, requireStaff } from "@/lib/auth";
 import { getStaffOverview } from "@/lib/dashboard";
 import { currentPeriod } from "@/lib/content";
 import { daysLeft, dday, getMonthOverview, itemLabel, itemState, monthInfo, totals, won } from "@/lib/month";
+import { Donut, ItemBars, MonthTimeline } from "@/components/charts";
 import IssueLinkButton from "../IssueLinkButton";
+import ExpandRow from "./ExpandRow";
 
 export const metadata = { title: "광고주 현황 · 리포트 포털" };
 export const dynamic = "force-dynamic";
@@ -60,9 +62,44 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               const st = next ? itemState(next, period, mi.today) : null;
               const nv = c.channels.naver;
               const burn = nv?.contracted && nv.budget ? Math.min(1, (nv.spent ?? 0) / nv.budget) : null;
+              const sts = c.items.map((i) => itemState(i, period, mi.today));
+              const end = c.contract?.endsOn ?? mi.last;
+              const left = daysLeft(end, mi.today);
+              const detail = (
+                <div className="xd">
+                  <div className="xd-sum">
+                    <Donut done={t.done} total={t.quantity} label="계약 수량 진행" sub={`항목 ${c.items.length}개`} size={96} />
+                    <dl className="kv sm">
+                      <dt>계약 기간</dt><dd>{(c.contract?.startsOn ?? `${period}-01`).slice(5).replace("-", "/")} ~ {end.slice(5).replace("-", "/")} · {left >= 0 ? `${left}일 남음` : "종료"}</dd>
+                      <dt>계약 금액</dt><dd>{c.contract?.amount != null ? won(c.contract.amount) : "-"}</dd>
+                      <dt>업무 상태</dt><dd>완료 {sts.filter((s) => s === "done").length} · 순조 {sts.filter((s) => s === "ok").length} · <span className="t-warn">지연 위험 {sts.filter((s) => s === "risk").length}</span> · <span className="t-bad">마감 지남 {sts.filter((s) => s === "late").length}</span></dd>
+                      {nv?.contracted && <><dt>광고비</dt><dd>{won(nv.spent)}{nv.budget ? ` / ${won(nv.budget)} (${Math.round((burn ?? 0) * 100)}%)` : " · 예산 미입력"}</dd></>}
+                    </dl>
+                  </div>
+                  {c.items.length ? (
+                    <>
+                      <div className="xd-col"><h3>항목별 진행 · 마감</h3><ItemBars items={c.items} period={period} today={mi.today} /></div>
+                      <div className="xd-col"><h3>월간 일정표</h3><MonthTimeline items={c.items} period={period} days={mi.days} today={mi.today} />
+                        <div className="legend mt-s"><span><i className="lg ok" />순조</span><span><i className="lg risk" />지연 위험</span><span><i className="lg late" />마감 지남</span><span><i className="lg done" />완료</span></div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="xd-col empty-state">이번 달 계약 항목이 없습니다. <Link href={`/admin/clients/${c.id}/contracts`}>계약 · 견적 관리</Link>에서 등록하세요.</div>
+                  )}
+                  <div className="xd-foot">
+                    {!c.contract && c.items.length > 0 && <span className="faint">계약 미등록 · 리포트 월 목표로 계산했고 마감일은 말일로 표시했습니다.</span>}
+                    <Link href={`/admin/progress/${c.id}`} className="btn sm primary">상세 페이지로 이동 ›</Link>
+                  </div>
+                </div>
+              );
               return (
-                <tr key={c.id}>
-                  <td><Link href={`/admin/progress/${c.id}`} className="cname">{c.name}</Link><div className="faint">{[c.category, c.area].filter(Boolean).join(" · ")}</div></td>
+                <ExpandRow key={c.id} colSpan={7} detail={detail} actions={<>
+                  <Link className="btn sm" href={`/admin/clients/${c.id}`}>리포트</Link>
+                  <Link className="btn sm" href={`/admin/clients/${c.id}/contracts`}>계약 · 견적</Link>
+                  <Link className="btn sm" href={`/admin/clients/${c.id}/settings`}>설정</Link>
+                  <IssueLinkButton clientId={c.id} />
+                </>} cells={<>
+                  <td><Link href={`/admin/progress/${c.id}`} className="cname" title="상세 진행 현황 보기">{c.name}</Link><div className="faint">{[c.category, c.area].filter(Boolean).join(" · ")}</div></td>
                   <td>{c.staff.length === 0 ? <span className="badge warn">미배정</span> : c.staff.map((s) => <div key={s.id} className="nowrap">{s.name}{s.primary ? <span className="faint"> (주)</span> : ""}</div>)}</td>
                   <td>{c.contract ? <><span className="badge good">등록</span><div className="faint">{c.contract.amount != null ? won(c.contract.amount) : "금액 미입력"} · 파일 {c.files}</div></> : <Link href={`/admin/clients/${c.id}/contracts`} className="badge warn">미등록 · 등록하기</Link>}</td>
                   <td>
@@ -74,16 +111,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                   <td>{next ? <><span className={`badge ${{ late: "bad", risk: "warn", ok: "acc", done: "good" }[st!]}`}>{dday(daysLeft(next.dueOn, mi.today))}</span><div className="faint">{itemLabel(next)} {next.done}/{next.quantity}</div></> : t.quantity ? <span className="badge good">모두 완료</span> : <span className="faint">-</span>}</td>
                   <td>{burn != null ? <><div className="num">{Math.round(burn * 100)}%</div><div className="bar thin"><i style={{ width: `${burn * 100}%` }} /></div><div className="faint">{won(nv!.spent)} / {won(nv!.budget)}</div></>
                     : nv?.contracted ? <span className="faint">{nv.apiConnected ? `${won(nv.spent)} · 예산 미입력` : "API 연결 전"}</span> : <span className="faint">미집행</span>}</td>
-                  <td className="r">
-                    <div className="actions">
-                      <Link className="btn sm" href={`/admin/progress/${c.id}`}>진행 현황</Link>
-                      <Link className="btn sm" href={`/admin/clients/${c.id}`}>리포트</Link>
-                      <Link className="btn sm" href={`/admin/clients/${c.id}/contracts`}>계약 · 견적</Link>
-                      <Link className="btn sm" href={`/admin/clients/${c.id}/settings`}>설정</Link>
-                      <IssueLinkButton clientId={c.id} />
-                    </div>
-                  </td>
-                </tr>
+                </>} />
               );
             })}
           </tbody>
