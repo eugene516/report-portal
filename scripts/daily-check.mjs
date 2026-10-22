@@ -81,7 +81,13 @@ if (r.blog?.length) sql(`
     from jsonb_array_elements(${json(r.blog)}) x`);
 // 플레이스 캡쳐 → 비공개 저장소 captures/{광고주}/place/{시각}/{번호}.jpg (CLI 로그인으로 업로드)
 const stampDir = kst().toISOString().slice(0, 16).replace("T", "_").replace(":", "");
+const upload = (file, dest) => execFileSync(process.execPath, [join(APP, "node_modules/supabase/dist/supabase.js"), "storage", "cp", "--linked", "--experimental", "--workdir", APP, "--content-type", "image/jpeg", "./" + basename(file), `ss:///captures/${dest}`], { cwd: dirname(file), stdio: "ignore" });
 for (const p of r.place ?? []) {
+  p.adCapturePath = null;
+  if (p.adCapture && existsSync(p.adCapture)) {
+    const dest = `${p.client}/place-ad/${stampDir}/${String(p.idx).padStart(2, "0")}.jpg`;
+    try { upload(p.adCapture, dest); p.adCapturePath = dest; } catch { log(`광고 캡쳐 업로드 실패: ${p.keyword}`); }
+  }
   if (!p.capture || !existsSync(p.capture)) { p.capturePath = null; continue; }
   const dest = `${p.client}/place/${stampDir}/${String(p.idx).padStart(2, "0")}.jpg`;
   try {
@@ -91,8 +97,8 @@ for (const p of r.place ?? []) {
   } catch { p.capturePath = null; log(`캡쳐 업로드 실패: ${p.keyword}`); }
 }
 if (r.place?.length) sql(`
-  insert into public.place_rank_results (client_id, keyword, rank, ad_rank, page, capture_path, collected_at, method)
-  select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, (x->>'page')::int, x->>'capturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
+  insert into public.place_rank_results (client_id, keyword, rank, ad_rank, page, capture_path, ad_capture_path, collected_at, method)
+  select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, (x->>'page')::int, x->>'capturePath', x->>'adCapturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
     from jsonb_array_elements(${json(r.place.filter((p) => !p.noBlock))}) x`);
 if (r.cafe?.length) sql(`
   update public.cafe_posts p
@@ -152,7 +158,8 @@ const deleted = (r.cafe ?? []).filter((c) => c.deleted).length;
 const ranked = (r.blog ?? []).filter((b) => b.main != null || b.blogTab != null).length;
 const top3 = (r.place ?? []).filter((p) => p.rank != null && p.rank <= 3).length;
 const shots = (r.place ?? []).filter((p) => p.capturePath).length;
-log(`저장: 블로그 ${r.blog?.length ?? 0}건(노출 ${ranked}) · 플레이스 ${r.place?.length ?? 0}건(Top3 ${top3} · 캡쳐 ${shots}) · 게시글 ${r.cafe?.length ?? 0}건(삭제 감지 ${deleted})`);
+const adShots = (r.place ?? []).filter((p) => p.adCapturePath).length;
+log(`저장: 블로그 ${r.blog?.length ?? 0}건(노출 ${ranked}) · 플레이스 ${r.place?.length ?? 0}건(Top3 ${top3} · 캡쳐 ${shots} · 광고 노출 캡쳐 ${adShots}) · 게시글 ${r.cafe?.length ?? 0}건(삭제 감지 ${deleted})`);
 for (const p of r.portal ?? []) log(`화면 ${p.name}: ${p.ok ? "정상" : `확인 필요 (${p.note})`}`);
 for (const e of r.errors ?? []) log(`오류: ${e}`);
 if (r.portal?.some((p) => p.note === "로그인이 풀려 있음")) log("※ ego 브라우저에서 리포트 포털에 다시 로그인해 주세요.");

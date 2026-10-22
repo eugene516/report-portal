@@ -5,7 +5,7 @@ import { basePath, getClientSummary, getNaverReport, kstToday, getNaverTopKeywor
 import { captureUrls, currentPeriod, getContentForRequest, getHistory, SERVICE_LABELS, type HistoryMonth, type ReportContent } from "@/lib/content";
 import ReportShell, { AD_CHANNELS, isActiveChannel, isContracted, MENUS, visibleMenus, type AdChannelId } from "./ReportShell";
 import NaverAdsView from "./NaverAdsView";
-import { BlogSection, CafeSection, ColumnSection, PlaceSection, SnsSection } from "./ContentSections";
+import { BlogSection, CafeSection, ColumnSection, PlaceAdsSection, PlaceSection, SnsSection } from "./ContentSections";
 import ContractsSection from "./ContractsSection";
 import SectionTools, { type SectionKind } from "./SectionTools";
 import AdContractButton from "./AdContractButton";
@@ -69,14 +69,18 @@ export default async function ReportPage({
   let body: React.ReactNode;
   if (section[0] === "ads") {
     const ch = AD_CHANNELS.find((c) => c.id === section[1]);
-    if (!ch || section.length !== 2) notFound();
-    title = ch.label;
+    const placeAd = ch?.id === "naver" && section[2] === "place";
+    if (!ch || (section.length !== 2 && !placeAd)) notFound();
+    title = placeAd ? "네이버 플레이스 광고" : ch.id === "naver" ? "네이버 파워링크 광고" : ch.label;
     // 집행 중인 광고 소재를 성과보다 먼저 (계약한 채널만)
     const creatives = client.channels[ch.id]?.contracted ? await getCreatives(ctx, ch.id) : null;
     body = (
       <>
         {creatives && <AdCreatives items={creatives} editable={staffView} clientId={ctx.mode === "staff" ? ctx.clientId : undefined} channel={ch.id} label={ch.label} />}
-        {await adsBody(ctx, client, ch.id, ch.label, `${base}/ads/${ch.id}`, searchParams, staffView)}
+        {placeAd
+          ? (client.channels.naver?.contracted ? <PlaceAdsSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.adCapture ?? null))} />
+            : staffView ? await adsBody(ctx, client, ch.id, "네이버 플레이스 광고", `${base}/ads/naver/place`, searchParams, staffView) : <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 광고입니다.</p>)
+          : await adsBody(ctx, client, ch.id, ch.id === "naver" ? "네이버 파워링크 광고" : ch.label, `${base}/ads/${ch.id}`, searchParams, staffView)}
       </>
     );
   } else if (key === "history") {
@@ -93,7 +97,7 @@ export default async function ReportPage({
     title = menu.label;
     let inner: React.ReactNode;
     if (key === "") inner = <Dashboard ctx={ctx} client={client} content={content} base={base} staff={staffView} />;
-    else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} />;
+    else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} editable={staffView} />;
     else if (key === "column") inner = <ColumnSection c={content} />;
     else if (key === "place") inner = <PlaceSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.capture ?? null))} />;
     else if (key === "cafe" || key === "daangn") {

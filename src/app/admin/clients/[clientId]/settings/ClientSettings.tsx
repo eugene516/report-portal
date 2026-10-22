@@ -7,6 +7,7 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import Link from "next/link";
 import { AD_CHANNEL_OPTIONS, SERVICES, type ServiceState } from "@/components/ServicePicker";
 import { uploadQuotes } from "@/components/quotes";
+import { applyQuote } from "@/app/admin/actions";
 import IssueLinkButton from "@/app/admin/IssueLinkButton";
 import NaverKeyPanel from "./NaverKeyPanel";
 
@@ -72,7 +73,9 @@ export default function ClientSettings(p: Props) {
     if (!files.length) return;
     setBusy(true);
     const r = await uploadQuotes(sb, id, files);
-    done(r.failed === 0, r.failed ? `견적서 ${r.failed}개를 올리지 못했습니다 (형식·크기 확인).` : "견적서를 올렸습니다.");
+    if (r.failed) setMsg({ ok: false, text: `견적서 ${r.failed}개를 올리지 못했습니다 (형식·크기 확인).` });
+    for (const qid of r.ids) { const a = await applyQuote(qid); setMsg(a.ok ? { ok: true, text: a.ok } : { ok: false, text: a.error ?? "" }); }
+    done(r.ids.length > 0, "견적서를 올렸습니다.");
   }
   async function openQuote(path: string) {
     const { data } = await sb.storage.from("quotes").createSignedUrl(path, 60);

@@ -8,6 +8,7 @@ import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { SERVICES } from "./ServicePicker";
 import { uploadQuotes } from "./quotes";
+import { applyQuote } from "@/app/admin/actions";
 
 const AUTO = new Set(["blog", "cafe", "daangn", "cardnews", "column", "aeo"]);   // 리포트 자료로 진행 수량을 자동 집계
 const OPTIONS = [...SERVICES.map((s) => ({ id: s.id as string, label: s.label })), { id: "etc", label: "기타 업무" }];
@@ -79,7 +80,10 @@ export default function ContractManager(p: Props) {
     if (!files.length) return;
     setBusy(true);
     const r = await uploadQuotes(sb, p.clientId, files, { period: p.period, kind });
-    finish(r.failed === 0, r.failed ? `파일 ${r.failed}개를 올리지 못했습니다 (형식·크기 확인).` : `${kind === "quote" ? "견적서" : "계약서"}를 올렸습니다.`);
+    if (r.failed) setMsg({ ok: false, text: `파일 ${r.failed}개를 올리지 못했습니다 (형식·크기 확인).` });
+    // 견적서는 내용을 읽어 이 달 계약에 바로 반영한다
+    if (kind === "quote") for (const id of r.ids) { const a = await applyQuote(id); setMsg(a.ok ? { ok: true, text: a.ok } : { ok: false, text: a.error ?? "반영하지 못했습니다." }); }
+    finish(r.ids.length > 0, `${kind === "quote" ? "견적서" : "계약서"}를 올렸습니다.`);
   }
   async function openFile(path: string) {
     const { data } = await sb.storage.from("quotes").createSignedUrl(path, 60);
@@ -158,7 +162,10 @@ export default function ContractManager(p: Props) {
           {p.files.map((f) => (
             <li key={f.id}>
               <span><span className={`badge ${f.kind === "contract" ? "acc" : ""}`}>{f.kind === "contract" ? "계약서" : "견적서"}</span> {f.file_name} <span className="faint">{kst(f.created_at)}</span></span>
-              <button className="btn sm" onClick={() => openFile(f.storage_path)}>열기</button>
+              <span className="row">
+                {f.kind !== "contract" && <button className="btn sm" disabled={busy} onClick={async () => { setBusy(true); const a = await applyQuote(f.id); finish(!!a.ok, a.ok ?? a.error ?? ""); }} title="견적서 내용을 읽어 이 달 계약 · 미집행 · 광고 채널을 다시 맞춥니다">계약에 반영</button>}
+                <button className="btn sm" onClick={() => openFile(f.storage_path)}>열기</button>
+              </span>
             </li>
           ))}
         </ul>

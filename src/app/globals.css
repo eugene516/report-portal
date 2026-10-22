@@ -918,3 +918,12 @@ img, svg { max-width: 100%; }
 .sources-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 14px; align-items: end; }
 .sources-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--text-2); }
 .sources-form .search { min-width: 0; width: 100%; }
+
+/* 온라인 광고 > 네이버 광고 > 파워링크 · 플레이스 광고 */
+.subnav-group { display: flex; flex-direction: column; gap: 2px; }
+.subnav-h { padding: 7px 10px 2px; font-size: 13.5px; font-weight: 500; color: var(--text-2); display: flex; justify-content: space-between; align-items: center; }
+.subnav-h.off { color: var(--text-3); }
+.subnav-h .cnt { font-size: 11px; background: var(--surface-2); border-radius: 4px; padding: 1px 6px; }
+.nav .subnav a.sub2 { padding-left: 22px; font-size: 13px; }
+@media (max-width: 900px) { .subnav-group { flex-direction: row; align-items: center; } .subnav-h { padding: 0 4px; white-space: nowrap; } .nav .subnav a.sub2 { padding-left: 10px; } }
+.kw-edit { margin-left: 4px; font-size: 12px; }

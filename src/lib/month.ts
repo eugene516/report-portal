@@ -13,7 +13,7 @@ export type MonthClient = {
   files: number; cafe_deleted: number; sync_failed_7d: number;
   collected: { blog: string | null; place: string | null; cafe: string | null; naver: string | null };   // 항목별 마지막 수집 시각
   services: string[];                                              // 리포트 계약 항목 (월 수량이 없어도 계약)
-  place: { total: number; top3: number; ranked: number } | null;  // 플레이스 키워드 Top3 현황
+  place: { total: number; top3: number; ranked: number; checked: number } | null;  // 플레이스 키워드: Top3 · 순위 확인 · 오늘 확인
 };
 export type MonthDetail = {
   adDaily: { date: string; cost: number }[];

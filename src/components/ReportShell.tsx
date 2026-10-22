@@ -81,7 +81,16 @@ export default function ReportShell({
             <div className="subnav">
               {AD_CHANNELS.map((ch) => {
                 const active = isActiveChannel(client, ch.id);
-                const tag = client.channels[ch.id]?.contracted ? "연결 전" : "미집행";
+                const contracted = !!client.channels[ch.id]?.contracted;
+                const tag = contracted ? "연결 전" : "미집행";
+                // 네이버 광고는 파워링크 · 플레이스 광고 두 하위 메뉴
+                if (ch.id === "naver") return (
+                  <div key={ch.id} className="subnav-group">
+                    <span className={`subnav-h ${contracted ? "" : "off"}`}>{ch.label}{!contracted && <span className="cnt">미집행</span>}</span>
+                    <Link href={`${base}/ads/naver`} className={`sub2 ${current === "ads/naver" ? "on" : ""} ${active ? "" : "off"}`}>파워링크 광고{contracted && !active && <span className="cnt">연결 전</span>}</Link>
+                    <Link href={`${base}/ads/naver/place`} className={`sub2 ${current === "ads/naver/place" ? "on" : ""} ${contracted ? "" : "off"}`}>플레이스 광고</Link>
+                  </div>
+                );
                 return (
                   <Link key={ch.id} href={`${base}/ads/${ch.id}`} className={`${current === `ads/${ch.id}` ? "on" : ""} ${active ? "" : "off"}`}>
                     {ch.label}{!active && <span className="cnt">{tag}</span>}

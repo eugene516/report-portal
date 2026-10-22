@@ -1,6 +1,7 @@
 // 리포트 내용 화면 (서버 컴포넌트) — 서울청명안과 샘플 페이지 형식
 import Link from "next/link";
 import type { ReportContent } from "@/lib/content";
+import BlogKeywordEdit from "./BlogKeywordEdit";
 
 const kst = (iso: string | null | undefined) => {
   if (!iso) return "-";
@@ -24,7 +25,7 @@ const bestOther = (a: { rank: number; url: string } | null, b: { rank: number; u
 const naverSearch = (k: string) => `https://search.naver.com/search.naver?query=${encodeURIComponent(k)}`;
 
 // ── 블로그 · 콘텐츠 ──────────────────────────────────────────────────────
-export function BlogSection({ c, tab, path }: { c: ReportContent; tab: string; path: string }) {
+export function BlogSection({ c, tab, path, editable = false }: { c: ReportContent; tab: string; path: string; editable?: boolean }) {
   const extra = c.keywords.filter((k) => k.kind === "blog_extra");
   const etc = c.keywords.filter((k) => k.kind === "etc");
   const aeoKw = c.keywords.filter((k) => k.kind === "aeo");
@@ -47,7 +48,7 @@ export function BlogSection({ c, tab, path }: { c: ReportContent; tab: string; p
               {c.blog.length === 0 && <tr><td colSpan={5} className="faint">이 달에 발행된 블로그 원고가 없습니다.</td></tr>}
               {c.blog.map((b, i) => (
                 <tr key={b.id}>
-                  <td className="faint num">{i + 1}</td><td><b>{b.keyword}</b></td>
+                  <td className="faint num">{i + 1}</td><td><b>{b.keyword}</b>{editable && <BlogKeywordEdit id={b.id} keyword={b.keyword} />}</td>
                   <td className="ellipsis"><a href={b.url} target="_blank" rel="noopener noreferrer" title={b.url}>{b.title}</a></td>
                   <td className="r"><Rank v={best(b.rank?.main, b.rank?.blogTab)} collected={!!b.rank} />{b.rank && best(b.rank.main, b.rank.blogTab) == null && <Other o={bestOther(b.rank.mainOther, b.rank.tabOther)} />}</td>
                   <td className="faint num">{kst(b.rank?.at)}</td>
@@ -128,6 +129,42 @@ export function PlaceSection({ c, urls }: { c: ReportContent; urls: Map<string, 
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {src ? <a href={src} target="_blank" rel="noopener noreferrer"><img loading="lazy" src={src} alt={`${r.keyword} 플레이스 노출 화면`} /></a> : <div className="noimg">{r.place ? "캡쳐 없음" : "수집 전"}</div>}
               <div className="pf faint"><span>{r.place ? `${kst(r.place.at)} 수집${r.place.page ? ` · 플레이스 ${r.place.page}페이지` : ""}` : ""}</span><a href={naverSearch(r.keyword)} target="_blank" rel="noopener noreferrer">네이버 검색</a></div>
+            </figure>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ── 네이버 플레이스 광고 (플레이스 순위와 같은 키워드 · 같은 형식) ───────────────────────
+export function PlaceAdsSection({ c, urls }: { c: ReportContent; urls: Map<string, string> }) {
+  const rows = c.keywords.filter((k) => k.kind === "place");
+  const shown = rows.filter((r) => r.place?.adRank != null);
+  const last = rows.map((r) => r.place?.at).filter(Boolean).sort().at(-1);
+  return (
+    <>
+      <p className="muted">플레이스 순위와 같은 키워드를 네이버 메인에서 검색했을 때 플레이스 영역의 <b>광고 자리</b>에 노출되는지 확인합니다. 캡쳐에서 검색 키워드와 광고 딱지가 붙은 해당 업체 항목을 빨간 박스로 표시했습니다.</p>
+      {rows.length > 0 && (
+        <div className="row place-sum">
+          <span className="badge acc">광고 노출 {shown.length} / {rows.length}개 키워드</span>
+          <span className="badge good">광고 1번째 {shown.filter((r) => r.place?.adRank === 1).length}개</span>
+          <span className="faint">{kst(last)} 확인</span>
+        </div>
+      )}
+      {rows.length === 0 && <div className="empty-state">등록된 플레이스 키워드가 없습니다.</div>}
+      <div className="place-grid">
+        {rows.map((r, i) => {
+          const src = r.place?.adCapture ? urls.get(r.place.adCapture) : undefined;
+          return (
+            <figure key={r.keyword} className="place-card card">
+              <figcaption>
+                <div className="pk"><span className="faint num">{i + 1}</span><b>{r.keyword}</b>{r.important && <span className="badge warn">중점</span>}</div>
+                <div className="row">{!r.place ? <span className="rank none">확인 전</span> : r.place.adRank != null ? <span className="rank top">광고 {r.place.adRank}번째</span> : <span className="rank out">광고 미노출</span>}</div>
+              </figcaption>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {src ? <a href={src} target="_blank" rel="noopener noreferrer"><img loading="lazy" src={src} alt={`${r.keyword} 플레이스 광고 노출 화면`} /></a> : <div className="noimg">{r.place ? (r.place.adRank != null ? "캡쳐 없음" : "광고 자리에 노출되지 않음") : "확인 전"}</div>}
+              <div className="pf faint"><span>{r.place ? `${kst(r.place.at)} 확인` : ""}</span><a href={naverSearch(r.keyword)} target="_blank" rel="noopener noreferrer">네이버 검색</a></div>
             </figure>
           );
         })}
