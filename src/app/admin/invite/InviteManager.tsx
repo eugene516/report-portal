@@ -55,7 +55,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
     setBusy(true); setMsg(null); setIssued(null);
     const { data, error } = await sb.functions.invoke("staff-admin", { body: { action: "reinvite", userId: s.id } });
     setBusy(false);
-    if (error) { setMsg({ ok: false, text: await fnError(error, "초대를 다시 보내지 못했습니다.") }); return; }
+    if (error) { setMsg({ ok: false, text: await fnError(error, "임시 비밀번호를 다시 발급하지 못했습니다.") }); return; }
     show(s.email, data);
   }
 
@@ -91,7 +91,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
             <button className="btn primary sm" onClick={copy}>{copied ? "복사했습니다" : "초대 내용 복사"}</button>
             <button className="btn sm" onClick={() => setIssued(null)}>닫기</button>
           </div>
-          <p className="faint mt-s">메신저 등으로 본인에게만 전달하세요. 초대 링크를 열면 이메일이 미리 입력되어 있고, 임시 비밀번호로 바로 로그인됩니다. 첫 로그인 후 비밀번호를 바꿔야 다른 화면을 쓸 수 있습니다. 임시 비밀번호를 잃어버리면 목록에서 “초대 재발송”으로 새로 발급하세요.</p>
+          <p className="faint mt-s">메신저 등으로 본인에게만 전달하세요. 초대 링크를 열면 이메일이 미리 입력되어 있고, 임시 비밀번호로 바로 로그인됩니다. 첫 로그인 후 비밀번호를 바꿔야 다른 화면을 쓸 수 있습니다. 임시 비밀번호를 잃어버리면 목록에서 “임시 비밀번호 재발급”을 누르세요.</p>
         </section>
       )}
 
@@ -106,7 +106,7 @@ export default function InviteManager({ staff, meId }: { staff: StaffRow[]; meId
               <td>{status(s)}</td>
               <td className="num faint">{s.invitedAt ? kst(s.invitedAt) : "-"}</td>
               <td className="num faint">{kst(s.lastSignIn)}</td>
-              <td className="r">{s.role !== "owner" && s.id !== meId && <button className="btn sm" disabled={busy} onClick={() => reinvite(s)}>초대 재발송</button>}</td>
+              <td className="r">{s.role !== "owner" && s.id !== meId && <button className="btn sm" disabled={busy} onClick={() => reinvite(s)}>임시 비밀번호 재발급</button>}</td>
             </tr>
           ))}</tbody>
         </table></div>

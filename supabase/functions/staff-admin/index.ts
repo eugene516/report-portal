@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
     const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true });
     if (error || !data.user) {
       log("warn", "staff invite failed", { error: errorMessage(error, [password]) }, [password]);
-      return reply({ error: /already|registered|exists/i.test(error?.message ?? "") ? "이미 등록된 이메일입니다. 아래 목록에서 '초대 재발송'을 이용하세요." : "계정을 만들지 못했습니다." }, 400);
+      return reply({ error: /already|registered|exists/i.test(error?.message ?? "") ? "이미 등록된 이메일입니다. 아래 목록에서 '임시 비밀번호 재발급'을 이용하세요." : "계정을 만들지 못했습니다." }, 400);
     }
     const now = new Date().toISOString();
     const { error: e2 } = await db.from("staff_roles").insert({ user_id: data.user.id, email, role, display_name: displayName, must_change_password: true, invited_at: now, invited_by: caller.userId });
