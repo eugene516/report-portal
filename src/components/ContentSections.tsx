@@ -25,7 +25,7 @@ const bestOther = (a: { rank: number; url: string } | null, b: { rank: number; u
 const naverSearch = (k: string) => `https://search.naver.com/search.naver?query=${encodeURIComponent(k)}`;
 
 // ── 블로그 · 콘텐츠 ──────────────────────────────────────────────────────
-export function BlogSection({ c, tab, path, editable = false }: { c: ReportContent; tab: string; path: string; editable?: boolean }) {
+export function BlogSection({ c, tab, path, editable = false, bare = false }: { c: ReportContent; tab: string; path: string; editable?: boolean; bare?: boolean }) {
   const extra = c.keywords.filter((k) => k.kind === "blog_extra");
   const etc = c.keywords.filter((k) => k.kind === "etc");
   const aeoKw = c.keywords.filter((k) => k.kind === "aeo");
@@ -38,7 +38,7 @@ export function BlogSection({ c, tab, path, editable = false }: { c: ReportConte
   const href = (id: string) => `${path}?period=${c.period}&tab=${id}`;
   return (
     <>
-      <div className="tabs">{tabs.map((t) => <Link key={t.id} href={href(t.id)} className={t.id === on ? "on" : ""}>{t.label}</Link>)}</div>
+      {!bare && <div className="tabs">{tabs.map((t) => <Link key={t.id} href={href(t.id)} className={t.id === on ? "on" : ""}>{t.label}</Link>)}</div>}
       {on === "posts" && (
         <>
           <p className="muted">키워드를 네이버에서 검색했을 때 해당 원고가 노출되는 순위입니다(네이버 메인 · 블로그 탭 중 더 높은 순위). 제목을 누르면 블로그 글이 열립니다. &quot;다른 글&quot;은 해당 원고 대신 같은 블로그의 다른 글이 노출된 경우입니다.</p>

@@ -126,7 +126,7 @@ export default function ReportShell({
         )}
         <div className="topbar">
           <div className="title"><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div>
-          {!staffTools && <PrintButton />}
+          {!staffTools && current !== "full" && <PrintButton />}
           {staffTools && (
             <div className="row topbar-tools">
             {link && <LinkState link={link} />}

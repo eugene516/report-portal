@@ -929,3 +929,36 @@ img, svg { max-width: 100%; }
 .kw-edit { margin-left: 4px; font-size: 12px; }
 .ad-rank-table tr.muted-row td { color: var(--text-3); }
 .ad-rank-table .badge { margin-left: 6px; }
+
+/* 대시보드: 레포트 상세보기 버튼 */
+.full-cta { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; margin-bottom: 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: var(--accent-soft); color: var(--text); }
+.full-cta:hover { text-decoration: none; border-color: var(--accent); }
+.full-cta > span:first-child { display: flex; flex-direction: column; gap: 2px; }
+.full-cta b { font-size: 15.5px; color: var(--accent); }
+
+/* 레포트 상세보기: 엑셀 시트 탭 */
+.sheet-bar { position: sticky; top: var(--bar-h); z-index: 6; display: flex; align-items: flex-end; gap: 10px; background: var(--bg); padding-top: 6px; margin: 0 0 16px; border-bottom: 2px solid var(--accent); }
+.shell .sheet-bar { top: 0; }
+.adm-main .shell .sheet-bar { top: var(--bar-h); }
+.sheet-tabs { display: flex; gap: 2px; overflow-x: auto; flex: 1; scrollbar-width: thin; }
+.sheet-tabs button { flex-shrink: 0; border: 1px solid var(--border); border-bottom: 0; background: var(--surface-2); color: var(--text-2); padding: 8px 14px; border-radius: 8px 8px 0 0; font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.sheet-tabs button:hover { background: var(--surface); color: var(--text); }
+.sheet-tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sheet-badge { margin-left: 6px; font-size: 11px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, currentColor 18%, transparent); }
+.sheet-pdf { margin-bottom: 6px; flex-shrink: 0; }
+.sheet-pane { display: none; }
+.sheet-pane.on { display: block; }
+.sheet-title { display: none; }
+.sheet-nav { margin-top: 24px; }
+.links-table td { vertical-align: top; }
+.links-table .link-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+@media (max-width: 600px) { .sheet-bar { flex-direction: column; align-items: stretch; } .sheet-pdf { align-self: flex-end; } .links-table .link-cell { display: none; } }
+@media print {
+  .sheet-bar, .sheet-nav, .full-cta { display: none !important; }
+  .sheet-pane { display: block !important; break-before: page; }
+  .sheet-pane:first-of-type { break-before: auto; }
+  .sheet-title { display: block; font-size: 17px; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 2px solid #2f5bea; }
+  .place-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .place-card, .cr-card, .round, tr { break-inside: avoid; }
+  .tbl-wrap { overflow: visible; }
+}
