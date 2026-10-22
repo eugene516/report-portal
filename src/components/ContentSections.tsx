@@ -27,7 +27,6 @@ export function BlogSection({ c, tab, path }: { c: ReportContent; tab: string; p
   const tabs = [
     { id: "posts", label: `블로그 원고 ${c.blog.length}` },
     extra.length ? { id: "extra", label: `추가 노출 키워드 ${extra.length}` } : null,
-    c.columns.length || c.services.column ? { id: "column", label: `홈페이지 칼럼 ${c.columns.length}` } : null,
     etc.length || aeoKw.length || c.aeo.length ? { id: "etc", label: `기타 · AEO 노출 ${etc.length + aeoKw.length}` } : null,
   ].filter((t): t is { id: string; label: string } => !!t);
   const on = tabs.find((t) => t.id === tab)?.id ?? "posts";
@@ -65,15 +64,6 @@ export function BlogSection({ c, tab, path }: { c: ReportContent; tab: string; p
           ))}</tbody>
         </table></div>
       )}
-      {on === "column" && (
-        <div className="card tbl-wrap"><table>
-          <thead><tr><th>No</th><th>칼럼 제목</th><th></th></tr></thead>
-          <tbody>
-            {c.columns.length === 0 && <tr><td colSpan={3} className="faint">이 달에 등록된 칼럼이 없습니다.</td></tr>}
-            {c.columns.map((x, i) => <tr key={x.url}><td className="faint num">{i + 1}</td><td>{x.title}</td><td className="r"><a className="btn sm" href={x.url} target="_blank" rel="noopener noreferrer">홈페이지에서 보기</a></td></tr>)}
-          </tbody>
-        </table></div>
-      )}
       {on === "etc" && (
         <div className="grid g-2">
           <KeywordList title="기타 노출" desc="통합검색의 블로그 외 영역에서 노출을 확인한 키워드" list={etc.map((k) => k.keyword)} />
@@ -81,6 +71,18 @@ export function BlogSection({ c, tab, path }: { c: ReportContent; tab: string; p
         </div>
       )}
     </>
+  );
+}
+// ── 홈페이지 칼럼 ─────────────────────────────────────────────────────────
+export function ColumnSection({ c }: { c: ReportContent }) {
+  return (
+    <div className="card tbl-wrap"><table>
+      <thead><tr><th>No</th><th>게시일</th><th>칼럼 제목</th><th></th></tr></thead>
+      <tbody>
+        {c.columns.length === 0 && <tr><td colSpan={4} className="faint">이 달에 등록된 칼럼이 없습니다.</td></tr>}
+        {c.columns.map((x, i) => <tr key={x.url}><td className="faint num">{i + 1}</td><td className="num">{x.publishedOn ?? "-"}</td><td>{x.title}</td><td className="r"><a className="btn sm" href={x.url} target="_blank" rel="noopener noreferrer">홈페이지에서 보기</a></td></tr>)}
+      </tbody>
+    </table></div>
   );
 }
 function KeywordList({ title, desc, list }: { title: string; desc: string; list: string[] }) {
@@ -131,32 +133,33 @@ export function PlaceSection({ c, urls }: { c: ReportContent; urls: Map<string, 
   );
 }
 
-// ── 카페 바이럴 ──────────────────────────────────────────────────────────
-export function CafeSection({ c, urls }: { c: ReportContent; urls: Map<string, string> }) {
-  if (c.cafe.length === 0) return <div className="empty-state"><b>이 달에는 카페 배포 내역이 없습니다.</b>보고 월을 바꿔 다른 달을 확인해 보세요.</div>;
-  const views = c.cafe.reduce((s, x) => s + (x.views ?? 0), 0);
-  const deleted = c.cafe.filter((x) => x.status === "삭제됨").length;
+// ── 카페 바이럴 · 당근마켓 바이럴 (같은 형식, 게시처 이름만 다름) ─────────────────
+export function CafeSection({ list, channel, urls }: { c: ReportContent; list: ReportContent["cafe"]; channel: "cafe" | "daangn"; urls: Map<string, string> }) {
+  const L = channel === "cafe" ? { what: "카페", where: "카페명" } : { what: "당근 동네생활", where: "지역 · 게시판" };
+  if (list.length === 0) return <div className="empty-state"><b>이 달에는 {L.what} 배포 내역이 없습니다.</b>지난 달 내용은 ‘지난 레포트 보기’에서 확인할 수 있습니다.</div>;
+  const views = list.reduce((s, x) => s + (x.views ?? 0), 0);
+  const deleted = list.filter((x) => x.status === "삭제됨").length;
   const status = (x: ReportContent["cafe"][number]) => x.status === "삭제됨" ? <span className="badge bad">삭제됨</span> : <span className="badge good">게시중</span>;
   return (
     <>
       <div className="grid g-kpi">
-        <div className="card kpi static"><div className="label">카페 배포</div><div className="value num">{c.cafe.length}<small>건</small></div></div>
-        <div className="card kpi static"><div className="label">총 조회수</div><div className="value num">{fmt(views)}</div><div className="foot">{c.cafe[0].basis ?? ""} 기준</div></div>
-        <div className="card kpi static"><div className="label">평균 조회수</div><div className="value num">{fmt(Math.round(views / c.cafe.length))}</div></div>
+        <div className="card kpi static"><div className="label">{L.what} 배포</div><div className="value num">{list.length}<small>건</small></div></div>
+        <div className="card kpi static"><div className="label">총 조회수</div><div className="value num">{fmt(views)}</div><div className="foot">{list[0].basis ?? ""} 기준</div></div>
+        <div className="card kpi static"><div className="label">평균 조회수</div><div className="value num">{fmt(Math.round(views / list.length))}</div></div>
         <div className="card kpi static"><div className="label">현재 삭제</div><div className="value num">{deleted}<small>건</small></div></div>
       </div>
       <div className="card mt tbl-wrap"><table>
-        <thead><tr><th>No</th><th>업로드일</th><th>카페명</th><th>게시글 링크</th><th className="r">조회</th><th className="r">댓글</th><th>현재 상태</th></tr></thead>
-        <tbody>{c.cafe.map((x, i) => (
+        <thead><tr><th>No</th><th>업로드일</th><th>{L.where}</th><th>게시글 링크</th><th className="r">조회</th><th className="r">댓글</th><th>현재 상태</th></tr></thead>
+        <tbody>{list.map((x, i) => (
           <tr key={x.id}><td className="faint num">{i + 1}</td><td className="num">{x.postedOn ?? "-"}</td><td><b>{x.cafe}</b></td>
             <td><a href={x.url} target="_blank" rel="noopener noreferrer">{x.url.replace(/^https?:\/\//, "")}</a></td>
             <td className="r num">{fmt(x.views)}</td><td className="r num">{fmt(x.comments)}</td>
             <td>{status(x)}{x.capturedAt && <span className="faint"> {kst(x.capturedAt)} 확인</span>}</td></tr>
         ))}</tbody>
       </table></div>
-      <h2 className="mt-l">카페 게시글 캡쳐</h2>
+      <h2 className="mt-l">{L.what} 게시글 캡쳐</h2>
       <p className="muted">배포한 게시글 화면입니다. 삭제된 글은 리포트 작성 당시의 캡쳐로 표시합니다.</p>
-      <div className="place-grid">{c.cafe.map((x, i) => {
+      <div className="place-grid">{list.map((x, i) => {
         const src = x.capture ? urls.get(x.capture) : undefined;
         return (
           <figure key={x.id} className="place-card card">
@@ -172,18 +175,19 @@ export function CafeSection({ c, urls }: { c: ReportContent; urls: Map<string, s
 }
 
 // ── SNS 카드뉴스 ─────────────────────────────────────────────────────────
+const MEDIA_LABEL: Record<string, string> = { 카카오채널: "카카오 소식", 당근마켓: "당근 소식" };
 const MEDIA_COLOR: Record<string, string> = { 인스타그램: "#d6249f", 당근마켓: "#ff6f0f", 카카오채널: "#e0b800" };
 export function SnsSection({ c }: { c: ReportContent }) {
   if (c.cardnews.length === 0) return <div className="empty-state"><b>이 달에는 카드뉴스 배포 내역이 없습니다.</b></div>;
   return (
     <>
-      <p className="muted">카드뉴스 1회차를 인스타그램 · 당근 비즈프로필 · 카카오채널에 함께 배포합니다. 채널을 누르면 게시물로 이동합니다.</p>
+      <p className="muted">카드뉴스 1회차를 인스타그램 · 카카오 소식 · 당근 소식에 함께 배포합니다. 채널을 누르면 게시물로 이동합니다.</p>
       <div className="grid g-3">{c.cardnews.map((r) => (
         <div key={r.round} className="card round">
           <div className="row" style={{ justifyContent: "space-between" }}><h3>{r.round}회차</h3><span className="faint">{r.postedOn ?? `${r.links.length}개 채널`}</span></div>
           {r.topic && <div className="muted">{r.topic}</div>}
           <div className="links">{r.links.map((l) => (
-            <a key={l.url} className="chip" href={l.url} target="_blank" rel="noopener noreferrer"><span className="dot" style={{ background: MEDIA_COLOR[l.media] ?? "#8a92a1" }} />{l.media}</a>
+            <a key={l.url} className="chip" href={l.url} target="_blank" rel="noopener noreferrer"><span className="dot" style={{ background: MEDIA_COLOR[l.media] ?? "#8a92a1" }} />{MEDIA_LABEL[l.media] ?? l.media}</a>
           ))}</div>
         </div>
       ))}</div>

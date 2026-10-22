@@ -34,7 +34,7 @@ export function ItemBars({ items, period, today }: { items: ContractItem[]; peri
         return (
           <li key={i.id ?? `${i.service}-${k}`} title={`${itemLabel(i)}: ${i.done}/${i.quantity} · 마감 ${i.dueOn.slice(5).replace("-", "/")} (${dday(left)}) · ${STATE_LABEL[st]}`}>
             <div className="ib-h">
-              <b>{itemLabel(i)}</b>
+              <b>{itemLabel(i)}{i.extra && <span className="badge acc tag-extra" title={i.note ?? "견적 외 추가 진행"}>추가</span>}</b>
               <span className="num">{i.done}<span className="faint"> / {i.quantity}</span></span>
             </div>
             <div className={`ib-bar ${st}`}>

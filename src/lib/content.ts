@@ -13,7 +13,7 @@ export type ReportContent = {
   keywords: { kind: "blog_extra" | "place" | "aeo" | "etc"; keyword: string;
               blogRank: { main: number | null; blogTab: number | null; at: string } | null;
               place: { rank: number | null; adRank: number | null; capture: string | null; at: string } | null }[];
-  cafe: { id: string; postedOn: string | null; cafe: string; url: string; title: string | null; views: number | null; comments: number | null;
+  cafe: { id: string; channel: "cafe" | "daangn"; postedOn: string | null; cafe: string; url: string; title: string | null; views: number | null; comments: number | null;
           basis: string | null; status: string; note: string | null; capture: string | null; captureSource: "live" | "report" | null;
           capturedAt: string | null; currentViews: number | null; currentComments: number | null }[];
   cardnews: { round: number; postedOn: string | null; topic: string | null; links: { media: string; url: string }[] }[];
@@ -37,7 +37,7 @@ export async function getContentForRequest(ctx: ReportCtx, requested?: string): 
   return getContent(ctx, want);
 }
 
-export type HistoryMonth = { period: string; blog: number; cafe: number; cardnews: number; column: number; adCost: number | null };
+export type HistoryMonth = { period: string; blog: number; cafe: number; daangn: number; cardnews: number; column: number; adCost: number | null };
 export async function getHistory(ctx: ReportCtx): Promise<HistoryMonth[]> {
   const { data } = ctx.mode === "staff"
     ? await (await supabaseForStaff()).rpc("staff_report_history", { p_client: ctx.clientId })
@@ -64,6 +64,6 @@ export async function captureUrls(ctx: ReportCtx, paths: (string | null)[]): Pro
 }
 
 export const SERVICE_LABELS: Record<string, string> = {
-  blog: "블로그", place: "플레이스", cafe: "카페 바이럴", daangn: "당근 동네생활", review: "리뷰",
+  blog: "블로그", place: "플레이스", cafe: "카페 바이럴", daangn: "당근마켓 바이럴", review: "리뷰",
   cardnews: "SNS 카드뉴스", column: "홈페이지 칼럼", aeo: "AEO",
 };

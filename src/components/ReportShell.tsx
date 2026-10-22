@@ -15,13 +15,18 @@ export const AD_CHANNELS = [
 ] as const;
 export type AdChannelId = (typeof AD_CHANNELS)[number]["id"];
 
+// fixed: 계약 여부와 관계없이 항상 보이는 메뉴 (계약하지 않았으면 "미집행"으로 표시하고, 중간에 계약하면 바로 진행)
+// svc: 이 메뉴의 계약 항목(client_services.service)
 export const MENUS = [
-  { id: "", label: "대시보드", needs: [] as string[] },
-  { id: "blog", label: "블로그 · 콘텐츠", needs: ["blog", "column", "aeo"] },
-  { id: "place", label: "플레이스 순위", needs: ["place"] },
-  { id: "cafe", label: "카페 · 바이럴", needs: ["cafe", "daangn", "review"] },
-  { id: "sns", label: "SNS 카드뉴스", needs: ["cardnews"] },
-];
+  { id: "", label: "대시보드", svc: null, fixed: true },
+  { id: "blog", label: "블로그", svc: "blog", fixed: true },
+  { id: "column", label: "홈페이지 칼럼", svc: "column", fixed: true },
+  { id: "place", label: "플레이스 순위", svc: "place", fixed: false },
+  { id: "cafe", label: "카페 바이럴", svc: "cafe", fixed: true },
+  { id: "daangn", label: "당근마켓 바이럴", svc: "daangn", fixed: true },
+  { id: "sns", label: "SNS 카드뉴스", svc: "cardnews", fixed: true },
+] as const;
+export type MenuId = (typeof MENUS)[number]["id"];
 
 export function isActiveChannel(client: ClientSummary, ch: AdChannelId) {
   const s = client.channels[ch];
@@ -29,8 +34,9 @@ export function isActiveChannel(client: ClientSummary, ch: AdChannelId) {
 }
 
 export function visibleMenus(services: string[]) {
-  return MENUS.filter((m) => m.needs.length === 0 || m.needs.some((n) => services.includes(n)));
+  return MENUS.filter((m) => m.fixed || (m.svc && services.includes(m.svc)));
 }
+export const isContracted = (services: string[], svc: string | null) => !svc || services.includes(svc);
 
 export default function ReportShell({
   client, base, section, title, eyebrow, staffTools, services, period, thisMonth, children,
@@ -52,9 +58,11 @@ export default function ReportShell({
         </div>
         <nav className="nav">
           {visibleMenus(services).map((m) => (
-            <Link key={m.id} href={`${m.id ? `${base}/${m.id}` : base}${q}`} className={current === m.id ? "on" : ""}>{m.label}</Link>
+            <Link key={m.id} href={`${m.id ? `${base}/${m.id}` : base}${q}`} className={`${current === m.id ? "on" : ""} ${isContracted(services, m.svc) ? "" : "off"}`}>
+              {m.label}{!isContracted(services, m.svc) && <span className="cnt">미집행</span>}
+            </Link>
           ))}
-          <details open={inAds} className="nav-group">
+          <details open className="nav-group">
             <summary className={`nav-parent ${inAds ? "on" : ""}`}>온라인 광고<span className="chev" aria-hidden="true">▾</span></summary>
             <div className="subnav">
               {AD_CHANNELS.map((ch) => {

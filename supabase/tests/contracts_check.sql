@@ -86,6 +86,25 @@ begin
   begin perform public.staff_report_history(b); r := r || '13 FAIL;';
   exception when insufficient_privilege then r := r || '13 OK;'; end;
 
+  -- 15. 추가 진행 업무: 같은 업무가 견적·추가로 나뉘면 자동 집계(블로그 2건)는 견적 항목부터 채운다
+  perform public.add_extra_work(a, cur, 'blog', null, 3, (cur || '-28')::date, '중간 추가 요청');
+  v := public.month_overview(cur, a);
+  r := r || '15 ' || case when (select sum((e->>'done')::int) from jsonb_array_elements(v->0->'items') e where e->>'service' = 'blog') = 2
+                          and exists (select 1 from jsonb_array_elements(v->0->'items') e where (e->>'extra')::boolean and e->>'note' = '중간 추가 요청' and (e->>'done')::int = 0)
+                     then 'OK' else 'FAIL:' || (v->0->'items')::text end || ';';
+  -- 16. 리포트 월 목표 = 견적 + 추가 합계
+  r := r || '16 ' || case when (select monthly_target from public.client_services where client_id = a and service = 'blog') = 1002 then 'OK' else 'FAIL' end || ';';
+  -- 17. 당근 바이럴은 카페와 따로 집계
+  perform set_config('role', 'postgres', true);
+  insert into public.cafe_posts (client_id, period, cafe_name, url, channel) values (a, cur, '당근', 'https://example.com/d', 'daangn'), (a, cur, '카페', 'https://example.com/c', 'cafe');
+  perform set_config('role', 'authenticated', true);
+  perform public.add_extra_work(a, cur, 'daangn', null, 2, (cur || '-28')::date, null);
+  v := public.month_overview(cur, a);
+  r := r || '17 ' || case when (select (e->>'done')::int from jsonb_array_elements(v->0->'items') e where e->>'service' = 'daangn') = 1 then 'OK' else 'FAIL' end || ';';
+  -- 18. 담당이 아닌 광고주에는 추가 업무를 넣을 수 없다
+  begin perform public.add_extra_work(b, cur, 'blog', null, 1, (cur || '-28')::date, null); r := r || '18 FAIL;';
+  exception when insufficient_privilege then r := r || '18 OK;'; end;
+
   -- 14. 로그인하지 않은 요청
   perform set_config('role', 'anon', true);
   perform set_config('request.jwt.claims', '{"role":"anon"}', true);

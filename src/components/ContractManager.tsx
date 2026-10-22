@@ -8,10 +8,10 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { SERVICES } from "./ServicePicker";
 import { uploadQuotes } from "./quotes";
 
-const AUTO = new Set(["blog", "cafe", "cardnews", "column", "aeo"]);   // 리포트 자료로 진행 수량을 자동 집계
+const AUTO = new Set(["blog", "cafe", "daangn", "cardnews", "column", "aeo"]);   // 리포트 자료로 진행 수량을 자동 집계
 const OPTIONS = [...SERVICES.map((s) => ({ id: s.id as string, label: s.label })), { id: "etc", label: "기타 업무" }];
 
-type Row = { id?: string; service: string; label: string; quantity: string; dueOn: string; doneCount?: number | null; autoDone?: number | null };
+type Row = { id?: string; service: string; label: string; quantity: string; dueOn: string; extra?: boolean; note?: string; doneCount?: number | null; autoDone?: number | null };
 type Props = {
   clientId: string; period: string; monthLabel: string; lastDay: string; isCurrent: boolean;
   head: { amount: number | null; startsOn: string | null; endsOn: string | null; memo: string | null; updatedAt: string } | null;
@@ -38,7 +38,7 @@ export default function ContractManager(p: Props) {
 
   const finish = (ok: boolean, text: string) => { setMsg({ ok, text }); setBusy(false); if (ok) { setDirty(false); router.refresh(); } };
   const edit = (k: number, patch: Partial<Row>) => { setRows(rows.map((r, i) => (i === k ? { ...r, ...patch } : r))); setDirty(true); };
-  const add = () => { setRows([...rows, { service: "blog", label: "", quantity: "", dueOn: p.lastDay }]); setDirty(true); };
+  const add = (extra = false) => { setRows([...rows, { service: "blog", label: "", quantity: "", dueOn: p.lastDay, extra, note: "" }]); setDirty(true); };
   const remove = (k: number) => { setRows(rows.filter((_, i) => i !== k)); setDirty(true); };
   function copyPrev() {
     if (rows.length && !confirm("지금 입력된 항목을 지난달 계약 항목으로 바꿀까요?")) return;
@@ -60,7 +60,7 @@ export default function ContractManager(p: Props) {
     const { error } = await sb.rpc("save_month_contract", {
       p_client: p.clientId, p_period: p.period, p_amount: amt === "" ? null : Number(amt),
       p_starts: startsOn || null, p_ends: endsOn || null, p_memo: memo,
-      p_items: rows.map((r) => ({ id: r.id, service: r.service, label: r.label.trim() || null, quantity: Number(r.quantity), dueOn: r.dueOn })),
+      p_items: rows.map((r) => ({ id: r.id, service: r.service, label: r.label.trim() || null, quantity: Number(r.quantity), dueOn: r.dueOn, extra: !!r.extra, note: r.note?.trim() || null })),
     });
     finish(!error, error ? "계약 내용을 저장하지 못했습니다. 입력값을 확인해 주세요." : `${p.monthLabel} 계약 내용을 저장했습니다.${p.isCurrent ? " 리포트 계약 항목(월 목표)에도 반영했습니다." : ""}`);
   }
@@ -85,6 +85,7 @@ export default function ContractManager(p: Props) {
   }
 
   const total = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+  const extraTotal = rows.filter((r) => r.extra).reduce((s, r) => s + (Number(r.quantity) || 0), 0);
 
   return (
     <>
@@ -105,18 +106,20 @@ export default function ContractManager(p: Props) {
 
       <section className="card pad mt">
         <div className="card-h">
-          <h2>계약 항목 · 마감일 <span className="faint">합계 {total}건</span></h2>
+          <h2>계약 항목 · 마감일 <span className="faint">합계 {total}건{extraTotal ? ` (추가 ${extraTotal}건 포함)` : ""}</span></h2>
           <div className="row">
             {p.prevItems.length > 0 && <button className="btn sm" disabled={busy} onClick={copyPrev}>지난달 계약 불러오기 ({p.prevItems.length}개)</button>}
-            <button className="btn sm" disabled={busy} onClick={add}>+ 항목 추가</button>
+            <button className="btn sm" disabled={busy} onClick={() => add(false)}>+ 견적 항목</button>
+            <button className="btn sm" disabled={busy} onClick={() => add(true)}>+ 추가 진행 업무</button>
           </div>
         </div>
         <div className="tbl-wrap"><table className="contract-table">
-          <thead><tr><th>업무</th><th>세부 내용</th><th className="r">계약 수량</th><th>마감일</th><th>진행 수량</th><th></th></tr></thead>
+          <thead><tr><th>구분</th><th>업무</th><th>세부 내용</th><th className="r">수량</th><th>마감일</th><th>진행 수량</th><th>추가 사유 · 메모</th><th></th></tr></thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={6} className="faint">항목이 없습니다. ‘+ 항목 추가’를 눌러 주세요.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={8} className="faint">항목이 없습니다. ‘+ 견적 항목’ 또는 ‘+ 추가 진행 업무’를 눌러 주세요.</td></tr>}
             {rows.map((r, k) => (
-              <tr key={r.id ?? `new-${k}`}>
+              <tr key={r.id ?? `new-${k}`} className={r.extra ? "row-extra" : ""}>
+                <td><select value={r.extra ? "extra" : "base"} onChange={(e) => edit(k, { extra: e.target.value === "extra" })} aria-label="구분"><option value="base">견적</option><option value="extra">추가</option></select></td>
                 <td><select value={r.service} onChange={(e) => edit(k, { service: e.target.value })}>{OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select></td>
                 <td><input className="search" value={r.label} maxLength={60} placeholder={r.service === "etc" ? "업무 이름 (필수)" : "예: 상위노출 키워드형"} onChange={(e) => edit(k, { label: e.target.value })} /></td>
                 <td className="r"><input className="search num-in" inputMode="numeric" value={r.quantity} onChange={(e) => edit(k, { quantity: e.target.value.replace(/[^\d]/g, "") })} /></td>
@@ -129,12 +132,13 @@ export default function ContractManager(p: Props) {
                         <button className="btn sm" disabled={busy} onClick={() => saveDone(r.id!)}>저장</button>
                       </span>}
                 </td>
+                <td><input className="search" value={r.note ?? ""} maxLength={300} placeholder={r.extra ? "예: 10/15 추가 요청" : ""} onChange={(e) => edit(k, { note: e.target.value })} /></td>
                 <td className="r"><button className="link-x" aria-label="항목 삭제" title="항목 삭제" onClick={() => remove(k)}>×</button></td>
               </tr>
             ))}
           </tbody>
         </table></div>
-        <p className="faint mt-s">블로그·카페·카드뉴스·칼럼·AEO는 리포트에 등록된 자료로 진행 수량이 자동 집계됩니다. 플레이스·리뷰·당근·기타 업무는 진행 수량을 직접 입력하세요.</p>
+        <p className="faint mt-s">‘추가’는 견적서 확정 내용과 별개로 중간에 추가된 업무입니다. 블로그·카페·당근 바이럴·카드뉴스·칼럼·AEO는 리포트에 등록된 자료로 진행 수량이 자동 집계됩니다. 플레이스·리뷰·기타 업무는 진행 수량을 직접 입력하세요.</p>
         <div className="row mt">
           <button className="btn primary" disabled={busy} onClick={save}>{busy ? "저장 중…" : "계약 내용 저장"}</button>
           {dirty && <span className="faint">저장하지 않은 변경이 있습니다</span>}

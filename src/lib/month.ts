@@ -3,7 +3,7 @@ import "server-only";
 import { supabaseForStaff } from "./supabase/server";
 import { SERVICE_LABELS } from "./content";
 
-export type ContractItem = { id: string | null; service: string; label: string | null; quantity: number; done: number; auto: boolean; dueOn: string; fallback?: boolean };
+export type ContractItem = { id: string | null; service: string; label: string | null; quantity: number; done: number; auto: boolean; dueOn: string; extra?: boolean; note?: string | null; fallback?: boolean };
 export type MonthClient = {
   id: string; name: string; category: string | null; area: string | null;
   staff: { id: string; name: string; primary: boolean }[];

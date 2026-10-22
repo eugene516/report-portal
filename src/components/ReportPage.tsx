@@ -3,11 +3,40 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { basePath, getClientSummary, getNaverReport, getNaverTopKeywords, resolveKeywordWindow, resolvePeriod, type ClientSummary, type ReportCtx } from "@/lib/report";
 import { captureUrls, currentPeriod, getContentForRequest, getHistory, SERVICE_LABELS, type HistoryMonth, type ReportContent } from "@/lib/content";
-import ReportShell, { AD_CHANNELS, isActiveChannel, MENUS, visibleMenus, type AdChannelId } from "./ReportShell";
+import ReportShell, { AD_CHANNELS, isActiveChannel, isContracted, MENUS, visibleMenus, type AdChannelId } from "./ReportShell";
 import NaverAdsView from "./NaverAdsView";
-import { BlogSection, CafeSection, PlaceSection, SnsSection } from "./ContentSections";
+import { BlogSection, CafeSection, ColumnSection, PlaceSection, SnsSection } from "./ContentSections";
 import ContractsSection from "./ContractsSection";
+import SectionTools, { type SectionKind } from "./SectionTools";
+import AdContractButton from "./AdContractButton";
+import { getMonthOverview, monthInfo } from "@/lib/month";
 import { Donut } from "./charts";
+
+const SECTION_KIND: Partial<Record<string, SectionKind>> = { blog: "blog", column: "column", cafe: "cafe", daangn: "daangn", sns: "cardnews" };
+
+// 미집행 메뉴라도 등록된 내용이 있으면 보여준다
+function hasContent(c: ReportContent, key: string) {
+  if (key === "blog") return c.blog.length > 0;
+  if (key === "column") return c.columns.length > 0;
+  if (key === "cafe" || key === "daangn") return c.cafe.some((x) => (x.channel ?? "cafe") === key);
+  if (key === "sns") return c.cardnews.length > 0;
+  return false;
+}
+
+// 직원 경로 전용: 이 메뉴의 이번 달 계약 수량(견적 + 추가) 요약과 입력 도구
+async function StaffSectionTools({ clientId, period, kind, contracted, content }: { clientId: string; period: string; kind: SectionKind; contracted: boolean; content: ReportContent }) {
+  const [row] = await getMonthOverview(period, clientId);
+  const items = (row?.items ?? []).filter((i) => i.service === kind);
+  const open = items.filter((i) => i.done < i.quantity).sort((a, b) => a.dueOn.localeCompare(b.dueOn));
+  const summary = items.length ? {
+    quantity: items.reduce((s, i) => s + i.quantity, 0),
+    extra: items.filter((i) => i.extra).reduce((s, i) => s + i.quantity, 0),
+    done: items.reduce((s, i) => s + Math.min(i.done, i.quantity), 0),
+    dueOn: open[0]?.dueOn ?? null,
+  } : null;
+  const nextRound = Math.max(0, ...content.cardnews.map((r) => r.round)) + 1;
+  return <SectionTools clientId={clientId} period={period} kind={kind} contracted={contracted} lastDay={monthInfo(period).last} nextRound={nextRound} summary={summary} />;
+}
 
 export default async function ReportPage({
   ctx, section, searchParams, staffTools,
@@ -37,13 +66,31 @@ export default async function ReportPage({
     body = <ContractsSection clientId={ctx.clientId} requested={searchParams.period} />;
   } else {
     const menu = MENUS.find((m) => m.id === key);
-    if (!menu || !visibleMenus(services).includes(menu)) notFound();   // 계약하지 않은 항목의 주소는 열리지 않는다
+    if (!menu || !visibleMenus(services).includes(menu)) notFound();   // 고정 메뉴가 아니고 계약하지 않은 항목(플레이스)의 주소는 열리지 않는다
     title = menu.label;
-    if (key === "") body = <Dashboard client={client} content={content} base={base} />;
-    else if (key === "blog") body = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} />;
-    else if (key === "place") body = <PlaceSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.capture ?? null))} />;
-    else if (key === "cafe") body = <CafeSection c={content} urls={await captureUrls(ctx, content.cafe.map((x) => x.capture))} />;
-    else body = <SnsSection c={content} />;
+    let inner: React.ReactNode;
+    if (key === "") inner = <Dashboard client={client} content={content} base={base} />;
+    else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} />;
+    else if (key === "column") inner = <ColumnSection c={content} />;
+    else if (key === "place") inner = <PlaceSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.capture ?? null))} />;
+    else if (key === "cafe" || key === "daangn") {
+      const list = content.cafe.filter((x) => (x.channel ?? "cafe") === key);
+      inner = <CafeSection c={content} list={list} channel={key} urls={await captureUrls(ctx, list.map((x) => x.capture))} />;
+    } else inner = <SnsSection c={content} />;
+    const kind = SECTION_KIND[key];
+    const contracted = isContracted(services, menu.svc);
+    body = (
+      <>
+        {!contracted && (
+          <div className="empty-state off-state off-banner">
+            <b>{menu.label}는 이번 계약에 포함되지 않은 미집행 항목입니다.</b>
+            {ctx.mode === "staff" ? "중간에 계약되면 아래 ‘추가 계약’으로 수량과 마감일을 등록하고 내용을 추가하세요." : "진행이 시작되면 이곳에 내용이 표시됩니다."}
+          </div>
+        )}
+        {kind && ctx.mode === "staff" && staffTools && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} />}
+        {(contracted || hasContent(content, key)) && inner}
+      </>
+    );
   }
 
   return (
@@ -63,6 +110,7 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
       <div className="empty-state off-state">
         <b>{label}는 집행되지 않는 광고입니다.</b>
         계약된 광고가 아니어서 표시할 성과가 없습니다.
+        {ctx.mode === "staff" && <div className="row mt" style={{ justifyContent: "center" }}><AdContractButton clientId={ctx.clientId} channel={ch} label={label} /></div>}
         {others.length > 0 && (
           <div className="row mt" style={{ justifyContent: "center" }}>
             {others.map((o) => <Link key={o.id} className="btn" href={path.replace(/\/ads\/[^/]+$/, `/ads/${o.id}`)}>{o.label} 성과 보기</Link>)}
@@ -94,22 +142,28 @@ function Dashboard({ client, content, base }: { client: ClientSummary; content: 
   const s = content.services;
   const past = content.period !== currentPeriod();
   const q = past ? `?period=${content.period}` : "";
-  const qa = past ? `${q}&` : "?";
   const top5 = content.blog.filter((b) => (b.rank?.main ?? 99) <= 5 || (b.rank?.blogTab ?? 99) <= 5).length;
   const place = content.keywords.filter((k) => k.kind === "place");
   const placeRanks = place.map((p) => p.place?.rank).filter((v): v is number => v != null);
   // 수량 계약 항목: 도넛 (계약 수량 대비 진행)
-  const cards: { label: string; done: number; target: number | null; unit: string; foot: string; href: string }[] = [];
-  if (s.blog) cards.push({ label: "블로그 발행", done: content.blog.length, target: s.blog.target, unit: "건", foot: `5위 이내 ${top5}건`, href: `${base}/blog${q}` });
-  if (s.column) cards.push({ label: "홈페이지 칼럼", done: content.columns.length, target: s.column.target, unit: "건", foot: "SEO · AEO용 칼럼", href: `${base}/blog${qa}tab=column` });
-  if (s.cafe) cards.push({ label: "카페 바이럴", done: content.cafe.filter((x) => x.status !== "삭제됨").length, target: s.cafe.target, unit: "건", foot: `조회 ${content.cafe.reduce((a, x) => a + (x.views ?? 0), 0).toLocaleString("ko-KR")}`, href: `${base}/cafe${q}` });
-  if (s.cardnews) cards.push({ label: "SNS 카드뉴스", done: content.cardnews.length, target: s.cardnews.target, unit: "회차", foot: `배포 링크 ${content.cardnews.reduce((a, r) => a + r.links.length, 0)}개`, href: `${base}/sns${q}` });
+  // 고정 항목: 계약하지 않았으면 미집행으로 표시
+  const cafe = content.cafe.filter((x) => (x.channel ?? "cafe") === "cafe");
+  const daangn = content.cafe.filter((x) => x.channel === "daangn");
+  const views = (l: typeof cafe) => l.reduce((a, x) => a + (x.views ?? 0), 0).toLocaleString("ko-KR");
+  const cards: { label: string; on: boolean; done: number; target: number | null; unit: string; foot: string; href: string }[] = [
+    { label: "블로그 발행", on: !!s.blog, done: content.blog.length, target: s.blog?.target ?? null, unit: "건", foot: `5위 이내 ${top5}건`, href: `${base}/blog${q}` },
+    { label: "홈페이지 칼럼", on: !!s.column, done: content.columns.length, target: s.column?.target ?? null, unit: "건", foot: "SEO · AEO용 칼럼", href: `${base}/column${q}` },
+    { label: "카페 바이럴", on: !!s.cafe, done: cafe.filter((x) => x.status !== "삭제됨").length, target: s.cafe?.target ?? null, unit: "건", foot: `조회 ${views(cafe)}`, href: `${base}/cafe${q}` },
+    { label: "당근마켓 바이럴", on: !!s.daangn, done: daangn.filter((x) => x.status !== "삭제됨").length, target: s.daangn?.target ?? null, unit: "건", foot: `조회 ${views(daangn)}`, href: `${base}/daangn${q}` },
+    { label: "SNS 카드뉴스", on: !!s.cardnews, done: content.cardnews.length, target: s.cardnews?.target ?? null, unit: "회차", foot: `인스타·카카오·당근 소식 ${content.cardnews.reduce((a, r) => a + r.links.length, 0)}개`, href: `${base}/sns${q}` },
+  ];
   return (
     <>
       <div className="grid g-donut">
         {cards.map((c) => (
-          <Link key={c.label} href={c.href} className="card kpi donut-card">
-            {c.target ? <Donut done={c.done} total={c.target} label={c.label} sub={c.foot} size={104} />
+          <Link key={c.label} href={c.href} className={`card kpi donut-card ${c.on || c.done ? "" : "empty"}`}>
+            {!c.on && !c.done ? <><div className="label">{c.label}</div><div className="value">미집행</div><div className="foot">계약에 포함되지 않음</div></>
+              : c.target ? <Donut done={c.done} total={c.target} label={c.label} sub={c.foot} size={104} />
               : <><div className="label">{c.label}</div><div className="value num">{c.done}<small>{c.unit}</small></div><div className="foot">{c.foot}</div></>}
           </Link>
         ))}
@@ -119,7 +173,6 @@ function Dashboard({ client, content, base }: { client: ClientSummary; content: 
           </Link>
         )}
       </div>
-      {cards.length === 0 && !s.place && <div className="empty-state">계약 항목이 아직 설정되지 않았습니다.</div>}
       <h2 className="mt-l">온라인 광고</h2>
       <div className="grid g-3 mt">
         {AD_CHANNELS.map((c) => {
@@ -141,12 +194,13 @@ function Dashboard({ client, content, base }: { client: ClientSummary; content: 
 function HistorySection({ months, thisMonth, base, services }: { months: HistoryMonth[]; thisMonth: string; base: string; services: string[] }) {
   const past = months.filter((m) => m.period < thisMonth);
   if (past.length === 0) return <div className="empty-state"><b>지난 레포트가 아직 없습니다.</b>이번 달 리포트는 왼쪽 ‘대시보드’에서 볼 수 있습니다.</div>;
-  const total = (m: HistoryMonth) => m.blog + m.cafe + m.cardnews + m.column;
+  const total = (m: HistoryMonth) => m.blog + m.cafe + (m.daangn ?? 0) + m.cardnews + m.column;
   const max = Math.max(1, ...past.map(total));
   const parts = [
     { k: "blog" as const, label: "블로그", on: services.includes("blog") },
     { k: "column" as const, label: "칼럼", on: services.includes("column") },
     { k: "cafe" as const, label: "카페", on: services.includes("cafe") },
+    { k: "daangn" as const, label: "당근", on: services.includes("daangn") },
     { k: "cardnews" as const, label: "카드뉴스", on: services.includes("cardnews") },
   ];
   return (

@@ -4,9 +4,9 @@ export const SERVICES = [
   { id: "blog", label: "블로그", unit: "건/월", hint: "원고 발행 + 네이버 메인·블로그 탭 순위" },
   { id: "place", label: "플레이스", unit: "키워드", hint: "플레이스 순위 + 캡쳐" },
   { id: "cafe", label: "카페 바이럴", unit: "건/월", hint: "게시 링크 + 캡쳐" },
-  { id: "daangn", label: "당근 동네생활", unit: "건/월", hint: "" },
+  { id: "daangn", label: "당근마켓 바이럴", unit: "건/월", hint: "동네생활 게시글" },
   { id: "review", label: "리뷰(지도·영수증)", unit: "건/월", hint: "" },
-  { id: "cardnews", label: "SNS 카드뉴스", unit: "회차/월", hint: "인스타그램·당근·카카오" },
+  { id: "cardnews", label: "SNS 카드뉴스", unit: "회차/월", hint: "인스타그램·카카오 소식·당근 소식" },
   { id: "column", label: "홈페이지 칼럼", unit: "건/월", hint: "" },
   { id: "aeo", label: "AEO", unit: "키워드", hint: "AI 답변형 검색 노출" },
 ] as const;

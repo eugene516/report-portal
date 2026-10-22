@@ -608,3 +608,28 @@ a.donut-card { color: var(--text); }
   .crates li a { grid-template-columns: minmax(0, 1fr) 84px; }
   .crates li a > .cr-bar, .crates li a > .sb-track { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ===== 고정 메뉴 · 미집행 · 직원용 입력 도구 ===== */
+:root { --hb-5: #7a8a00; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hb-5: #8f9a1a; } }
+:root[data-theme="dark"] { --hb-5: #8f9a1a; }
+.hb-5 { background: var(--hb-5); }
+.nav a.off { color: var(--text-3); }
+.nav a.off .cnt { font-size: 11px; background: var(--surface-2); border-radius: 4px; padding: 1px 6px; }
+.off-banner { margin-bottom: 16px; padding: 24px; }
+.sec-tools { margin-bottom: 16px; border-style: dashed; border-color: var(--accent); }
+.st-head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+.st-sum { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.st-bar { display: inline-block; width: 120px; margin: 0; vertical-align: middle; }
+.st-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); align-items: end; }
+.st-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--text-2); }
+.st-form .search { min-width: 0; width: 100%; }
+.st-form .w2 { grid-column: span 2; }
+.st-form .w-all { grid-column: 1 / -1; margin: 0; }
+.st-act { grid-column: 1 / -1; display: flex; gap: 8px; }
+.kpi.empty .value { color: var(--text-3); font-size: 18px; }
+.tag-extra { margin-left: 6px; font-size: 11px; vertical-align: middle; }
+.contract-table tr.row-extra > td { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+.contract-table td:first-child select { min-width: 72px; }
+.contract-table td:nth-child(7) { min-width: 160px; }
+@media (max-width: 700px) { .st-form { grid-template-columns: 1fr 1fr; } .st-form .w2 { grid-column: 1 / -1; } }

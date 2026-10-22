@@ -18,8 +18,8 @@ export default async function ContractsSection({ clientId, requested }: { client
   const db = await supabaseForStaff();
   const [head, items, prevItems, files, months, overview] = await Promise.all([
     db.from("client_month_contracts").select("amount, starts_on, ends_on, memo, updated_at").eq("client_id", clientId).eq("period", period).maybeSingle(),
-    db.from("client_contract_items").select("id, service, label, quantity, done_count, due_on").eq("client_id", clientId).eq("period", period).order("sort"),
-    db.from("client_contract_items").select("service, label, quantity, due_on").eq("client_id", clientId).eq("period", prev).order("sort"),
+    db.from("client_contract_items").select("id, service, label, quantity, done_count, due_on, extra, note").eq("client_id", clientId).eq("period", period).order("sort"),
+    db.from("client_contract_items").select("service, label, quantity, due_on, extra").eq("client_id", clientId).eq("period", prev).order("sort"),
     db.from("client_quotes").select("id, storage_path, file_name, kind, size_bytes, created_at").eq("client_id", clientId).eq("period", period).order("created_at", { ascending: false }),
     db.from("client_month_contracts").select("period, amount").eq("client_id", clientId).order("period", { ascending: false }).limit(24),
     getMonthOverview(period, clientId),
@@ -45,8 +45,8 @@ export default async function ContractsSection({ clientId, requested }: { client
         key={period}
         clientId={clientId} period={period} monthLabel={mi.label} lastDay={mi.last} isCurrent={period === cur}
         head={head.data ? { amount: head.data.amount, startsOn: head.data.starts_on, endsOn: head.data.ends_on, memo: head.data.memo, updatedAt: head.data.updated_at } : null}
-        items={(items.data ?? []).map((i) => ({ id: i.id, service: i.service, label: i.label ?? "", quantity: String(i.quantity), dueOn: i.due_on, doneCount: i.done_count, autoDone: auto.get(i.id) ?? null }))}
-        prevItems={(prevItems.data ?? []).map((i) => ({ service: i.service, label: i.label ?? "", quantity: i.quantity, day: Number(i.due_on.slice(8, 10)) }))}
+        items={(items.data ?? []).map((i) => ({ id: i.id, service: i.service, label: i.label ?? "", quantity: String(i.quantity), dueOn: i.due_on, extra: i.extra, note: i.note ?? "", doneCount: i.done_count, autoDone: auto.get(i.id) ?? null }))}
+        prevItems={(prevItems.data ?? []).filter((i) => !i.extra).map((i) => ({ service: i.service, label: i.label ?? "", quantity: i.quantity, day: Number(i.due_on.slice(8, 10)) }))}
         files={files.data ?? []}
       />
     </>
