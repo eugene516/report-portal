@@ -1006,3 +1006,36 @@ img, svg { max-width: 100%; }
 .sheet-block + .sheet-block { margin-top: 32px; padding-top: 20px; border-top: 1px dashed var(--border); }
 .sheet-pane > .sheet-sub ~ .sheet-sub { margin-top: 28px; }
 @media print { .sheet-block { break-inside: auto; } .sheet-block + .sheet-block { break-before: page; border-top: 0; } }
+
+/* 파일 검수: 파일 썸네일 목록 · 전체 보기 창 */
+.file-thumbs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.file-thumbs li { min-width: 0; }
+.fthumb { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 5; padding: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-2); cursor: zoom-in; transition: border-color .15s, box-shadow .15s; }
+.fthumb:hover, .fthumb:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.fthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fthumb.doc { background: #fff; place-items: start; }
+.docx-thumb { width: 100%; height: 100%; padding: 10px 11px; overflow: hidden; color: #1b1f27; font-size: 6.5px; line-height: 1.55; text-align: left; pointer-events: none; -webkit-mask-image: linear-gradient(#000 80%, transparent); mask-image: linear-gradient(#000 80%, transparent); }
+.docx-thumb p, .docx-thumb h1, .docx-thumb h2, .docx-thumb h3, .docx-thumb ul, .docx-thumb ol { margin: 0 0 4px; font-size: inherit; }
+.docx-thumb h1, .docx-thumb h2, .docx-thumb h3 { font-size: 8.5px; }
+.docx-thumb img { max-width: 100%; height: auto; }
+.docx-thumb table { border-collapse: collapse; } .docx-thumb td, .docx-thumb th { border: 1px solid #ddd; padding: 1px 3px; }
+.thumb-icon { font-weight: 700; font-size: 15px; color: var(--text-2); letter-spacing: .04em; }
+.fthumb.doc .thumb-icon { place-self: center; }
+.thumb-cap { display: flex; align-items: center; gap: 6px; padding: 6px 2px 0; font-size: 12px; }
+.thumb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thumb-x { border: 0; background: none; color: var(--text-2); cursor: pointer; padding: 0 2px; font-size: 13px; }
+.thumb-x:hover { color: var(--bad, #c0392b); }
+.file-viewer .modal-panel { width: min(1100px, calc(100vw - 24px)); height: calc(100vh - 48px); max-height: none; display: flex; flex-direction: column; padding: 16px 18px; }
+.fv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-right: 32px; margin-bottom: 12px; }
+.fv-name { min-width: 0; overflow-wrap: anywhere; }
+.fv-nav { display: flex; gap: 6px; margin-left: auto; }
+.fv-body { flex: 1; min-height: 0; overflow: auto; display: flex; justify-content: center; align-items: flex-start; background: var(--surface-2); border-radius: 10px; }
+.fv-body img { max-width: 100%; height: auto; display: block; margin: auto; }
+.fv-body iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.fv-body .docx-view { max-height: none; width: min(820px, 100%); margin: 0; border: 0; border-radius: 0; min-height: 100%; }
+.fv-body .notice { margin: 24px; }
+@media (max-width: 600px) {
+  .file-thumbs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .file-viewer .modal-panel { width: 100vw; height: 100dvh; border-radius: 0; padding: 12px; }
+  .fv-nav { margin-left: 0; width: 100%; } .fv-nav .btn { flex: 1; }
+}

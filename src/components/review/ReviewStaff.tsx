@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ask, toast, toastError } from "@/components/ui";
+import { FileThumbs } from "./ReviewFiles";
 
 const KINDS = [["blog", "블로그"], ["column", "홈페이지 칼럼"], ["cardnews", "SNS 카드뉴스"], ["etc", "기타"]] as const;
 const ACCEPT = ".docx,.doc,.pdf,.hwp,.txt,image/png,image/jpeg,image/webp,image/gif";
@@ -27,14 +28,21 @@ async function uploadFiles(clientId: string, itemId: string, version: number, fi
 }
 
 // 목록 화면 위: 새 콘텐츠 등록
+type Picked = { id: string; file: File; url: string };
+
 export function ReviewCreate({ clientId, period }: { clientId: string; period: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  // 고른 파일은 등록 전에 바로 썸네일로 보여 준다 (브라우저 안 주소, 빼거나 닫으면 해제)
+  const [picked, setPicked] = useState<Picked[]>([]);
+  const pick = (list: File[]) => setPicked((p) => [...p, ...list.filter((f) => f.size > 0).map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) }))]);
+  const unpick = (id: string) => { picked.filter((x) => x.id === id).forEach((x) => URL.revokeObjectURL(x.url)); setPicked((p) => p.filter((x) => x.id !== id)); };
+  const clear = () => { picked.forEach((x) => URL.revokeObjectURL(x.url)); setPicked([]); };
   async function create(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget; const fd = new FormData(form);
-    const files = (fd.getAll("files") as File[]).filter((f) => f.size > 0);
+    const files = picked.map((x) => x.file);
     if (!files.length) return toastError("원고나 이미지 파일을 하나 이상 올려 주세요.");
     // 제목은 따로 받지 않고 원고 파일명(없으면 첫 파일명)에서 확장자를 뺀 이름으로
     const main = files.find((f) => /\.(docx?|hwp|pdf|txt)$/i.test(f.name)) ?? files[0];
@@ -49,19 +57,26 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
       const { error: e2 } = await sb.rpc("review_request", { p_item: data.id });
       msg = e2 ? msg + " 검수 요청은 하지 못했습니다." : `검수를 요청했습니다 (파일 ${ok}개). 광고주 파일 검수 화면에 바로 보입니다.`;
     }
-    setBusy(false); form.reset(); setOpen(false);
+    setBusy(false); form.reset(); clear(); setOpen(false);
     toast(msg); router.refresh();
   }
   if (!open) return <button className="btn primary" onClick={() => setOpen(true)}>+ 검수 콘텐츠 등록</button>;
+  const tooBig = picked.filter((x) => x.file.size > 30 * 1024 * 1024).length;
   return (
     <form className="card pad review-create" onSubmit={create}>
       <h3>검수 콘텐츠 등록</h3>
       <div className="st-form">
         <label>유형<select name="kind" defaultValue="blog">{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label>대상 월<input name="period" type="month" defaultValue={period} required className="search" /></label>
-        <label className="w-all">원고 · 이미지 (여러 개 선택, 파일당 30MB 이하)<input name="files" type="file" multiple accept={ACCEPT} className="search" /></label>
+        <label className="w-all">원고 · 이미지 (여러 개 선택, 파일당 30MB 이하)<input type="file" multiple accept={ACCEPT} className="search" onChange={(e) => { pick([...(e.target.files ?? [])]); e.target.value = ""; }} /></label>
+        {picked.length > 0 && (
+          <div className="w-all">
+            <p className="faint">선택한 파일 {picked.length}개 — 썸네일을 누르면 전체 내용을 볼 수 있습니다{tooBig ? ` · 30MB가 넘는 ${tooBig}개는 올라가지 않습니다` : ""}</p>
+            <FileThumbs files={picked.map((x) => ({ id: x.id, name: x.file.name, url: x.url, mime: x.file.type || null, size: x.file.size }))} onRemove={unpick} />
+          </div>
+        )}
         <label className="w-all check-row"><input type="checkbox" name="request" defaultChecked /> 등록하면서 바로 광고주에게 검수 요청</label>
-        <div className="st-act"><button className="btn primary" disabled={busy}>{busy ? "올리는 중…" : "등록"}</button><button type="button" className="btn" onClick={() => setOpen(false)}>취소</button></div>
+        <div className="st-act"><button className="btn primary" disabled={busy}>{busy ? "올리는 중…" : "등록"}</button><button type="button" className="btn" onClick={() => { clear(); setOpen(false); }}>취소</button></div>
       </div>
     </form>
   );
