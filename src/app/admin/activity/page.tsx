@@ -24,9 +24,12 @@ const HIDE = new Set(["client_id", "storage_path", "mime_type", "size_bytes", "i
 const show = (v: unknown) => (v === null || v === undefined || v === "" ? "없음" : v === true ? "예" : v === false ? "아니오" : String(v).slice(0, 60));
 const kst = (iso: string) => new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 
+const VALUE: Record<string, Record<string, string>> = { repeat: { none: "반복 안 함", daily: "매일", weekly: "매주", monthly: "매월" }, kind: { quote: "견적서", contract: "계약서" }, role: { owner: "오너", admin: "관리자", staff: "직원" } };
+const val = (k: string, v: unknown) => (typeof v === "string" && VALUE[k]?.[v]) || show(v);
+
 function describe(changes: Record<string, unknown>, action: string) {
   return Object.entries(changes ?? {}).filter(([k]) => !HIDE.has(k)).slice(0, 6).map(([k, v]) =>
-    action === "수정" && Array.isArray(v) ? `${FIELD[k] ?? k}: ${show(v[0])} → ${show(v[1])}` : `${FIELD[k] ?? k}: ${show(v)}`);
+    action === "수정" && Array.isArray(v) ? `${FIELD[k] ?? k}: ${val(k, v[0])} → ${val(k, v[1])}` : `${FIELD[k] ?? k}: ${val(k, v)}`);
 }
 
 export default async function ActivityPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
