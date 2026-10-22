@@ -6,7 +6,7 @@ export function Donut({ done, total, label, sub, size = 120 }: { done: number; t
   const r = 42, c = 2 * Math.PI * r;
   const rate = total ? Math.min(1, done / total) : 0;
   return (
-    <figure className="donut" style={{ width: size }}>
+    <figure className="donut">
       <svg viewBox="0 0 100 100" width={size} height={size} role="img" aria-label={`${label} ${Math.round(rate * 100)}%`}>
         <title>{`${label}: ${done} / ${total} (${Math.round(rate * 100)}%)`}</title>
         <circle cx="50" cy="50" r={r} className="donut-track" />

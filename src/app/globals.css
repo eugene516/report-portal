@@ -487,10 +487,10 @@ a.cname { color: var(--text); }
 .kpi.warn-b { border-color: var(--warn); }
 .kpi.warn-b .value { color: var(--warn); }
 .kpi .value.sm-v { font-size: 20px; }
-.donut-card { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; }
+.donut-card { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; text-align: center; }
 .donut { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
 .donut svg { display: block; }
-.donut figcaption { display: flex; flex-direction: column; font-size: 13px; line-height: 1.35; }
+.donut figcaption { display: flex; flex-direction: column; font-size: 13px; line-height: 1.35; align-items: center; }
 .donut-track { fill: none; stroke: var(--surface-2); stroke-width: 11; }
 .donut-fill { fill: none; stroke: var(--accent); stroke-width: 11; stroke-linecap: round; }
 .donut-fill.full { stroke: var(--good); }
@@ -637,11 +637,12 @@ a.donut-card { color: var(--text); }
 .off-card .value { font-size: 18px; color: var(--text-3); margin: 6px 0 0; }
 .off-act { margin-top: 10px; }
 /* 내부용 업무 항목 카드 (진행 현황 · 광고주 현황 자세히 보기) */
-.svc-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.donut-card.sm { padding: 12px 10px; min-height: 0; }
-.off-card.sm { min-height: 150px; justify-content: center; }
+/* 모든 카드 같은 크기, 내용은 가운데 정렬 */
+.svc-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); grid-auto-rows: 1fr; gap: 12px; }
+.donut-card.sm { padding: 14px 10px; min-height: 176px; justify-content: center; align-items: center; text-align: center; }
+.donut-card.sm .donut figcaption { align-items: center; }
+.donut-card.sm .label, .donut-card.sm .foot { width: 100%; }
 .off-card.sm .value { font-size: 16px; margin: 2px 0 0; }
-.donut-card.sm.ad { justify-content: center; text-align: center; min-height: 110px; }
 a.donut-card.sm.ad .value { font-size: 18px; margin: 4px 0 2px; }
 .xd-grid { grid-column: 1 / -1; }
 /* 광고주 링크: 미집행은 작게 */
