@@ -904,3 +904,4 @@ img, svg { max-width: 100%; }
   .nav-div { display: none; }
   .actions { gap: 6px; }
 }
+.notice .btn { white-space: nowrap; flex-shrink: 0; }
