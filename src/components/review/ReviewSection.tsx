@@ -104,7 +104,7 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
             <div key={x.k} className="card kpi static">
               <div className="label">{REVIEW_KINDS[x.k]}</div>
               <div className="value num">{x.done}<small>/ {x.total}건</small></div>
-              <div className="foot">{x.total} 건 중 {x.done}건 검수 완료</div>
+              <div className="foot">{x.total}건 중 {x.done}건 검수 완료</div>
             </div>
           ))}
         </div>
