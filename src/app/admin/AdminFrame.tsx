@@ -119,7 +119,6 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
               {isAdmin && <Link href="/admin/assignments" className={on("/admin/assignments")}>담당 직원 배정</Link>}
               {isAdmin && <Link href="/admin/staff" className={on("/admin/staff")}>직원 · 권한 관리</Link>}
               {isAdmin && <Link href="/admin/settings/naver-keys" className={on("/admin/settings", false)}>API 키 현황</Link>}
-              {isAdmin && <Link href="/admin/activity" className={on("/admin/activity")}>변경 이력</Link>}
             </nav>
           </div>
         </aside>

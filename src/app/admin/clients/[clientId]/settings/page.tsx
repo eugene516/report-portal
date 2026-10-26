@@ -37,7 +37,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
 
   return (
     <div className="ops narrow-wide">
-      <ClientTabs clientId={clientId} current="settings" isAdmin={isAdminRole(me.role)} />
+      <ClientTabs clientId={clientId} current="settings" />
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div><div className="faint">광고주 설정</div><h1>{client.name}</h1></div>
         <div className="row">
