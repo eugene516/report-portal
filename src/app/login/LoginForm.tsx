@@ -30,8 +30,9 @@ export default function LoginForm({ email = "" }: { email?: string }) {
     router.refresh();
   }
 
+  // method="post": 스크립트가 안 돌 때도 비밀번호가 주소창 · 기록에 남지 않도록
   return (
-    <form onSubmit={submit} className="login-form">
+    <form onSubmit={submit} method="post" className="login-form">
       <label htmlFor="email" className="faint">직원 이메일</label>
       <input id="email" name="email" type="email" required autoComplete="username" className="search" placeholder="name@believe-corner.com" defaultValue={email} />
       <label htmlFor="password" className="faint">비밀번호</label>

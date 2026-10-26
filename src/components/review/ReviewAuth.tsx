@@ -27,7 +27,7 @@ export function ReviewLogin({ clientName, other }: { clientName: string; other: 
       <h2>파일 검수 로그인</h2>
       <p className="faint">{clientName} 담당자 계정으로 로그인하면 콘텐츠를 확인하고 검수 완료 · 수정 요청을 할 수 있습니다. 계정은 믿는구석 담당자가 발급해 드립니다.</p>
       {other && <div className="notice mt-s">지금 로그인한 계정은 {clientName} 검수 계정이 아닙니다. 검수 계정으로 다시 로그인해 주세요.</div>}
-      <form className="login-form" onSubmit={login}>
+      <form className="login-form" method="post" onSubmit={login}>
         <input name="email" type="email" required placeholder="이메일" className="search" autoComplete="username" />
         <input name="password" type="password" required placeholder="비밀번호" className="search" autoComplete="current-password" />
         <button className="btn primary" disabled={busy}>{busy ? "확인 중…" : "로그인"}</button>
@@ -58,7 +58,7 @@ export function ReviewChangePassword() {
     <section className="card pad review-login">
       <h2>새 비밀번호 설정</h2>
       <p className="faint">처음 로그인하셨습니다. 임시 비밀번호를 새 비밀번호로 바꿔 주세요.</p>
-      <form className="login-form" onSubmit={change}>
+      <form className="login-form" method="post" onSubmit={change}>
         <input name="pw" type="password" required placeholder="새 비밀번호 (10자 이상, 대·소문자·숫자)" className="search" autoComplete="new-password" />
         <input name="pw2" type="password" required placeholder="새 비밀번호 확인" className="search" autoComplete="new-password" />
         <button className="btn primary" disabled={busy}>{busy ? "저장 중…" : "비밀번호 저장"}</button>

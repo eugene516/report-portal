@@ -1036,7 +1036,7 @@ img, svg { max-width: 100%; }
 .fv-body .notice { margin: 24px; }
 @media (max-width: 600px) {
   .file-thumbs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .file-viewer .modal-panel { width: 100vw; height: 100dvh; border-radius: 0; padding: 12px; }
+  .file-viewer .modal-panel { width: 100vw; height: 100vh; height: 100dvh; border-radius: 0; padding: 12px; }
   .fv-nav { margin-left: 0; width: 100%; } .fv-nav .btn { flex: 1; }
 }
 .review-after { display: flex; flex-wrap: wrap; gap: 6px 18px; }

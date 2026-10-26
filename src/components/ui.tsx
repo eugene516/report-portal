@@ -4,6 +4,7 @@
 // - confirmDialog({ title, body, ok, danger }): 브라우저 기본 확인창 대신 쓰는 확인 창 (Promise<boolean>)
 // 루트 레이아웃의 <UiHost /> 하나가 모든 알림·확인 창을 그린다.
 import { useEffect, useRef, useState } from "react";
+import "@/lib/polyfills";
 
 type ToastItem = { id: number; text: string; kind: "ok" | "error" | "info"; undo?: () => void };
 type ConfirmReq = { title: string; body?: string; ok?: string; danger?: boolean; resolve: (v: boolean) => void };
