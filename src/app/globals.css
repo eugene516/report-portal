@@ -1055,8 +1055,8 @@ img, svg { max-width: 100%; }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.ghost:hover { border-color: var(--border); }
 .review-viewer .fv-head .kind-tag { flex: none; }
-.rv-body { flex-direction: column; align-items: center; gap: 16px; padding: 12px 0; }
-.rv-file { width: min(860px, 100%); }
+.rv-body { flex-direction: column; justify-content: flex-start; align-items: center; gap: 16px; padding: 12px 0; }   /* 세로 가운데 정렬이면 긴 원고의 위쪽(제목)이 잘린다 */
+.rv-file { width: min(860px, 100%); flex: none; }
 .rv-file-h { display: flex; justify-content: space-between; gap: 8px; padding: 4px 6px; font-size: 12.5px; color: var(--text-2); }
 .rv-file img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
 .rv-file iframe { width: 100%; height: 75vh; border: 0; background: #fff; }
