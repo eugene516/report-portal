@@ -23,8 +23,9 @@ const int = (v: string) => (v === "" ? null : Math.max(0, Math.floor(Number(v.re
 
 export type ContractSummary = { quantity: number; extra: number; done: number; dueOn: string | null } | null;
 
-export default function SectionTools({ clientId, period, kind, contracted, lastDay, nextRound, summary, initialOpen = null }: {
+export default function SectionTools({ clientId, period, kind, contracted, lastDay, nextRound, summary, initialOpen = null, inHouse = false }: {
   clientId: string; period: string; kind: SectionKind; contracted: boolean; lastDay: string; nextRound: number; summary: ContractSummary;
+  inHouse?: boolean;                          // 자사 마케팅: '추가 계약' 대신 '항목 추가'
   initialOpen?: "content" | "extra" | null;   // 대시보드의 [+ 추가하기]로 들어오면 추가 계약 입력이 열린 상태
 }) {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
       p_client: clientId, p_period: period, p_service: kind, p_label: s(fd, "label") || null,
       p_quantity: qty, p_due: s(fd, "due") || lastDay, p_note: s(fd, "note") || null,
     });
-    finish(!error, error ? "추가 계약을 저장하지 못했습니다." : `${n.svc} ${qty}건을 추가 진행 업무로 등록했습니다.${contracted ? "" : " 이제 이 메뉴가 진행 중으로 바뀝니다."}`, form);
+    finish(!error, error ? `${inHouse ? "항목" : "추가 계약"}을 저장하지 못했습니다.` : `${n.svc} ${qty}건을 ${inHouse ? "업무 항목" : "추가 진행 업무"}으로 등록했습니다.${contracted ? "" : " 이제 이 메뉴가 진행 중으로 바뀝니다."}`, form);
   }
 
   const pct = summary && summary.quantity ? Math.min(100, (summary.done / summary.quantity) * 100) : 0;
@@ -94,17 +95,17 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
           <span className="badge acc">직원용</span>
           {summary && summary.quantity > 0 ? (
             <>
-              <b>{period.replace("-", "년 ")}월 계약 {summary.quantity}건</b>
+              <b>{period.replace("-", "년 ")}월 {inHouse ? "업무" : "계약"} {summary.quantity}건</b>
               {summary.extra > 0 && <span className="faint">(추가 {summary.extra}건 포함)</span>}
               <span className="bar thin st-bar"><i style={{ width: `${pct}%` }} /></span>
               <span className="num">진행 {summary.done}건</span>
               {summary.dueOn && <span className="faint">· 마감 {summary.dueOn.slice(5).replace("-", "/")}</span>}
             </>
-          ) : <span className="faint">{contracted ? "이번 달 계약 수량이 등록되지 않았습니다." : "미집행 · 이번 달 계약 수량 없음"}</span>}
+          ) : <span className="faint">{inHouse ? (contracted ? "이번 달 수량이 등록되지 않았습니다." : "이번 달 진행하지 않는 항목") : contracted ? "이번 달 계약 수량이 등록되지 않았습니다." : "미집행 · 이번 달 계약 수량 없음"}</span>}
         </div>
         <div className="row">
           <button className={`btn sm ${open === "content" ? "primary" : ""}`} onClick={() => { setOpen(open === "content" ? null : "content"); setMsg(null); }}>+ {n.item} 추가</button>
-          <button className={`btn sm ${open === "extra" ? "primary" : ""}`} onClick={() => { setOpen(open === "extra" ? null : "extra"); setMsg(null); }}>+ 추가 계약</button>
+          <button className={`btn sm ${open === "extra" ? "primary" : ""}`} onClick={() => { setOpen(open === "extra" ? null : "extra"); setMsg(null); }}>{inHouse ? "+ 항목 추가" : "+ 추가 계약"}</button>
         </div>
       </div>
 
@@ -147,12 +148,12 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
 
       {open === "extra" && (
         <form className="st-form" onSubmit={addExtra} autoComplete="off">
-          <p className="faint w-all">견적서에 없던 업무를 중간에 추가로 진행할 때 등록합니다. 대시보드·진행 현황에 ‘추가’로 표시되고, 계약 수량과 마감 관리에 포함됩니다.</p>
-          <label>추가 수량 *<input name="qty" required inputMode="numeric" className="search" placeholder="예: 2" /></label>
+          <p className="faint w-all">{inHouse ? "이번 달 진행할 업무 수량과 마감일을 등록합니다. 대시보드·진행 현황의 진행률과 마감 관리에 포함됩니다." : "견적서에 없던 업무를 중간에 추가로 진행할 때 등록합니다. 대시보드·진행 현황에 ‘추가’로 표시되고, 계약 수량과 마감 관리에 포함됩니다."}</p>
+          <label>{inHouse ? "수량" : "추가 수량"} *<input name="qty" required inputMode="numeric" className="search" placeholder="예: 2" /></label>
           <label>마감일<input name="due" type="date" defaultValue={lastDay} className="search" /></label>
           <label className="w2">세부 내용<input name="label" maxLength={60} className="search" placeholder="예: 이벤트 홍보용" /></label>
-          <label className="w-all">추가 사유 · 요청 내용 (내부용)<input name="note" maxLength={300} className="search" placeholder="예: 10/15 원장님 요청, 추가 비용 별도 청구" /></label>
-          <div className="st-act"><button className="btn primary sm" disabled={busy}>{busy ? "저장 중…" : "추가 계약 등록"}</button><button type="button" className="btn sm" onClick={() => setOpen(null)}>취소</button></div>
+          <label className="w-all">{inHouse ? "메모 (내부용)" : "추가 사유 · 요청 내용 (내부용)"}<input name="note" maxLength={300} className="search" placeholder={inHouse ? "" : "예: 10/15 원장님 요청, 추가 비용 별도 청구"} /></label>
+          <div className="st-act"><button className="btn primary sm" disabled={busy}>{busy ? "저장 중…" : inHouse ? "항목 등록" : "추가 계약 등록"}</button><button type="button" className="btn sm" onClick={() => setOpen(null)}>취소</button></div>
         </form>
       )}
     </section>

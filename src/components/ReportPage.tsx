@@ -37,7 +37,7 @@ function hasContent(c: ReportContent, key: string) {
 }
 
 // 직원 경로 전용: 이 메뉴의 이번 달 계약 수량(견적 + 추가) 요약과 입력 도구
-async function StaffSectionTools({ clientId, period, kind, contracted, content, add }: { clientId: string; period: string; kind: SectionKind; contracted: boolean; content: ReportContent; add?: string }) {
+async function StaffSectionTools({ clientId, period, kind, contracted, content, add, inHouse }: { clientId: string; period: string; kind: SectionKind; contracted: boolean; content: ReportContent; add?: string; inHouse: boolean }) {
   const [row] = await getMonthOverview(period, clientId);
   const items = (row?.items ?? []).filter((i) => i.service === kind);
   const open = items.filter((i) => i.done < i.quantity).sort((a, b) => a.dueOn.localeCompare(b.dueOn));
@@ -48,7 +48,7 @@ async function StaffSectionTools({ clientId, period, kind, contracted, content, 
     dueOn: open[0]?.dueOn ?? null,
   } : null;
   const nextRound = Math.max(0, ...content.cardnews.map((r) => r.round)) + 1;
-  return <SectionTools clientId={clientId} period={period} kind={kind} contracted={contracted} lastDay={monthInfo(period).last} nextRound={nextRound} summary={summary} initialOpen={add === "extra" ? "extra" : add === "content" ? "content" : null} />;
+  return <SectionTools clientId={clientId} period={period} kind={kind} contracted={contracted} lastDay={monthInfo(period).last} nextRound={nextRound} summary={summary} inHouse={inHouse} initialOpen={add === "extra" ? "extra" : add === "content" ? "content" : null} />;
 }
 
 export default async function ReportPage({
@@ -71,7 +71,7 @@ export default async function ReportPage({
   const monthLabel = `${content.period.replace("-", "년 ")}월`;
 
   let title: string;
-  const inHouse = ctx.mode === "staff" && staffView ? (await getInHouseIds()).has(ctx.clientId) : false;   // 자사 마케팅: 계약 대신 업무 항목
+  const inHouse = ctx.mode === "staff" ? (await getInHouseIds()).has(ctx.clientId) : false;   // 자사 마케팅: 계약 표현 없이 업무 항목
   let body: React.ReactNode;
   if (section[0] === "ads") {
     const ch = AD_CHANNELS.find((c) => c.id === section[1]);
@@ -85,8 +85,8 @@ export default async function ReportPage({
         {creatives && <AdCreatives items={creatives} editable={staffView} clientId={ctx.mode === "staff" ? ctx.clientId : undefined} channel={ch.id} label={ch.label} />}
         {placeAd
           ? (client.channels.naver?.contracted ? <PlaceAdsSection c={content} area={client.area} />
-            : staffView ? await adsBody(ctx, client, ch.id, "네이버 플레이스 광고", `${base}/ads/naver/place`, searchParams, staffView) : <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 광고입니다.</p>)
-          : await adsBody(ctx, client, ch.id, ch.id === "naver" ? "네이버 파워링크 광고" : ch.label, `${base}/ads/${ch.id}`, searchParams, staffView)}
+            : staffView ? await adsBody(ctx, client, ch.id, "네이버 플레이스 광고", `${base}/ads/naver/place`, searchParams, staffView, inHouse) : <p className="off-note"><span className="badge">미집행</span> {inHouse ? "집행하지 않는 광고입니다." : "이번 계약에 포함되지 않은 광고입니다."}</p>)
+          : await adsBody(ctx, client, ch.id, ch.id === "naver" ? "네이버 파워링크 광고" : ch.label, `${base}/ads/${ch.id}`, searchParams, staffView, inHouse)}
       </>
     );
   } else if (section[0] === "review" && section.length <= 2) {
@@ -108,7 +108,7 @@ export default async function ReportPage({
     if (!menu || !visibleMenus(services).includes(menu)) notFound();   // 고정 메뉴가 아니고 계약하지 않은 항목(플레이스)의 주소는 열리지 않는다
     title = menu.label;
     let inner: React.ReactNode;
-    if (key === "") inner = <Dashboard ctx={ctx} client={client} content={content} base={base} staff={staffView} />;
+    if (key === "") inner = <Dashboard ctx={ctx} client={client} content={content} base={base} staff={staffView} inHouse={inHouse} />;
     else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} editable={staffView} />;
     else if (key === "column") inner = <ColumnSection c={content} />;
     else if (key === "place") inner = <PlaceSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.capture ?? null))} />;
@@ -122,11 +122,13 @@ export default async function ReportPage({
       <>
         {!contracted && (staffView ? (
           <div className="empty-state off-state off-banner">
-            <b>{eunNeun(menu.label)} 이번 계약에 포함되지 않은 미집행 항목입니다.</b>
-            중간에 계약되면 아래 ‘+ 추가 계약’으로 수량과 마감일을 등록하세요.
+            {inHouse ? <><b>{eunNeun(menu.label)} 이번 달 진행하지 않는 항목입니다.</b>
+            진행하려면 아래 ‘+ 항목 추가’로 수량과 마감일을 등록하세요.</>
+            : <><b>{eunNeun(menu.label)} 이번 계약에 포함되지 않은 미집행 항목입니다.</b>
+            중간에 계약되면 아래 ‘+ 추가 계약’으로 수량과 마감일을 등록하세요.</>}
           </div>
-        ) : <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 항목입니다.</p>)}
-        {kind && ctx.mode === "staff" && staffView && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} add={searchParams.add} />}
+        ) : <p className="off-note"><span className="badge">미집행</span> {inHouse ? "이번 달 진행하지 않는 항목입니다." : "이번 계약에 포함되지 않은 항목입니다."}</p>)}
+        {kind && ctx.mode === "staff" && staffView && <StaffSectionTools clientId={ctx.clientId} period={content.period} kind={kind} contracted={contracted} content={content} add={searchParams.add} inHouse={inHouse} />}
         {(contracted || hasContent(content, key)) && inner}
       </>
     );
@@ -151,16 +153,16 @@ async function getCreatives(ctx: ReportCtx, channel: string): Promise<Creative[]
   return rows.map((r) => ({ ...r, url: urls.get(r.path) ?? null }));
 }
 
-async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, label: string, path: string, sp: Record<string, string | undefined>, staffView: boolean) {
+async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, label: string, path: string, sp: Record<string, string | undefined>, staffView: boolean, inHouse = false) {
   const state = client.channels[ch];
-  if (!state?.contracted && !staffView) return <p className="off-note"><span className="badge">미집행</span> 이번 계약에 포함되지 않은 광고입니다.</p>;
+  if (!state?.contracted && !staffView) return <p className="off-note"><span className="badge">미집행</span> {inHouse ? "집행하지 않는 광고입니다." : "이번 계약에 포함되지 않은 광고입니다."}</p>;
   if (!state?.contracted) {
     const others = AD_CHANNELS.filter((c) => c.id !== ch && isActiveChannel(client, c.id));
     return (
       <div className="empty-state off-state">
         <b>{eunNeun(label)} 집행되지 않는 광고입니다.</b>
-        계약된 광고가 아니어서 표시할 성과가 없습니다.
-        {ctx.mode === "staff" && staffView && <div className="row mt" style={{ justifyContent: "center" }}><AdContractButton clientId={ctx.clientId} channel={ch} label={label} /></div>}
+        {inHouse ? "집행 중인 광고가 아니어서" : "계약된 광고가 아니어서"} 표시할 성과가 없습니다.
+        {ctx.mode === "staff" && staffView && <div className="row mt" style={{ justifyContent: "center" }}><AdContractButton clientId={ctx.clientId} channel={ch} label={label} inHouse={inHouse} /></div>}
         {others.length > 0 && (
           <div className="row mt" style={{ justifyContent: "center" }}>
             {others.map((o) => <Link key={o.id} className="btn" href={path.replace(/\/ads\/[^/]+$/, `/ads/${o.id}`)}>{o.label} 성과 보기</Link>)}
@@ -173,7 +175,7 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
     return (
       <div className="empty-state off-state">
         <b>{label} 성과 연결을 준비하고 있습니다.</b>
-        계약된 채널이며, 광고 계정 연결이 끝나면 매일 오전 9시에 성과가 자동으로 반영됩니다.
+        {inHouse ? "집행 채널이며" : "계약된 채널이며"}, 광고 계정 연결이 끝나면 매일 오전 9시에 성과가 자동으로 반영됩니다.
       </div>
     );
   }
@@ -190,7 +192,7 @@ async function adsBody(ctx: ReportCtx, client: ClientSummary, ch: AdChannelId, l
 
 // 대시보드: 모든 업무 항목과 광고 채널을 기본 카드로 표시. 계약하지 않은 항목은 "미집행",
 // 직원 화면에서는 그 아래 [+ 추가하기] (→ 해당 메뉴의 추가 계약 입력이 열린 상태로 이동)
-async function Dashboard({ ctx, client, content, base, staff, summaryOnly = false }: { ctx: ReportCtx; client: ClientSummary; content: ReportContent; base: string; staff: boolean; summaryOnly?: boolean }) {
+async function Dashboard({ ctx, client, content, base, staff, summaryOnly = false, inHouse = false }: { ctx: ReportCtx; client: ClientSummary; content: ReportContent; base: string; staff: boolean; summaryOnly?: boolean; inHouse?: boolean }) {
   const s = content.services;
   const past = content.period !== currentPeriod();
   const q = past ? `?period=${content.period}` : "";
@@ -222,13 +224,13 @@ async function Dashboard({ ctx, client, content, base, staff, summaryOnly = fals
         <span><b>레포트 상세보기</b><span className="faint">블로그 · 플레이스 · 카페 · SNS · 광고까지 이번 달 내용을 한 페이지에서 탭으로 보고 PDF로 저장</span></span>
         <span className="btn primary">상세보기 열기 ›</span>
       </Link>}
-      <MonthSummary ctx={ctx} client={client} content={content} cards={cards} />
+      <MonthSummary ctx={ctx} client={client} content={content} cards={cards} inHouse={inHouse} />
       {!summaryOnly && <ReviewStatus ctx={ctx} period={content.period} base={base} />}
       <h2 className="mt-l">마케팅 업무</h2>
       <div className="grid g-donut mt">
         {(staff ? cards : [...cards].sort((a, b) => Number(!(a.on || a.done)) - Number(!(b.on || b.done)))).map((c) => !c.on && !c.done ? (
           <div key={c.id} className={offCls}>
-            {off(c.label, "계약에 포함되지 않음", staff && <Link className="btn sm primary" href={`${base}/${c.id}?add=extra`}>+ 추가하기</Link>)}
+            {off(c.label, inHouse ? "이번 달 진행하지 않음" : "계약에 포함되지 않음", staff && <Link className="btn sm primary" href={`${base}/${c.id}?add=extra`}>+ 추가하기</Link>)}
           </div>
         ) : (
           <Link key={c.id} href={`${base}/${c.id}${q}`} className="card kpi donut-card">
@@ -243,7 +245,7 @@ async function Dashboard({ ctx, client, content, base, staff, summaryOnly = fals
           const st = client.channels[c.id];
           if (!st?.contracted) return (
             <div key={c.id} className={offCls}>
-              {off(c.label, "집행하지 않는 광고", staff && <AdContractButton clientId={client.id} channel={c.id} label={c.label} compact />)}
+              {off(c.label, "집행하지 않는 광고", staff && <AdContractButton clientId={client.id} channel={c.id} label={c.label} compact inHouse={inHouse} />)}
             </div>
           );
           const status = st.apiConnected ? ["성과 연결됨", "good"] : ["연결 준비 중", "warn"];
@@ -254,7 +256,7 @@ async function Dashboard({ ctx, client, content, base, staff, summaryOnly = fals
           );
         })}
       </div>
-      <p className="faint mt-l">계약 항목: {Object.keys(s).map((k) => SERVICE_LABELS[k] ?? k).join(" · ") || "-"}</p>
+      <p className="faint mt-l">{inHouse ? "진행 항목" : "계약 항목"}: {Object.keys(s).map((k) => SERVICE_LABELS[k] ?? k).join(" · ") || "-"}</p>
     </>
   );
 }
@@ -294,8 +296,8 @@ function HistorySection({ months, thisMonth, base, services }: { months: History
 }
 
 // 이번 달 요약: 핵심 수치 3개 (발행·게시 합계 · 계약 수량 진행률 · 네이버 광고 또는 플레이스)
-async function MonthSummary({ ctx, client, content, cards }: {
-  ctx: ReportCtx; client: ClientSummary; content: ReportContent;
+async function MonthSummary({ ctx, client, content, cards, inHouse = false }: {
+  ctx: ReportCtx; client: ClientSummary; content: ReportContent; inHouse?: boolean;
   cards: { id: string; label: string; on: boolean; done: number; target: number | null }[];
 }) {
   const work = cards.filter((c) => c.id !== "place");
@@ -319,7 +321,7 @@ async function MonthSummary({ ctx, client, content, cards }: {
       <div className="card-h"><h2>이번 달 요약</h2><span className="faint">{y}년 {m}월 · {Number(to.slice(5, 7))}/{Number(to.slice(8, 10))}까지 집계</span></div>
       <div className="ms-grid">
         <div className="ms-stat"><span className="faint">발행 · 게시 콘텐츠</span><b className="num">{posted}<small>건</small></b><span className="faint">{work.filter((c) => c.done > 0).map((c) => `${c.label.replace(" 발행", "")} ${c.done}`).join(" · ") || "이번 달 등록 전"}</span></div>
-        <div className="ms-stat"><span className="faint">계약 수량 진행률</span><b className="num">{rate == null ? "-" : rate}<small>{rate == null ? "" : "%"}</small></b><span className="faint">{target ? `${done} / ${target}건 완료` : "계약 수량 없음"}</span></div>
+        <div className="ms-stat"><span className="faint">{inHouse ? "업무 수량 진행률" : "계약 수량 진행률"}</span><b className="num">{rate == null ? "-" : rate}<small>{rate == null ? "" : "%"}</small></b><span className="faint">{target ? `${done} / ${target}건 완료` : inHouse ? "등록된 수량 없음" : "계약 수량 없음"}</span></div>
         {third && <div className="ms-stat"><span className="faint">{third.label}</span><b className="num">{third.value}</b><span className="faint">{third.foot}</span></div>}
       </div>
     </section>
