@@ -102,18 +102,19 @@ function KeywordList({ title, desc, list }: { title: string; desc: string; list:
 // ── 플레이스 (엑셀 '네이버 지도 노출표' 형식) ──────────────────────────────
 export function PlaceSection({ c, urls }: { c: ReportContent; urls: Map<string, string> }) {
   const rows = c.keywords.filter((k) => k.kind === "place");
-  const ranked = rows.filter((r) => r.place?.rank != null).map((r) => r.place!.rank!);
+  // 고정 등록 키워드를 매일 확인 → 플레이스 목록에 정상 노출되는지 (평균 순위는 표시하지 않음)
+  const checked = rows.filter((r) => r.place);
+  const shown = checked.filter((r) => r.place?.rank != null).length;
   const last = rows.map((r) => r.place?.at).filter(Boolean).sort().at(-1);
   return (
     <>
       <p className="muted">지정 키워드를 네이버 메인에서 검색했을 때 플레이스 영역에서의 순위입니다(광고 제외). 캡쳐에서 검색 키워드와 해당 업체 항목을 빨간 박스로 표시했습니다.</p>
-      {ranked.length > 0 && (
+      {checked.length > 0 && (
         <div className="row place-sum">
-          <span className="badge good">1위 {ranked.filter((v) => v === 1).length}개</span>
-          <span className="badge acc">3위 이내 {ranked.filter((v) => v <= 3).length}개</span>
-          <span className="badge">평균 {(ranked.reduce((a, b) => a + b, 0) / ranked.length).toFixed(1)}위</span>
-          <span className="badge">광고 노출 {rows.filter((r) => r.place?.adRank).length}개</span>
-          <span className="faint">{kst(last)} 수집 · 총 {rows.length}개 키워드</span>
+          <span className={`badge ${shown === rows.length ? "good" : "acc"}`}>정상 노출 {shown} / {rows.length}개</span>
+          {checked.length - shown > 0 && <span className="badge bad">미노출 {checked.length - shown}개</span>}
+          {rows.length - checked.length > 0 && <span className="badge">확인 전 {rows.length - checked.length}개</span>}
+          <span className="faint">고정 키워드 {rows.length}개 매일 확인 · {kst(last)} 확인</span>
         </div>
       )}
       {rows.length === 0 && <div className="empty-state">등록된 플레이스 키워드가 없습니다.</div>}

@@ -195,15 +195,17 @@ async function Dashboard({ ctx, client, content, base, staff, summaryOnly = fals
   const q = past ? `?period=${content.period}` : "";
   const top5 = content.blog.filter((b) => (b.rank?.main ?? 99) <= 5 || (b.rank?.blogTab ?? 99) <= 5).length;
   const place = content.keywords.filter((k) => k.kind === "place");
-  const placeRanks = place.map((p) => p.place?.rank).filter((v): v is number => v != null);
+  const placeShown = place.filter((p) => p.place?.rank != null).length;
+  const placeAt = place.map((p) => p.place?.at).filter(Boolean).sort().at(-1);
   const cafe = content.cafe.filter((x) => (x.channel ?? "cafe") === "cafe");
   const daangn = content.cafe.filter((x) => x.channel === "daangn");
   const views = (l: typeof cafe) => l.reduce((a, x) => a + (x.views ?? 0), 0).toLocaleString("ko-KR");
   const cards: { id: string; label: string; on: boolean; done: number; target: number | null; unit: string; foot: string }[] = [
     { id: "blog", label: "블로그 발행", on: !!s.blog, done: content.blog.length, target: s.blog?.target ?? null, unit: "건", foot: `5위 이내 ${top5}건` },
     { id: "column", label: "홈페이지 칼럼", on: !!s.column, done: content.columns.length, target: s.column?.target ?? null, unit: "건", foot: "SEO · AEO용 칼럼" },
-    { id: "place", label: "플레이스 Top 3", on: !!s.place, done: placeRanks.filter((v) => v <= 3).length, target: place.length || null, unit: "개",
-      foot: placeRanks.length ? `평균 ${(placeRanks.reduce((a, b) => a + b, 0) / placeRanks.length).toFixed(1)}위` : "수집 전" },
+    // 플레이스: 계약 수량 없이 고정 키워드를 매일 확인 → 정상 노출 키워드 수
+    { id: "place", label: "플레이스 정상 노출", on: !!s.place, done: placeShown, target: place.length || null, unit: "개",
+      foot: placeAt ? `고정 키워드 매일 확인 · ${placeAt.slice(5, 10).replace("-", "/")}` : "확인 전" },
     { id: "cafe", label: "카페 바이럴", on: !!s.cafe, done: cafe.filter((x) => x.status !== "삭제됨").length, target: s.cafe?.target ?? null, unit: "건", foot: `조회 ${views(cafe)}` },
     { id: "daangn", label: "당근마켓 바이럴", on: !!s.daangn, done: daangn.filter((x) => x.status !== "삭제됨").length, target: s.daangn?.target ?? null, unit: "건", foot: `조회 ${views(daangn)}` },
     { id: "sns", label: "SNS 카드뉴스", on: !!s.cardnews, done: content.cardnews.length, target: s.cardnews?.target ?? null, unit: "회차", foot: `인스타·카카오·당근 소식 ${content.cardnews.reduce((a, r) => a + r.links.length, 0)}개` },
@@ -306,10 +308,10 @@ async function MonthSummary({ ctx, client, content, cards }: {
   const to = content.period === yesterday.slice(0, 7) ? yesterday : new Date(Date.UTC(Number(content.period.slice(0, 4)), Number(content.period.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const naver = isActiveChannel(client, "naver") && to >= from ? await getNaverReport(ctx, from, to) : null;
   const place = content.keywords.filter((k) => k.kind === "place");
-  const top3 = place.filter((k) => (k.place?.rank ?? 99) <= 3).length;
+  const shown = place.filter((k) => k.place?.rank != null).length;
   const third = naver && !naver.notContracted
     ? { label: "네이버 광고", value: `${naver.kpi.clicks.toLocaleString("ko-KR")}회 클릭`, foot: `노출 ${naver.kpi.impressions.toLocaleString("ko-KR")} · 광고비 ${Math.round(naver.kpi.cost).toLocaleString("ko-KR")}원` }
-    : place.length ? { label: "플레이스 Top 3", value: `${top3} / ${place.length}개`, foot: "지정 키워드 중 3위 이내" } : null;
+    : place.length ? { label: "플레이스 정상 노출", value: `${shown} / ${place.length}개`, foot: "고정 키워드 매일 확인" } : null;
   const [y, m] = content.period.split("-").map(Number);
   return (
     <section className="card pad month-summary">

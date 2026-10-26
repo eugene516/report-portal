@@ -156,10 +156,10 @@ if (r.sns?.length) {
 // 4) 요약 ----------------------------------------------------------------------------------
 const deleted = (r.cafe ?? []).filter((c) => c.deleted).length;
 const ranked = (r.blog ?? []).filter((b) => b.main != null || b.blogTab != null).length;
-const top3 = (r.place ?? []).filter((p) => p.rank != null && p.rank <= 3).length;
+const shownPlace = (r.place ?? []).filter((p) => p.rank != null).length;   // 정상 노출 키워드 수
 const shots = (r.place ?? []).filter((p) => p.capturePath).length;
 const adShots = (r.place ?? []).filter((p) => p.adCapturePath).length;
-log(`저장: 블로그 ${r.blog?.length ?? 0}건(노출 ${ranked}) · 플레이스 ${r.place?.length ?? 0}건(Top3 ${top3} · 캡쳐 ${shots} · 광고 노출 캡쳐 ${adShots}) · 게시글 ${r.cafe?.length ?? 0}건(삭제 감지 ${deleted})`);
+log(`저장: 블로그 ${r.blog?.length ?? 0}건(노출 ${ranked}) · 플레이스 ${r.place?.length ?? 0}건(정상 노출 ${shownPlace} · 캡쳐 ${shots} · 광고 노출 캡쳐 ${adShots}) · 게시글 ${r.cafe?.length ?? 0}건(삭제 감지 ${deleted})`);
 for (const p of r.portal ?? []) log(`화면 ${p.name}: ${p.ok ? "정상" : `확인 필요 (${p.note})`}`);
 for (const e of r.errors ?? []) log(`오류: ${e}`);
 if (r.portal?.some((p) => p.note === "로그인이 풀려 있음")) log("※ ego 브라우저에서 리포트 포털에 다시 로그인해 주세요.");

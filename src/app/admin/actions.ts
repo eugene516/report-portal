@@ -59,5 +59,5 @@ export async function applyQuote(quoteId: string): Promise<{ ok?: string; error?
   await db.from("client_quotes").update({ applied_at: new Date().toISOString(), period }).eq("id", q.id);
   const LABEL: Record<string, string> = { blog: "블로그", column: "홈페이지 칼럼", cardnews: "카드뉴스", cafe: "카페", daangn: "당근 바이럴", review: "리뷰", place: "플레이스", aeo: "AEO" };
   const CH: Record<string, string> = { naver: "네이버", daangn: "당근", kakao: "카카오" };
-  return { ok: `견적서를 계약에 반영했습니다: ${p.items.map((i) => `${LABEL[i.service] ?? i.service} ${i.quantity}`).join(" · ")}${p.channels.length ? ` / 광고 ${p.channels.map((c) => CH[c]).join("·")}` : ""}` };
+  return { ok: `견적서를 계약에 반영했습니다: ${p.items.map((i) => (i.service === "place" ? "플레이스(고정 키워드)" : `${LABEL[i.service] ?? i.service} ${i.quantity}`)).join(" · ")}${p.channels.length ? ` / 광고 ${p.channels.map((c) => CH[c]).join("·")}` : ""}` };
 }

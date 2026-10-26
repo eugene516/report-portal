@@ -11,7 +11,8 @@ import { uploadQuotes } from "./quotes";
 import { applyQuote } from "@/app/admin/actions";
 
 const AUTO = new Set(["blog", "cafe", "daangn", "cardnews", "column", "aeo"]);   // 리포트 자료로 진행 수량을 자동 집계
-const OPTIONS = [...SERVICES.map((s) => ({ id: s.id as string, label: s.label })), { id: "etc", label: "기타 업무" }];
+// 플레이스는 계약 수량 없이 고정 키워드로 매일 확인하므로 계약 항목에서 뺀다
+const OPTIONS = [...SERVICES.filter((s) => s.id !== "place").map((s) => ({ id: s.id as string, label: s.label })), { id: "etc", label: "기타 업무" }];
 
 type Row = { id?: string; service: string; label: string; quantity: string; dueOn: string; extra?: boolean; note?: string; doneCount?: number | null; autoDone?: number | null };
 type Props = {

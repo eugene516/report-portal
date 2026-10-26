@@ -35,11 +35,11 @@ export default function ServiceGrid({ c, today, size = 92 }: { c: MonthClient; t
               <div className="off-act"><Link className="btn sm primary" href={`${base}/${w.menu}?add=extra`}>+ 추가하기</Link></div>
             </div>
           );
-          // 플레이스: 수량 대신 지정 키워드 Top 3 현황
-          if (w.svc === "place" && items.length === 0) return (
+          // 플레이스: 계약 수량 없이 고정 키워드를 매일 확인 (정상 노출 키워드 수)
+          if (w.svc === "place") return (
             <Link key={w.svc} href={`${base}/place`} className="card kpi donut-card sm">
               <Donut done={c.place?.checked ?? 0} total={c.place?.total ?? 0} label="플레이스 순위 확인" size={size}
-                sub={c.place?.total ? `오늘 9시 ${c.place.checked}/${c.place.total}개 확인 · Top 3 ${c.place.top3}개` : "키워드 미등록"} />
+                sub={c.place?.total ? `오늘 9시 ${c.place.checked}/${c.place.total}개 확인 · 정상 노출 ${c.place.ranked}개` : "키워드 미등록"} />
             </Link>
           );
           if (items.length === 0) return (

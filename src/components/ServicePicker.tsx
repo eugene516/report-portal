@@ -2,7 +2,7 @@
 // 계약 항목 · 온라인 광고 채널 선택 (새 광고주 만들기 / 광고주 설정 공용)
 export const SERVICES = [
   { id: "blog", label: "블로그", unit: "건/월", hint: "원고 발행 + 네이버 메인·블로그 탭 순위" },
-  { id: "place", label: "플레이스", unit: "키워드", hint: "플레이스 순위 + 캡쳐" },
+  { id: "place", label: "플레이스", unit: "", hint: "고정 키워드 매일 확인 (수량 없음)" },
   { id: "cafe", label: "카페 바이럴", unit: "건/월", hint: "게시 링크 + 캡쳐" },
   { id: "daangn", label: "당근마켓 바이럴", unit: "건/월", hint: "동네생활 게시글" },
   { id: "review", label: "리뷰(지도·영수증)", unit: "건/월", hint: "" },
@@ -32,11 +32,11 @@ export function ServicePicker({ value, onChange }: { value: ServiceState; onChan
               <b>{s.label}</b>
             </span>
             {s.hint && <span className="faint">{s.hint}</span>}
-            <span className="row">
+            {s.unit && <span className="row">
               <input type="number" min={0} inputMode="numeric" disabled={!v.on} className="search num-in" value={v.target}
                 onChange={(e) => onChange({ ...value, [s.id]: { ...v, target: e.target.value } })} placeholder="수량" />
               <span className="faint">{s.unit}</span>
-            </span>
+            </span>}
           </label>
         );
       })}
