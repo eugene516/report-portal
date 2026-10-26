@@ -22,6 +22,10 @@ const Status = ({ s }: { s: string }) => <span className={`badge ${STATUS[s]?.[1
 // 누가 무엇을 할 수 있나
 const canApprove = (r: Row, staff: boolean) => (staff ? r.status !== "approved" && r.files.length > 0 : r.status === "pending");
 const canChanges = (r: Row, staff: boolean) => (staff ? ["draft", "pending", "approved"].includes(r.status) : r.status === "pending");
+// 카드뉴스 이미지별 코멘트: 광고주는 검수 대기 · 재검수 요청 중(같은 버전)에 계속 남길 수 있다
+const canFileComment = (r: Row, staff: boolean) => (staff ? r.files.length > 0 : r.status === "pending" || r.status === "changes");
+const isBoard = (r: Row) => r.kind === "cardnews" && r.files.length > 0 && r.files.every((f) => isImage(thumb(f)));
+const who = (e: ReviewEvent) => e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자");
 
 export default function ReviewList({ rows, staff, base }: { rows: Row[]; staff: boolean; base: string }) {
   const router = useRouter();
@@ -96,15 +100,22 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
   nav: { prev?: string; next?: string; go: (id: string) => void; pos: string };
 }) {
   const [comment, setComment] = useState("");
+  const [sel, setSel] = useState<number | null>(null);   // 카드뉴스: 원본으로 보고 있는 이미지 번호
   const box = useRef<HTMLTextAreaElement>(null);
+  const board = isBoard(r);
   useEffect(() => { if (write) box.current?.focus(); }, [write]);
   useEffect(() => {
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const key = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLTextAreaElement) { if (e.key === "Escape") e.target.blur(); return; }
+      if (e.key === "Escape") { if (sel != null) setSel(null); else onClose(); }
+      if (sel != null && e.key === "ArrowRight") setSel(Math.min(r.files.length - 1, sel + 1));
+      if (sel != null && e.key === "ArrowLeft") setSel(Math.max(0, sel - 1));
+    };
     window.addEventListener("keydown", key);
     document.body.style.overflow = "hidden";
     return () => { window.removeEventListener("keydown", key); document.body.style.overflow = ""; };
-  }, [onClose]);
-  const notes = r.events.filter((e) => e.comment);
+  }, [onClose, sel, r.files.length]);
+  const notes = r.events.filter((e) => e.comment && !e.file_id);
   const ok = canApprove(r, staff), ch = canChanges(r, staff);
   return (
     <div className="modal file-viewer review-viewer" role="dialog" aria-modal="true" aria-label={r.title}>
@@ -122,7 +133,7 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
             <button type="button" className="btn sm" disabled={!nav.next} onClick={() => nav.next && nav.go(nav.next)}>다음 원고 ›</button>
           </span>
         </div>
-        <div className="fv-body rv-body">
+        {board ? <CardBoard r={r} staff={staff} sel={sel} setSel={setSel} /> : <div className="fv-body rv-body">
           {r.files.length === 0 && <p className="faint pad">올린 파일이 없습니다.</p>}
           {r.files.map((f) => {
             const t = thumb(f);
@@ -138,8 +149,8 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
               </section>
             );
           })}
-        </div>
-        <div className="rv-foot">
+        </div>}
+        {sel == null && <div className="rv-foot">
           {notes.length > 0 && (
             <ul className="rv-notes">
               {notes.slice(0, 4).map((e) => <li key={e.id}><b>{e.action === "changes" ? "재검수 요청" : e.action === "approve" ? "검수 완료" : "메모"}</b><span className="faint">{e.version}차 · {e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자")} · {kst(e.created_at)}</span><span className="rv-note">{e.comment}</span></li>)}
@@ -151,8 +162,79 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
             {ch && <button className="btn primary" disabled={busy} onClick={() => onChanges(comment)}>{busy ? "보내는 중…" : "재검수 요청"}</button>}
             {!ok && !ch && <span className="faint">{r.status === "approved" ? "검수 완료된 원고입니다." : r.status === "changes" ? "재검수 요청 중입니다. 담당자가 수정본을 올리면 다시 검수할 수 있습니다." : "검수 대기 중인 원고가 아닙니다."}</span>}
           </div>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+// 이미지 아래 · 원본 옆에 붙는 수정 요청 코멘트
+function FileNotes({ list }: { list: ReviewEvent[] }) {
+  if (list.length === 0) return null;
+  return <ul className="cn-notes">{list.map((e) => <li key={e.id}><span className="faint">{e.version}차 · {who(e)} · {kst(e.created_at).slice(5)}</span><span>{e.comment}</span></li>)}</ul>;
+}
+
+// 카드뉴스: 이미지를 아트보드처럼 썸네일로 → 누르면 한 화면 안에 원본 + 그 이미지에 대한 수정 요청 코멘트
+function CardBoard({ r, staff, sel, setSel }: { r: Row; staff: boolean; sel: number | null; setSel: (i: number | null) => void }) {
+  const router = useRouter();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const notesOf = (id: string) => r.events.filter((e) => e.file_id === id && e.comment);
+  const can = canFileComment(r, staff);
+  async function send(f: ReviewFile) {
+    if (!text.trim()) return toastError("수정할 내용을 적어 주세요.");
+    setBusy(true);
+    const { error } = await supabaseBrowser().rpc("review_file_comment", { p_item: r.id, p_file: f.id, p_version: r.version, p_comment: text.trim() });
+    setBusy(false);
+    if (error) return toastError(/stale/.test(error.message) ? "그 사이 수정본이 올라왔습니다. 새로 고쳐서 다시 확인해 주세요." : "코멘트를 남기지 못했습니다.");
+    setText(""); toast("이 이미지에 수정 요청을 남겼습니다."); router.refresh();
+  }
+  if (sel != null && r.files[sel]) {
+    const f = r.files[sel];
+    return (
+      <div className="cn-orig">
+        <div className="cn-orig-bar">
+          <button type="button" className="btn sm" onClick={() => setSel(null)}>‹ 썸네일로</button>
+          <span className="faint">{sel + 1} / {r.files.length} · {f.file_name}</span>
+          <span className="cn-orig-nav">
+            <button type="button" className="btn sm" disabled={sel === 0} onClick={() => { setSel(sel - 1); setText(""); }}>‹ 이전</button>
+            <button type="button" className="btn sm" disabled={sel === r.files.length - 1} onClick={() => { setSel(sel + 1); setText(""); }}>다음 ›</button>
+            {dl(f) && <a className="btn sm ghost" href={dl(f)}>내려받기</a>}
+          </span>
+        </div>
+        <div className="cn-orig-main">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <div className="cn-orig-img">{f.url ? <img src={f.url} alt={f.file_name} /> : <p className="faint">이미지를 불러오지 못했습니다.</p>}</div>
+          <aside className="cn-orig-side">
+            <b>이 이미지 수정 요청</b>
+            <FileNotes list={notesOf(f.id)} />
+            {notesOf(f.id).length === 0 && <p className="faint">아직 코멘트가 없습니다.</p>}
+            {can ? (
+              <>
+                <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} maxLength={2000} placeholder="이 이미지에서 수정할 내용을 적어 주세요. 예: 두 번째 줄 문구를 ‘~’로 바꿔 주세요." aria-label="이미지 코멘트" />
+                <button type="button" className="btn primary" disabled={busy || !text.trim()} onClick={() => send(f)}>{busy ? "남기는 중…" : "수정 요청 남기기"}</button>
+              </>
+            ) : <p className="faint">{r.status === "approved" ? "검수 완료된 카드뉴스입니다." : "지금은 코멘트를 남길 수 없습니다."}</p>}
+          </aside>
         </div>
       </div>
+    );
+  }
+  return (
+    <div className="fv-body cn-body">
+      <ul className="cn-board">
+        {r.files.map((f, i) => (
+          <li key={f.id} className={notesOf(f.id).length ? "has-notes" : ""}>
+            <button type="button" className="cn-art" onClick={() => { setSel(i); setText(""); }} title="원본 보기">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {f.url ? <img src={f.url} alt={f.file_name} loading="lazy" /> : <span className="faint">불러오기 실패</span>}
+              <span className="cn-no">{i + 1}</span>
+              {notesOf(f.id).length > 0 && <span className="cn-flag">수정 요청 {notesOf(f.id).length}</span>}
+            </button>
+            <FileNotes list={notesOf(f.id)} />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

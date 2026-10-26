@@ -20,7 +20,7 @@ export type ReviewItem = {
   requested_at: string | null; approved_version: number | null; approved_at: string | null; created_at: string;
 };
 export type ReviewFile = { id: string; item_id: string; version: number; file_name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; sort: number; url?: string | null };
-export type ReviewEvent = { id: number; item_id: string; version: number; action: string; comment: string | null; actor_name: string | null; actor_kind: string; created_at: string };
+export type ReviewEvent = { id: number; item_id: string; version: number; action: string; comment: string | null; actor_name: string | null; actor_kind: string; created_at: string; file_id: string | null };
 
 export async function getReviewSummary(ctx: ReportCtx, period: string): Promise<ReviewSummary | null> {
   const { data } = ctx.mode === "staff"
@@ -59,7 +59,7 @@ export async function getReviewDetail(itemId: string) {
   if (!item) return null;
   const [{ data: files }, { data: events }] = await Promise.all([
     db.from("review_files").select("id, item_id, version, file_name, storage_path, mime_type, size_bytes, sort").eq("item_id", itemId).order("version", { ascending: false }).order("sort").order("created_at"),
-    db.from("review_events").select("id, item_id, version, action, comment, actor_name, actor_kind, created_at").eq("item_id", itemId).order("created_at", { ascending: false }),
+    db.from("review_events").select("id, item_id, version, action, comment, actor_name, actor_kind, created_at, file_id").eq("item_id", itemId).order("created_at", { ascending: false }),
   ]);
   const list = (files ?? []) as ReviewFile[];
   const { data: signed } = list.length ? await db.storage.from("reviews").createSignedUrls(list.map((f) => f.storage_path), 1800) : { data: [] };
@@ -75,7 +75,7 @@ export async function withFilesAndEvents(items: ReviewItem[]): Promise<ReviewRow
   const ids = items.map((i) => i.id);
   const [{ data: files }, { data: events }] = await Promise.all([
     db.from("review_files").select("id, item_id, version, file_name, storage_path, mime_type, size_bytes, sort").in("item_id", ids).order("sort").order("created_at"),
-    db.from("review_events").select("id, item_id, version, action, comment, actor_name, actor_kind, created_at").in("item_id", ids).order("created_at", { ascending: false }),
+    db.from("review_events").select("id, item_id, version, action, comment, actor_name, actor_kind, created_at, file_id").in("item_id", ids).order("created_at", { ascending: false }),
   ]);
   const ver = new Map(items.map((i) => [i.id, i.version]));
   const cur = ((files ?? []) as ReviewFile[]).filter((x) => x.version === ver.get(x.item_id));

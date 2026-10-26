@@ -36,6 +36,8 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState("blog");
+  const card = kind === "cardnews";
   // 고른 파일은 등록 전에 바로 썸네일로 보여 준다 (브라우저 안 주소, 빼거나 닫으면 해제)
   const [picked, setPicked] = useState<Picked[]>([]);
   const pick = (list: File[]) => setPicked((p) => [...p, ...list.filter((f) => f.size > 0).map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) }))]);
@@ -45,20 +47,24 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
     e.preventDefault();
     const form = e.currentTarget; const fd = new FormData(form);
     const files = picked.map((x) => x.file);
-    if (!files.length) return toastError("원고나 이미지 파일을 하나 이상 올려 주세요.");
-    // 원고 1개 = 검수 1건. 제목은 원고 파일명(확장자 뺌), 구분은 파일명으로 자동(블로그 · 칼럼/홈페이지 · 카드뉴스), 없으면 고른 유형
+    if (!files.length) return toastError(card ? "카드뉴스 이미지를 올려 주세요." : "원고나 이미지 파일을 하나 이상 올려 주세요.");
+    const topic = String(fd.get("topic") ?? "").trim();
+    if (card && !topic) return toastError("카드뉴스 주제를 입력해 주세요.");
+    // 카드뉴스: 주제 1개 = 검수 1건, 고른 이미지 전부를 파일명 순서(1, 2, … 10)대로 한 건에 담는다
+    // 그 밖: 원고 1개 = 검수 1건. 제목은 원고 파일명(확장자 뺌), 구분은 파일명으로 자동(블로그 · 칼럼/홈페이지 · 카드뉴스), 없으면 고른 유형
     // 이미지는 원고가 1개면 그 원고에 붙이고, 원고가 여러 개면 이미지끼리 1건으로 묶는다
     const docs = files.filter((f) => DOC.test(f.name));
     const images = files.filter((f) => !DOC.test(f.name));
-    const groups: File[][] = docs.length === 0 ? [images] : docs.length === 1 ? [[docs[0], ...images]] : [...docs.map((d) => [d]), ...(images.length ? [images] : [])];
+    const byName = (a: File, b: File) => a.name.localeCompare(b.name, "ko", { numeric: true });
+    const groups: File[][] = card ? [[...files].sort(byName)] : docs.length === 0 ? [images] : docs.length === 1 ? [[docs[0], ...images]] : [...docs.map((d) => [d]), ...(images.length ? [images] : [])];
     const fallback = String(fd.get("kind"));
     const after = String(fd.get("after"));
     setBusy(true);
     const sb = supabaseBrowser();
     let made = 0, uploaded = 0, failed = 0;
     for (const g of groups) {
-      const title = ((g.length > 1 && !DOC.test(g[0].name) ? `이미지 ${g.length}장 — ` : "") + g[0].name.replace(/\.[^.]+$/, "").trim() || "검수 콘텐츠").slice(0, 200);
-      const { data, error } = await sb.from("review_items").insert({ client_id: clientId, kind: kindOf(g[0].name, fallback), period: String(fd.get("period")), title }).select("id").single();
+      const title = card ? topic.slice(0, 200) : ((g.length > 1 && !DOC.test(g[0].name) ? `이미지 ${g.length}장 — ` : "") + g[0].name.replace(/\.[^.]+$/, "").trim() || "검수 콘텐츠").slice(0, 200);
+      const { data, error } = await sb.from("review_items").insert({ client_id: clientId, kind: card ? "cardnews" : kindOf(g[0].name, fallback), period: String(fd.get("period")), title }).select("id").single();
       if (error || !data) { failed++; continue; }
       const ok = await uploadFiles(clientId, data.id, 1, g);
       made++; uploaded += ok;
@@ -67,10 +73,10 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
         : after === "complete" ? await sb.rpc("review_staff_complete", { p_item: data.id, p_comment: "완료된 콘텐츠로 등록" }) : { error: null };
       if (e2) failed++;
     }
-    setBusy(false); form.reset(); clear(); setOpen(false);
+    setBusy(false); form.reset(); clear(); setKind("blog"); setOpen(false);
     const what = after === "request" ? "검수를 요청했습니다" : after === "complete" ? "검수 완료로 등록했습니다" : "작성 중으로 등록했습니다";
     if (failed) toastError(`원고 ${made}건 · 파일 ${uploaded}개를 올렸지만 ${failed}건은 처리하지 못했습니다. 목록에서 확인해 주세요.`);
-    else toast(`원고 ${made}건(파일 ${uploaded}개) ${what}.`);
+    else toast(card ? `카드뉴스 ‘${topic}’(이미지 ${uploaded}장) ${what}.` : `원고 ${made}건(파일 ${uploaded}개) ${what}.`);
     router.refresh();
   }
   if (!open) return <button className="btn primary" onClick={() => setOpen(true)}>+ 검수 콘텐츠 등록</button>;
@@ -79,12 +85,13 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
     <form className="card pad review-create" onSubmit={create}>
       <h3>검수 콘텐츠 등록</h3>
       <div className="st-form">
-        <label>구분 (파일명에 ‘블로그’ · ‘칼럼’이 있으면 자동)<select name="kind" defaultValue="blog">{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <label>구분{card ? "" : " (파일명에 ‘블로그’ · ‘칼럼’이 있으면 자동)"}<select name="kind" value={kind} onChange={(e) => setKind(e.target.value)}>{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label>대상 월<input name="period" type="month" defaultValue={period} required className="search" /></label>
-        <label className="w-all">원고 · 이미지 (여러 개 선택, 파일당 30MB 이하)<input type="file" multiple accept={ACCEPT} className="search" onChange={(e) => { pick([...(e.target.files ?? [])]); e.target.value = ""; }} /></label>
+        {card && <label className="w2">카드뉴스 주제<input name="topic" required maxLength={200} className="search" placeholder="예: 29회차 야맹증" autoFocus /></label>}
+        <label className="w-all">{card ? "카드뉴스 이미지 (한 주제의 이미지를 모두 선택, 파일명 순서대로 정리)" : "원고 · 이미지 (여러 개 선택, 파일당 30MB 이하)"}<input type="file" multiple accept={card ? "image/png,image/jpeg,image/webp,image/gif" : ACCEPT} className="search" onChange={(e) => { pick([...(e.target.files ?? [])]); e.target.value = ""; }} /></label>
         {picked.length > 0 && (
           <div className="w-all">
-            <p className="faint">선택한 파일 {picked.length}개 — 원고 1개가 목록 1줄로 등록됩니다. 썸네일을 누르면 전체 내용을 볼 수 있습니다{tooBig ? ` · 30MB가 넘는 ${tooBig}개는 올라가지 않습니다` : ""}</p>
+            <p className="faint">선택한 파일 {picked.length}개 — {card ? "주제 1개가 목록 1줄로 등록됩니다" : "원고 1개가 목록 1줄로 등록됩니다"}. 썸네일을 누르면 전체 내용을 볼 수 있습니다{tooBig ? ` · 30MB가 넘는 ${tooBig}개는 올라가지 않습니다` : ""}</p>
             <FileThumbs files={picked.map((x) => ({ id: x.id, name: x.file.name, url: x.url, mime: x.file.type || null, size: x.file.size }))} onRemove={unpick} />
           </div>
         )}

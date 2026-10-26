@@ -1076,3 +1076,38 @@ img, svg { max-width: 100%; }
 }
 .review-table .btn, .review-table td.num, .review-table .badge { white-space: nowrap; }
 .review-table td:first-child { min-width: 300px; }
+
+/* 파일 검수 · 카드뉴스: 아트보드 썸네일 → 원본(한 화면 안) + 이미지별 수정 요청 코멘트 */
+.cn-body { display: block; padding: 16px; }
+.cn-board { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px 14px; align-items: start; }
+.cn-board li { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.cn-art { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: #fff; cursor: zoom-in; box-shadow: 0 1px 3px rgba(0, 0, 0, .06); transition: border-color .15s, box-shadow .15s; }
+.cn-art:hover, .cn-art:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.cn-art img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+.cn-no { position: absolute; top: 6px; left: 6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: rgba(15, 20, 30, .72); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.cn-flag { position: absolute; bottom: 6px; right: 6px; padding: 2px 8px; border-radius: 999px; background: #d64545; color: #fff; font-size: 11.5px; font-weight: 700; }
+.cn-board li.has-notes .cn-art { border-color: #e7a3a3; }
+.cn-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.cn-notes li { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 8px; background: #fdecec; color: #8a1f1f; font-size: 12.5px; line-height: 1.45; border-left: 3px solid #d64545; }
+.cn-notes li .faint { font-size: 11px; color: #a65a5a; }
+.cn-orig { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.cn-orig-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.cn-orig-nav { display: flex; gap: 6px; margin-left: auto; }
+.cn-orig-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; }
+.cn-orig-img { min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--surface-2); border-radius: 10px; padding: 10px; overflow: hidden; }
+.cn-orig-img img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+.cn-orig-side { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.cn-orig-side textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); resize: vertical; }
+.cn-orig-side textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 760px) {
+  .cn-board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; }
+  /* 휴대폰: 원본은 화면 너비에 맞춰 크게, 코멘트 칸은 그 아래로 (창 안에서 스크롤) */
+  .review-viewer:has(.cn-orig) .fv-head .fv-nav { display: none; }
+  .cn-orig { overflow: auto; }
+  .cn-orig-bar .faint { display: none; }
+  .cn-orig-nav { margin-left: auto; }
+  .cn-orig-main { display: flex; flex-direction: column; flex: none; }
+  .cn-orig-img { padding: 0; background: none; }
+  .cn-orig-img img { width: 100%; max-height: 72vh; }
+  .cn-orig-side { overflow: visible; }
+}
