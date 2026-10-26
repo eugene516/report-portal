@@ -196,7 +196,7 @@ for (const src of job.sources ?? []) {
         const lines = (card.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean);
         return [a.href.match(/idx=(\d+)/)?.[1], { url: a.href, title: lines[0] ?? "", text: lines.join(" ") }];
       })).values()]);
-      for (const c of cards) { const d = relDay(c.text.match(/(\d{4}-\d{2}-\d{2}|\d+\s*일\s*전|\d+\s*시간\s*전|방금)/)?.[1]); if (inMonth(d) && c.title) result.columns.push({ client: src.client, url: c.url, title: c.title, date: d }); }
+      for (const c of cards) { const d = relDay(c.text.match(/(\d{4}-\d{2}-\d{2}|\d+\s*일\s*전|\d+\s*시간\s*전|\d+\s*분\s*전|방금)/)?.[1]); if (inMonth(d) && c.title) result.columns.push({ client: src.client, url: c.url, title: c.title, date: d }); }
     } else if (src.kind === "daangn") {
       // 프로필 첫 화면은 최근 소식 3개만 보여 준다 → 소식 '더보기'(전체 목록 창)를 연다
       await page.evaluate(() => [...document.querySelectorAll("button")].filter((b) => b.textContent.trim() === "더보기").pop()?.click());
