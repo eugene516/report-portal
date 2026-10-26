@@ -198,6 +198,9 @@ for (const src of job.sources ?? []) {
       })).values()]);
       for (const c of cards) { const d = relDay(c.text.match(/(\d{4}-\d{2}-\d{2}|\d+\s*일\s*전|\d+\s*시간\s*전|방금)/)?.[1]); if (inMonth(d) && c.title) result.columns.push({ client: src.client, url: c.url, title: c.title, date: d }); }
     } else if (src.kind === "daangn") {
+      // 프로필 첫 화면은 최근 소식 3개만 보여 준다 → 소식 '더보기'(전체 목록 창)를 연다
+      await page.evaluate(() => [...document.querySelectorAll("button")].filter((b) => b.textContent.trim() === "더보기").pop()?.click());
+      await page.waitForTimeout(2500);
       for (let i = 0; i < 3; i++) { await page.evaluate(() => window.scrollBy(0, 1500)); await page.waitForTimeout(700); }
       const posts = await page.evaluate(() => [...new Map([...document.querySelectorAll("a[href*='/business-post/']")].map((a) => {
         const card = a.closest("li, article, [class*=item], [class*=post]") ?? a;
