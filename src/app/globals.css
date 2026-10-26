@@ -427,7 +427,7 @@ a.cname { color: var(--text); }
 :root[data-theme="dark"] { --hb-1: #6f8ff0; --hb-2: #22a3a3; --hb-3: #8f74e8; --hb-4: #e0668f; }
 .admin-bar { position: sticky; top: 0; z-index: 30; padding: 10px 20px; min-height: var(--bar-h); }
 .burger { display: inline-flex; flex-direction: column; justify-content: center; gap: 4px; width: 36px; height: 34px; padding: 0 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
-.burger span { display: block; height: 2px; background: var(--text-2); border-radius: 2px; }
+.burger span { display: block; width: 16px; flex: none; height: 2px; background: var(--text-2); border-radius: 2px; }
 .burger:hover { background: var(--surface-2); }
 .adm { display: grid; grid-template-columns: 228px auto minmax(0, 1fr); min-height: calc(100vh - var(--bar-h)); }
 .adm.collapsed { grid-template-columns: 0 auto minmax(0, 1fr); }
