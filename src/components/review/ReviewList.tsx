@@ -179,6 +179,7 @@ function CardBoard({ r, staff, sel, setSel }: { r: Row; staff: boolean; sel: num
   const router = useRouter();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const touchX = useRef<number | null>(null);   // 휴대폰: 원본을 좌우로 밀어서 넘기기
   const notesOf = (id: string) => r.events.filter((e) => e.file_id === id && e.comment);
   const can = canFileComment(r, staff);
   async function send(f: ReviewFile) {
@@ -191,20 +192,28 @@ function CardBoard({ r, staff, sel, setSel }: { r: Row; staff: boolean; sel: num
   }
   if (sel != null && r.files[sel]) {
     const f = r.files[sel];
+    const go = (i: number) => { if (i >= 0 && i < r.files.length) { setSel(i); setText(""); } };
     return (
       <div className="cn-orig">
         <div className="cn-orig-bar">
           <button type="button" className="btn sm" onClick={() => setSel(null)}>‹ 썸네일로</button>
           <span className="faint">{sel + 1} / {r.files.length} · {f.file_name}</span>
           <span className="cn-orig-nav">
-            <button type="button" className="btn sm" disabled={sel === 0} onClick={() => { setSel(sel - 1); setText(""); }}>‹ 이전</button>
-            <button type="button" className="btn sm" disabled={sel === r.files.length - 1} onClick={() => { setSel(sel + 1); setText(""); }}>다음 ›</button>
+            <button type="button" className="btn sm" disabled={sel === 0} onClick={() => go(sel - 1)}>‹ 이전</button>
+            <button type="button" className="btn sm" disabled={sel === r.files.length - 1} onClick={() => go(sel + 1)}>다음 ›</button>
             {dl(f) && <a className="btn sm ghost" href={dl(f)}>내려받기</a>}
           </span>
         </div>
         <div className="cn-orig-main">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <div className="cn-orig-img">{f.url ? <img src={f.url} alt={f.file_name} /> : <p className="faint">이미지를 불러오지 못했습니다.</p>}</div>
+          <div className="cn-orig-img"
+            onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+            onTouchEnd={(e) => { if (touchX.current == null) return; const dx = e.changedTouches[0].clientX - touchX.current; touchX.current = null; if (Math.abs(dx) > 50) go(dx < 0 ? sel + 1 : sel - 1); }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {f.url ? <img src={f.url} alt={f.file_name} /> : <p className="faint">이미지를 불러오지 못했습니다.</p>}
+            {sel > 0 && <button type="button" className="cn-arrow prev" onClick={() => go(sel - 1)} aria-label="이전 이미지">‹</button>}
+            {sel < r.files.length - 1 && <button type="button" className="cn-arrow next" onClick={() => go(sel + 1)} aria-label="다음 이미지">›</button>}
+            <span className="cn-count">{sel + 1} / {r.files.length}</span>
+          </div>
           <aside className="cn-orig-side">
             <b>이 이미지 수정 요청</b>
             <FileNotes list={notesOf(f.id)} />
