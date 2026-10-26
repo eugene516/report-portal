@@ -10,7 +10,7 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { confirmDialog, toast, toastError } from "@/components/ui";
 import type { ReviewEvent, ReviewFile, ReviewItem } from "@/lib/review";
 import { DocxView, isDocx, isImage, isPdf, type ThumbFile } from "./ReviewFiles";
-import { removeReviewItem } from "./ReviewStaff";
+import { removeReviewItem, ReviewEditDialog } from "./ReviewStaff";
 
 type Row = ReviewItem & { files: ReviewFile[]; events: ReviewEvent[] };
 const KIND: Record<string, string> = { blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
@@ -32,6 +32,7 @@ export default function ReviewList({ rows, staff, base }: { rows: Row[]; staff: 
   const router = useRouter();
   const [open, setOpen] = useState<{ id: string; write: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [edit, setEdit] = useState<Row | null>(null);
   const cur = open ? rows.find((r) => r.id === open.id) ?? null : null;
 
   async function approve(r: Row) {
@@ -84,12 +85,14 @@ export default function ReviewList({ rows, staff, base }: { rows: Row[]; staff: 
                 {canChanges(r, staff) && <button className="btn sm" disabled={busy} onClick={() => setOpen({ id: r.id, write: true })}>재검수 요청</button>}
                 {!canApprove(r, staff) && !canChanges(r, staff) && <button className="btn sm" onClick={() => setOpen({ id: r.id, write: false })}>원문 보기</button>}
                 <Link className="btn sm ghost" href={`${base}/review/${r.id}`} title="버전 · 기록 · 파일 관리 · 수정">상세</Link>
+                {staff && <button className="btn sm ghost" disabled={busy} onClick={() => setEdit(r)}>수정</button>}
                 {staff && <button className="btn sm ghost" disabled={busy} onClick={async () => { if (await removeReviewItem(r.id, r.title, r.status)) router.refresh(); }}>삭제</button>}
               </div>
             </td>
           </tr>
         ))}</tbody>
       </table></div>
+      {edit && <ReviewEditDialog item={edit} onClose={() => setEdit(null)} />}
       {cur && <Viewer key={cur.id} r={cur} staff={staff} write={open!.write} busy={busy} onClose={() => setOpen(null)} onApprove={() => approve(cur)} onChanges={(c) => changes(cur, c)}
         nav={{ prev: rows[rows.indexOf(cur) - 1]?.id, next: rows[rows.indexOf(cur) + 1]?.id, go: (id) => setOpen({ id, write: false }), pos: `${rows.indexOf(cur) + 1} / ${rows.length}` }} />}
     </>

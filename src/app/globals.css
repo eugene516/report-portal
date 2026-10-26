@@ -1024,7 +1024,7 @@ img, svg { max-width: 100%; }
 .thumb-cap { display: flex; align-items: center; gap: 6px; padding: 6px 2px 0; font-size: 12px; }
 .thumb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thumb-x { border: 0; background: none; color: var(--text-2); cursor: pointer; padding: 0 2px; font-size: 13px; }
-.thumb-x:hover { color: var(--bad, #c0392b); }
+.thumb-x:hover { color: var(--bad); }
 .file-viewer .modal-panel { width: min(1100px, calc(100vw - 24px)); height: calc(100vh - 48px); max-height: none; display: flex; flex-direction: column; padding: 16px 18px; }
 .fv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-right: 32px; margin-bottom: 12px; }
 .fv-name { min-width: 0; overflow-wrap: anywhere; }
@@ -1120,3 +1120,7 @@ img, svg { max-width: 100%; }
 .cn-arrow.next { right: 12px; }
 .cn-count { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); padding: 3px 10px; border-radius: 999px; background: rgba(15, 20, 30, .6); color: #fff; font-size: 12px; font-weight: 700; }
 @media (max-width: 760px) { .cn-arrow { width: 38px; height: 38px; font-size: 24px; } .cn-arrow.prev { left: 6px; } .cn-arrow.next { right: 6px; } }
+/* 파일 검수: 제목 · 구분 · 대상 월 수정 창 */
+.review-edit { width: min(560px, calc(100vw - 32px)); }
+.review-edit h3 { margin: 0; }
+.form-err { margin: 0; color: var(--bad); font-size: 13.5px; }

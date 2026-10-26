@@ -125,18 +125,6 @@ export function ReviewStaffActions({ clientId, itemId, status, version, hasDraft
     setBusy(false);
     toast(`${v > version ? `${v}차 수정본으로 ` : ""}파일 ${ok}개를 올렸습니다.`); router.refresh();
   }
-  // 제목 · 구분 · 대상 월 수정
-  async function save(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const t = String(fd.get("title") ?? "").trim();
-    if (!t) return toastError("제목을 입력해 주세요.");
-    setBusy(true);
-    const { error } = await sb.from("review_items").update({ title: t.slice(0, 200), kind: String(fd.get("kind")), period: String(fd.get("period")), updated_at: new Date().toISOString() }).eq("id", itemId);
-    setBusy(false);
-    if (error) return toastError("수정하지 못했습니다.");
-    toast("수정했습니다."); setEditing(false); router.refresh();
-  }
   async function request() {
     setBusy(true);
     const { error } = await sb.rpc("review_request", { p_item: itemId });
@@ -182,19 +170,50 @@ export function ReviewStaffActions({ clientId, itemId, status, version, hasDraft
           {status === "draft" && <button className="btn sm primary" disabled={busy || !hasDraftFiles} onClick={request}>검수 요청</button>}
           {status !== "draft" && <button className="btn sm primary" disabled={busy || pendingNext === 0} onClick={resubmit} title={pendingNext ? "" : "수정본 파일을 먼저 올리세요"}>수정본 검수 요청{pendingNext ? ` (${pendingNext}개 파일)` : ""}</button>}
           {status !== "approved" && <button className="btn sm decide-ok" disabled={busy || !hasDraftFiles} onClick={complete} title="이미 확정된 콘텐츠를 완료로 표시">✓ 완료 처리</button>}
-          <button className="btn sm" disabled={busy} onClick={() => setEditing((x) => !x)}>수정</button>
+          <button className="btn sm" disabled={busy} onClick={() => setEditing(true)}>수정</button>
           <button className="btn sm" disabled={busy} onClick={remove}>삭제</button>
         </div>
       </div>
-      {editing && (
-        <form className="st-form mt-s" onSubmit={save}>
-          <label className="w2">제목<input name="title" defaultValue={title} required maxLength={200} className="search" /></label>
-          <label>구분<select name="kind" defaultValue={kind}>{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-          <label>대상 월<input name="period" type="month" defaultValue={period} required className="search" /></label>
-          <div className="st-act"><button className="btn sm primary" disabled={busy}>저장</button><button type="button" className="btn sm" onClick={() => setEditing(false)}>취소</button></div>
-        </form>
-      )}
+      {editing && <ReviewEditDialog item={{ id: itemId, title, kind, period }} onClose={() => setEditing(false)} />}
     </section>
+  );
+}
+
+// 제목 · 구분 · 대상 월 수정 창 (목록 · 상세 공용). 저장된 행을 다시 받아 실제로 바뀌었는지 확인하고 결과를 알려 준다
+export function ReviewEditDialog({ item, onClose }: { item: { id: string; title: string; kind: string; period: string }; onClose: () => void }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const next = { title: String(fd.get("title") ?? "").trim().slice(0, 200), kind: String(fd.get("kind")), period: String(fd.get("period")) };
+    if (!next.title) return setErr("제목을 입력해 주세요.");
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(next.period)) return setErr("대상 월을 선택해 주세요.");
+    if (next.title === item.title && next.kind === item.kind && next.period === item.period) return setErr("바뀐 내용이 없습니다.");
+    setBusy(true); setErr("");
+    const { data, error } = await supabaseBrowser().from("review_items").update({ ...next, updated_at: new Date().toISOString() }).eq("id", item.id).select("id");
+    setBusy(false);
+    if (error || !data?.length) return setErr("저장하지 못했습니다. 새로 고친 뒤 다시 시도해 주세요.");
+    const moved = next.period !== item.period ? ` 대상 월을 ${next.period.replace("-", "년 ")}월로 옮겨 그 달 목록에서 보입니다.` : "";
+    toast(`‘${next.title}’ 수정을 저장했습니다.${moved}`);
+    onClose(); router.refresh();
+  }
+  return (
+    <div className="modal" role="dialog" aria-modal="true" aria-label="검수 콘텐츠 수정">
+      <div className="modal-backdrop" onClick={onClose} />
+      <form className="modal-panel review-edit" onSubmit={save}>
+        <button type="button" className="modal-x" onClick={onClose} aria-label="닫기">×</button>
+        <h3>검수 콘텐츠 수정</h3>
+        <div className="st-form mt-s">
+          <label className="w-all">제목<input name="title" defaultValue={item.title} required maxLength={200} className="search" autoFocus /></label>
+          <label>구분<select name="kind" defaultValue={item.kind}>{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+          <label>대상 월<input name="period" type="month" defaultValue={item.period} required className="search" /></label>
+          {err && <p className="w-all form-err" role="alert">{err}</p>}
+          <div className="st-act"><button className="btn primary" disabled={busy}>{busy ? "저장 중…" : "저장"}</button><button type="button" className="btn" onClick={onClose}>취소</button></div>
+        </div>
+      </form>
+    </div>
   );
 }
 
