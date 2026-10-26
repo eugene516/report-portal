@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { isAdminRole, requireStaff } from "@/lib/auth";
 import ClientTabs from "@/components/ClientTabs";
 import { currentPeriod } from "@/lib/content";
-import { daysLeft, getMonthDetail, getMonthOverview, itemState, monthInfo, totals, won } from "@/lib/month";
+import { daysLeft, getMonthDetail, getInHouseIds, getMonthOverview, itemState, monthInfo, totals, won } from "@/lib/month";
 import { Donut, HistoryBars, ItemBars, MonthTimeline, SpendChart } from "@/components/charts";
 import ServiceGrid from "@/components/ServiceGrid";
 import IssueLinkButton from "../../IssueLinkButton";
@@ -20,7 +20,8 @@ export default async function ProgressPage({ params, searchParams }: { params: P
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(clientId)) notFound();
   const period = sp.period && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.period) ? sp.period : currentPeriod();
-  const [rows, detail, links] = await Promise.all([getMonthOverview(period, clientId), getMonthDetail(clientId, period), getLinkStatus([clientId])]);
+  const [rows, detail, links, inHouse] = await Promise.all([getMonthOverview(period, clientId), getMonthDetail(clientId, period), getLinkStatus([clientId]), getInHouseIds()]);
+  const own = inHouse.has(clientId);   // 자사 마케팅: 계약 · 견적 없이 업무 항목만
   const link = links.get(clientId);
   const c = rows[0];
   if (!c || !detail) notFound();   // 담당이 아니면 DB 함수가 거부한다
@@ -49,7 +50,7 @@ export default async function ProgressPage({ params, searchParams }: { params: P
           </form>
           <Link href={`/admin/clients/${c.id}`} className="btn">리포트 열기</Link>
           <Link href={`/admin/clients/${c.id}/preview`} className="btn">광고주 화면 미리보기</Link>
-          <Link href={`/admin/clients/${c.id}/contracts?period=${period}`} className="btn primary">계약 · 견적 관리</Link>
+          <Link href={`/admin/clients/${c.id}/contracts?period=${period}`} className="btn primary">{own ? "+ 항목 추가" : "계약 · 견적 관리"}</Link>
           <Link href={`/admin/clients/${c.id}/settings`} className="btn">설정</Link>
         </div>
       </header>
@@ -60,7 +61,7 @@ export default async function ProgressPage({ params, searchParams }: { params: P
           : <span className="badge warn">광고주 링크 미발급</span>}
         <IssueLinkButton clientId={c.id} issued={!!link?.active} />
       </div>
-      {!c.contract && (
+      {!c.contract && !own && (
         <div className="notice mt">
           {mi.label} 계약 내용이 아직 등록되지 않았습니다. {c.items.length > 0 ? "아래는 리포트 계약 항목의 월 목표로 대신 계산한 값이며, 마감일은 말일로 표시합니다." : ""}
           <Link href={`/admin/clients/${c.id}/contracts?period=${period}`} className="btn sm">지금 등록하기</Link>
@@ -68,9 +69,9 @@ export default async function ProgressPage({ params, searchParams }: { params: P
       )}
 
       <div className="grid dash-kpi mt">
-        <div className="card kpi static donut-card"><Donut done={t.done} total={t.quantity} label="계약 수량 진행" sub={`항목 ${c.items.length}개 · 완료 ${sts.filter((s) => s === "done").length}`} size={104} /></div>
+        <div className="card kpi static donut-card"><Donut done={t.done} total={t.quantity} label={own ? "업무 수량 진행" : "계약 수량 진행"} sub={`항목 ${c.items.length}개 · 완료 ${sts.filter((s) => s === "done").length}`} size={104} /></div>
         <div className={`card kpi static ${left < 0 && t.rate < 1 ? "alert" : left <= 5 && t.rate < 1 ? "warn-b" : ""}`}>
-          <div className="label">계약 기간 종료까지</div>
+          <div className="label">{own ? "이번 달 남은 기간" : "계약 기간 종료까지"}</div>
           <div className="value num">{left >= 0 ? left : 0}<small>일</small></div>
           <div className="foot">{(c.contract?.startsOn ?? `${period}-01`).slice(5).replace("-", "/")} ~ {contractEnd.slice(5).replace("-", "/")} · {mi.isCurrent ? `${mi.elapsed}/${mi.days}일 경과` : mi.elapsed === mi.days ? "종료" : "시작 전"}</div>
         </div>
@@ -79,11 +80,11 @@ export default async function ProgressPage({ params, searchParams }: { params: P
           <div className="value num">{sts.filter((s) => s === "late").length}<small>/ {sts.filter((s) => s === "risk").length}건</small></div>
           <div className="foot">순조 {sts.filter((s) => s === "ok").length}건</div>
         </div>
-        <div className="card kpi static">
+        {!own && <div className="card kpi static">
           <div className="label">계약 금액</div>
           <div className="value num sm-v">{c.contract?.amount != null ? won(c.contract.amount) : "-"}</div>
           <div className="foot">견적서·계약서 파일 {c.files}개</div>
-        </div>
+        </div>}
         {nv?.contracted ? (
           <div className="card kpi static donut-card">
             {nv.budget ? <Donut done={Math.round(nv.spent ?? 0)} total={nv.budget} label="네이버 광고비 소진" sub={`${won(nv.spent)} / ${won(nv.budget)}`} size={104} />
@@ -93,19 +94,19 @@ export default async function ProgressPage({ params, searchParams }: { params: P
       </div>
 
       <section className="card pad mt">
-        <div className="card-h"><h2>업무 항목 현황</h2><span className="faint">미집행 항목은 [+ 추가하기]로 중간 계약을 등록합니다</span></div>
+        <div className="card-h"><h2>업무 항목 현황</h2><span className="faint">{own ? "없는 항목은 [+ 추가하기]로 등록합니다" : "미집행 항목은 [+ 추가하기]로 중간 계약을 등록합니다"}</span></div>
         <ServiceGrid c={c} today={today} />
       </section>
 
       <div className="grid g-auto mt">
         <section className="card pad">
-          <div className="card-h"><h2>계약 항목별 진행</h2><span className="faint">세로선 = 마감일까지 오늘의 예상 진행 위치</span></div>
+          <div className="card-h"><h2>{own ? "업무 항목별 진행" : "계약 항목별 진행"}</h2><span className="faint">세로선 = 마감일까지 오늘의 예상 진행 위치</span></div>
           <ItemBars items={c.items} period={period} today={today} />
-          {c.items.some((i) => !i.auto && !i.fallback) && <p className="faint mt-s">‘직접 입력’ 항목의 진행 수량은 <Link href={`/admin/clients/${c.id}/contracts?period=${period}`}>계약 · 견적 관리</Link>에서 입력합니다.</p>}
+          {c.items.some((i) => !i.auto && !i.fallback) && <p className="faint mt-s">‘직접 입력’ 항목의 진행 수량은 <Link href={`/admin/clients/${c.id}/contracts?period=${period}`}>{own ? "업무 항목 관리" : "계약 · 견적 관리"}</Link>에서 입력합니다.</p>}
         </section>
         <section className="card pad">
           <div className="card-h"><h2>월간 일정표</h2><span className="faint">막대 = 1일~마감일 · 진한 부분 = 진행 · 점 = 마감</span></div>
-          {c.items.length ? <MonthTimeline items={c.items} period={period} days={mi.days} today={today} /> : <div className="empty-state">계약 항목이 없습니다.</div>}
+          {c.items.length ? <MonthTimeline items={c.items} period={period} days={mi.days} today={today} /> : <div className="empty-state">{own ? "업무" : "계약"} 항목이 없습니다.</div>}
           <div className="legend mt-s"><span><i className="lg ok" />순조</span><span><i className="lg risk" />지연 위험</span><span><i className="lg late" />마감 지남</span><span><i className="lg done" />완료</span></div>
         </section>
       </div>
@@ -118,10 +119,10 @@ export default async function ProgressPage({ params, searchParams }: { params: P
           </section>
         )}
         <section className="card pad">
-          <div className="card-h"><h2>월별 계약 달성률</h2><span className="faint">최근 6개월 · 등록된 계약 기준</span></div>
+          <div className="card-h"><h2>{own ? "월별 달성률" : "월별 계약 달성률"}</h2><span className="faint">최근 6개월 · {own ? "등록된 업무 항목 기준" : "등록된 계약 기준"}</span></div>
           <HistoryBars rows={detail.history} />
         </section>
-        {c.contract?.memo && (
+        {!own && c.contract?.memo && (
           <section className="card pad">
             <h2>계약 메모</h2>
             <p className="note-body mt-s">{c.contract.memo}</p>

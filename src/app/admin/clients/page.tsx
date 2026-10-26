@@ -1,9 +1,9 @@
-// 광고주 현황: 당월 계약 · 진행률 · 다음 마감 · 광고비 소진 (순위는 표시하지 않는다)
+// 광고주 현황: 당월 계약 · 진행률 (자사 마케팅은 계약 표현 없이 업무 항목만) · 다음 마감 · 광고비 소진 (순위는 표시하지 않는다)
 import Link from "next/link";
 import { isAdminRole, requireStaff } from "@/lib/auth";
 import { getStaffOverview } from "@/lib/dashboard";
 import { currentPeriod } from "@/lib/content";
-import { daysLeft, dday, getMonthOverview, itemLabel, itemState, monthInfo, totals, won } from "@/lib/month";
+import { daysLeft, dday, getInHouseIds, getMonthOverview, itemLabel, itemState, monthInfo, totals, won } from "@/lib/month";
 import { Donut, ItemBars, MonthTimeline } from "@/components/charts";
 import IssueLinkButton from "../IssueLinkButton";
 import ExpandRow from "./ExpandRow";
@@ -18,14 +18,14 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const isAdmin = isAdminRole(me.role);
   const period = currentPeriod();
-  const [all, staffList, links] = await Promise.all([getMonthOverview(period), isAdmin ? getStaffOverview() : Promise.resolve([]), getLinkStatus()]);
+  const [all, staffList, links, inHouse] = await Promise.all([getMonthOverview(period), isAdmin ? getStaffOverview() : Promise.resolve([]), getLinkStatus(), getInHouseIds()]);
   const mi = monthInfo(period);
   const q = (sp.q ?? "").trim();
   const staffFilter = isAdmin ? sp.staff : undefined;
   let rows = all;
   if (staffFilter) rows = rows.filter((c) => c.staff.some((s) => s.id === staffFilter));
   if (q) rows = rows.filter((c) => c.name.includes(q));
-  if (sp.only === "nocontract") rows = rows.filter((c) => !c.contract);
+  if (sp.only === "nocontract") rows = rows.filter((c) => !c.contract && !inHouse.has(c.id));
   const staffName = staffList.find((s) => s.id === staffFilter)?.name;
 
   return (
@@ -55,7 +55,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
 
       <section className="card mt">
         <div className="tbl-wrap"><table className="ops-table rtable">
-          <thead><tr><th>광고주</th><th>담당</th><th>이번 달 계약</th><th>계약 수량 진행</th><th>다음 마감</th><th>광고비 소진</th><th></th></tr></thead>
+          <thead><tr><th>광고주</th><th>담당</th><th>이번 달 계약</th><th>수량 진행</th><th>다음 마감</th><th>광고비 소진</th><th></th></tr></thead>
           <tbody>
             {rows.length === 0 && <tr><td colSpan={7} className="faint">{isAdmin ? "조건에 맞는 광고주가 없습니다." : "담당 광고주가 없습니다. '+ 새 광고주'로 만들거나 관리자에게 배정을 요청하세요."}</td></tr>}
             {rows.map((c) => {
@@ -67,14 +67,15 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               const sts = c.items.map((i) => itemState(i, period, mi.today));
               const end = c.contract?.endsOn ?? mi.last;
               const left = daysLeft(end, mi.today);
+              const own = inHouse.has(c.id);   // 자사 마케팅: 계약 · 견적 없이 업무 항목만
               const detail = (
                 <div className="xd">
                   <div className="xd-grid"><ServiceGrid c={c} today={mi.today} size={80} /></div>
                   <div className="xd-sum">
-                    <Donut done={t.done} total={t.quantity} label="계약 수량 진행" sub={`항목 ${c.items.length}개`} size={96} />
+                    <Donut done={t.done} total={t.quantity} label={own ? "업무 수량 진행" : "계약 수량 진행"} sub={`항목 ${c.items.length}개`} size={96} />
                     <dl className="kv sm">
-                      <dt>계약 기간</dt><dd>{(c.contract?.startsOn ?? `${period}-01`).slice(5).replace("-", "/")} ~ {end.slice(5).replace("-", "/")} · {left >= 0 ? `${left}일 남음` : "종료"}</dd>
-                      <dt>계약 금액</dt><dd>{c.contract?.amount != null ? won(c.contract.amount) : "-"}</dd>
+                      <dt>{own ? "진행 기간" : "계약 기간"}</dt><dd>{(c.contract?.startsOn ?? `${period}-01`).slice(5).replace("-", "/")} ~ {end.slice(5).replace("-", "/")} · {left >= 0 ? `${left}일 남음` : "종료"}</dd>
+                      {!own && <><dt>계약 금액</dt><dd>{c.contract?.amount != null ? won(c.contract.amount) : "-"}</dd></>}
                       <dt>업무 상태</dt><dd>완료 {sts.filter((s) => s === "done").length} · 순조 {sts.filter((s) => s === "ok").length} · <span className="t-warn">지연 위험 {sts.filter((s) => s === "risk").length}</span> · <span className="t-bad">마감 지남 {sts.filter((s) => s === "late").length}</span></dd>
                       {nv?.contracted && <><dt>광고비</dt><dd>{won(nv.spent)}{nv.budget ? ` / ${won(nv.budget)} (${Math.round((burn ?? 0) * 100)}%)` : " · 예산 미입력"}</dd></>}
                     </dl>
@@ -87,10 +88,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                       </div>
                     </>
                   ) : (
-                    <div className="xd-col empty-state">이번 달 계약 항목이 없습니다. <Link href={`/admin/clients/${c.id}/contracts`}>계약 · 견적 관리</Link>에서 등록하세요.</div>
+                    <div className="xd-col empty-state">{own ? <>이번 달 업무 항목이 없습니다. <Link href={`/admin/clients/${c.id}/contracts`}>업무 항목 관리</Link>에서 추가하세요.</> : <>이번 달 계약 항목이 없습니다. <Link href={`/admin/clients/${c.id}/contracts`}>계약 · 견적 관리</Link>에서 등록하세요.</>}</div>
                   )}
                   <div className="xd-foot">
-                    {!c.contract && c.items.length > 0 && <span className="faint">계약 미등록 · 리포트 월 목표로 계산했고 마감일은 말일로 표시했습니다.</span>}
+                    {!own && !c.contract && c.items.length > 0 && <span className="faint">계약 미등록 · 리포트 월 목표로 계산했고 마감일은 말일로 표시했습니다.</span>}
                     <Link href={`/admin/progress/${c.id}`} className="btn sm primary">상세 페이지로 이동 ›</Link>
                   </div>
                 </div>
@@ -98,19 +99,19 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               return (
                 <ExpandRow key={c.id} colSpan={7} detail={detail} actions={<>
                   <Link className="btn sm" href={`/admin/clients/${c.id}`}>리포트</Link>
-                  <Link className="btn sm" href={`/admin/clients/${c.id}/contracts`}>계약 · 견적</Link>
+                  <Link className="btn sm" href={`/admin/clients/${c.id}/contracts`}>{own ? "+ 항목 추가" : "계약 · 견적"}</Link>
                   <Link className="btn sm" href={`/admin/clients/${c.id}/settings`}>설정</Link>
                   <IssueLinkButton clientId={c.id} issued={!!links.get(c.id)?.active} />
                 </>} cells={<>
                   <td><Link href={`/admin/progress/${c.id}`} className="cname" title="상세 진행 현황 보기">{c.name}</Link>
-                    {(() => { const l = links.get(c.id); return l?.active ? <span className="badge good mt-xs" title={l.lastUsedAt ? `최근 열람 ${kstShort(l.lastUsedAt)}` : "아직 열람 전"}>링크 발급 {kstShort(l.issuedAt!).slice(0, 5)}</span> : <span className="badge mt-xs">링크 미발급</span>; })()}<div className="faint">{[c.category, c.area].filter(Boolean).join(" · ")}</div></td>
+                    {(() => { const l = links.get(c.id); return l?.active ? <span className="badge good mt-xs" title={l.lastUsedAt ? `최근 열람 ${kstShort(l.lastUsedAt)}` : "아직 열람 전"}>링크 발급 {kstShort(l.issuedAt!).slice(0, 5)}</span> : <span className="badge mt-xs">링크 미발급</span>; })()}<div className="faint">{[own ? "자사 마케팅" : null, c.category, c.area].filter(Boolean).join(" · ")}</div></td>
                   <td data-label="담당">{c.staff.length === 0 ? <span className="badge warn">미배정</span> : c.staff.map((s) => <div key={s.id} className="nowrap">{s.name}{s.primary ? <span className="faint"> (주)</span> : ""}</div>)}</td>
-                  <td data-label="이번 달 계약">{c.contract ? <><span className="badge good">등록</span><div className="faint">{c.contract.amount != null ? won(c.contract.amount) : "금액 미입력"} · 파일 {c.files}</div></> : <Link href={`/admin/clients/${c.id}/contracts`} className="badge warn">미등록 · 등록하기</Link>}</td>
-                  <td data-label="계약 수량 진행">
+                  <td data-label={own ? "구분" : "이번 달 계약"}>{own ? <><span className="badge acc">자사 마케팅</span><div className="faint">업무 항목 {c.items.length}개</div></> : c.contract ? <><span className="badge good">등록</span><div className="faint">{c.contract.amount != null ? won(c.contract.amount) : "금액 미입력"} · 파일 {c.files}</div></> : <Link href={`/admin/clients/${c.id}/contracts`} className="badge warn">미등록 · 등록하기</Link>}</td>
+                  <td data-label="수량 진행">
                     {t.quantity ? <>
                       <div className="num">{Math.round(t.rate * 100)}% <span className="faint">{t.done}/{t.quantity}</span></div>
                       <div className="bar thin pace" title={`기간 경과 ${mi.elapsed}/${mi.days}일`}><i style={{ width: `${t.rate * 100}%` }} /><s style={{ left: `${(mi.elapsed / mi.days) * 100}%` }} /></div>
-                    </> : <span className="faint">계약 항목 없음</span>}
+                    </> : <span className="faint">{own ? "업무 항목 없음" : "계약 항목 없음"}</span>}
                   </td>
                   <td data-label="다음 마감">{next ? <><span className={`badge ${{ late: "bad", risk: "warn", ok: "acc", done: "good" }[st!]}`}>{dday(daysLeft(next.dueOn, mi.today))}</span><div className="faint">{itemLabel(next)} {next.done}/{next.quantity}</div></> : t.quantity ? <span className="badge good">모두 완료</span> : <span className="faint">-</span>}</td>
                   <td data-label="광고비 소진">{burn != null ? <><div className="num">{Math.round(burn * 100)}%</div><div className="bar thin"><i style={{ width: `${burn * 100}%` }} /></div><div className="faint">{won(nv!.spent)} / {won(nv!.budget)}</div></>

@@ -46,13 +46,14 @@ export function visibleMenus(services: string[]) {
 export const isContracted = (services: string[], svc: string | null) => !svc || services.includes(svc);
 
 export default function ReportShell({
-  client, base, section, title, eyebrow, staffTools, preview = null, link = null, reviewPending = 0, services, period, thisMonth, children,
+  client, base, section, title, eyebrow, staffTools, preview = null, link = null, reviewPending = 0, inHouse = false, services, period, thisMonth, children,
 }: {
   client: ClientSummary; base: string; section: string[]; title: string; eyebrow: string;
   staffTools: boolean; services: string[]; period: string; thisMonth: string; children: React.ReactNode;
   preview?: string | null;   // 광고주 화면 미리보기 중이면 내부 화면 주소(돌아가기용)
   link?: LinkStatus | null;  // 직원 화면 · 미리보기: 광고주 링크 발급 현황
   reviewPending?: number;    // 파일 검수 대기 건수 (0이면 배지 숨김)
+  inHouse?: boolean;         // 자사 마케팅: '계약 · 견적 관리' 대신 '업무 항목 관리'
 }) {
   const current = section.join("/");
   const inAds = section[0] === "ads";
@@ -111,7 +112,7 @@ export default function ReportShell({
           </details>
           <div className="nav-div" />
           <Link href={`${base}/history`} className={current === "history" || past ? "on" : ""}>지난 레포트 보기</Link>
-          {staffTools && <Link href={`${base}/contracts`} className={current === "contracts" ? "on" : ""}>계약 · 견적 관리<span className="cnt">직원용</span></Link>}
+          {staffTools && <Link href={`${base}/contracts`} className={current === "contracts" ? "on" : ""}>{inHouse ? "업무 항목 관리" : "계약 · 견적 관리"}<span className="cnt">직원용</span></Link>}
         </nav>
         {staffTools && (
           <div className="side-foot">

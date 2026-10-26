@@ -27,6 +27,13 @@ export async function getMonthOverview(period: string, clientId?: string): Promi
   return (data as MonthClient[] | null) ?? [];
 }
 
+// 자사 마케팅 광고주(믿는구석 등): 계약 · 견적 없이 진행 항목만 관리한다
+export async function getInHouseIds(): Promise<Set<string>> {
+  const db = await supabaseForStaff();
+  const { data } = await db.from("clients").select("id").eq("in_house", true);
+  return new Set((data ?? []).map((r) => r.id as string));
+}
+
 export async function getMonthDetail(clientId: string, period: string): Promise<MonthDetail | null> {
   const db = await supabaseForStaff();
   const { data, error } = await db.rpc("month_client_detail", { p_client: clientId, p_period: period });

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { isAdminRole, requireStaff } from "@/lib/auth";
 import { getStaffOverview } from "@/lib/dashboard";
 import { currentPeriod, SERVICE_LABELS } from "@/lib/content";
-import { daysLeft, dday, getMonthOverview, itemLabel, itemState, monthInfo, totals, type MonthClient } from "@/lib/month";
+import { daysLeft, dday, getInHouseIds, getMonthOverview, itemLabel, itemState, monthInfo, totals, type MonthClient } from "@/lib/month";
 import { Donut } from "@/components/charts";
 import { supabaseForStaff } from "@/lib/supabase/server";
 
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 type Alert = { level: "high" | "mid" | "info"; client: MonthClient; text: string; href: string };
 
-function alertsOf(rows: MonthClient[], period: string, today: string): Alert[] {
+function alertsOf(rows: MonthClient[], period: string, today: string, inHouse: Set<string>): Alert[] {
   const out: Alert[] = [];
   for (const c of rows) {
     const base = `/admin/clients/${c.id}`;
@@ -24,7 +24,8 @@ function alertsOf(rows: MonthClient[], period: string, today: string): Alert[] {
     for (const i of c.items) {
       if (itemState(i, period, today) === "late") out.push({ level: "high", client: c, text: `${itemLabel(i)} 마감 지남 (${i.done}/${i.quantity})`, href: `/admin/progress/${c.id}` });
     }
-    if (!c.contract) out.push({ level: "mid", client: c, text: "이번 달 계약 내용이 등록되지 않았습니다", href: `${base}/contracts` });
+    if (inHouse.has(c.id)) { /* 자사 마케팅: 계약 · 견적 확인 대상 아님 */ }
+    else if (!c.contract) out.push({ level: "mid", client: c, text: "이번 달 계약 내용이 등록되지 않았습니다", href: `${base}/contracts` });
     else if (c.files === 0) out.push({ level: "info", client: c, text: "이번 달 견적서·계약서 파일이 없습니다", href: `${base}/contracts` });
     if (!c.staff.some((s) => s.primary)) out.push({ level: "mid", client: c, text: "주담당 직원이 지정되지 않았습니다", href: `${base}/settings` });
     if (c.channels.naver?.contracted && !c.channels.naver.apiConnected) out.push({ level: "mid", client: c, text: "네이버 광고 계약 · API 키 미등록", href: `${base}/settings` });
@@ -51,7 +52,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const period = sp.period && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.period) ? sp.period : currentPeriod();
   const isAdmin = isAdminRole(me.role);
-  const [all, staffList] = await Promise.all([getMonthOverview(period), isAdmin ? getStaffOverview() : Promise.resolve([])]);
+  const [all, staffList, inHouse] = await Promise.all([getMonthOverview(period), isAdmin ? getStaffOverview() : Promise.resolve([]), getInHouseIds()]);
   const mi = monthInfo(period);
   // 지난 달은 말일 기준, 다가오는 달은 1일 기준으로 마감 상태를 판단한다
   const today = mi.isCurrent ? mi.today : period < mi.today.slice(0, 7) ? mi.last : `${period}-01`;
@@ -63,8 +64,8 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const open = items.filter((i) => i.st !== "done").sort((a, b) => a.dueOn.localeCompare(b.dueOn));
   const soon = open.filter((i) => { const l = daysLeft(i.dueOn, today); return l >= 0 && l <= 3; });
   const late = open.filter((i) => i.st === "late");
-  const noContract = rows.filter((c) => !c.contract);
-  const alerts = alertsOf(rows, period, today);
+  const noContract = rows.filter((c) => !c.contract && !inHouse.has(c.id));   // 자사 마케팅은 계약 대상이 아님
+  const alerts = alertsOf(rows, period, today, inHouse);
   // 파일 검수: 광고주 수정 요청 (담당 광고주만 — RLS)
   const { data: changes } = await (await supabaseForStaff()).from("review_items").select("id, client_id, title").eq("status", "changes");
   for (const r of changes ?? []) {
@@ -173,7 +174,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
           </div>
           <a href="#deadlines" className={`card kpi ${soon.length ? "warn-b" : ""}`}><div className="label">마감 임박 (3일 이내)</div><div className="value num">{soon.length}<small>건</small></div><div className="foot">아직 끝나지 않은 업무</div></a>
           <a href="#deadlines" className={`card kpi ${late.length ? "alert" : ""}`}><div className="label">마감 지남</div><div className="value num">{late.length}<small>건</small></div><div className="foot">수량 미달인 채 마감일 경과</div></a>
-          <Link href="/admin/clients" className={`card kpi ${noContract.length ? "warn-b" : ""}`}><div className="label">계약 미등록</div><div className="value num">{noContract.length}<small>/ {rows.length}곳</small></div><div className="foot">이번 달 견적·계약 등록 필요</div></Link>
+          <Link href="/admin/clients" className={`card kpi ${noContract.length ? "warn-b" : ""}`}><div className="label">계약 미등록</div><div className="value num">{noContract.length}<small>/ {rows.filter((c) => !inHouse.has(c.id)).length}곳</small></div><div className="foot">이번 달 견적·계약 등록 필요</div></Link>
           <a href="#alerts" className={`card kpi ${alerts.some((a) => a.level === "high") ? "alert" : ""}`}><div className="label">확인 필요</div><div className="value num">{alerts.length}<small>건</small></div><div className="foot">긴급 {alerts.filter((a) => a.level === "high").length} · 주의 {alerts.filter((a) => a.level === "mid").length}</div></a>
         </div>
   
@@ -185,7 +186,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
               {clientRates.map(({ c, done, quantity, rate, late: isLate, risk }) => (
                 <li key={c.id}>
                   <Link href={`/admin/progress/${c.id}${staffFilter ? `?staff=${staffFilter}` : ""}`} title={`${c.name}: ${done}/${quantity} (${Math.round(rate * 100)}%)`}>
-                    <span className="cr-name"><b>{c.name}</b><span className="faint">{c.staff.find((s) => s.primary)?.name ?? "주담당 없음"}{!c.contract && " · 계약 미등록"}</span></span>
+                    <span className="cr-name"><b>{c.name}</b><span className="faint">{c.staff.find((s) => s.primary)?.name ?? "주담당 없음"}{!c.contract && !inHouse.has(c.id) && " · 계약 미등록"}</span></span>
                     <span className={`cr-bar ${isLate ? "late" : risk ? "risk" : rate >= 1 ? "done" : "ok"}`}>
                       <i style={{ width: `${rate * 100}%` }} />
                       {mi.isCurrent && <s style={{ left: `${pace * 100}%` }} />}

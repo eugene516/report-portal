@@ -12,7 +12,8 @@ const shift = (period: string, n: number) => {
   return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
 };
 
-export default async function ContractsSection({ clientId, requested }: { clientId: string; requested?: string }) {
+// inHouse: 자사 마케팅 — 계약 금액 · 기간 · 견적서 없이 업무 항목만
+export default async function ContractsSection({ clientId, requested, inHouse = false }: { clientId: string; requested?: string; inHouse?: boolean }) {
   const period = requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : currentPeriod();
   const prev = shift(period, -1);
   const db = await supabaseForStaff();
@@ -35,7 +36,7 @@ export default async function ContractsSection({ clientId, requested }: { client
         <div className="seg">
           {tabs.slice(0, 8).map((p) => (
             <Link key={p} href={`?period=${p}`} className={p === period ? "on" : ""}>
-              {p.replace("-", ".")}{p === cur ? " (이번 달)" : p > cur ? " (다음 달)" : ""}{!(months.data ?? []).some((m) => m.period === p) && p <= cur ? " · 미등록" : ""}
+              {p.replace("-", ".")}{p === cur ? " (이번 달)" : p > cur ? " (다음 달)" : ""}{!inHouse && !(months.data ?? []).some((m) => m.period === p) && p <= cur ? " · 미등록" : ""}
             </Link>
           ))}
         </div>
@@ -43,7 +44,7 @@ export default async function ContractsSection({ clientId, requested }: { client
       </div>
       <ContractManager
         key={period}
-        clientId={clientId} period={period} monthLabel={mi.label} lastDay={mi.last} isCurrent={period === cur}
+        clientId={clientId} inHouse={inHouse} period={period} monthLabel={mi.label} lastDay={mi.last} isCurrent={period === cur}
         head={head.data ? { amount: head.data.amount, startsOn: head.data.starts_on, endsOn: head.data.ends_on, memo: head.data.memo, updatedAt: head.data.updated_at } : null}
         items={(items.data ?? []).map((i) => ({ id: i.id, service: i.service, label: i.label ?? "", quantity: String(i.quantity), dueOn: i.due_on, extra: i.extra, note: i.note ?? "", doneCount: i.done_count, autoDone: auto.get(i.id) ?? null }))}
         prevItems={(prevItems.data ?? []).filter((i) => !i.extra).map((i) => ({ service: i.service, label: i.label ?? "", quantity: i.quantity, day: Number(i.due_on.slice(8, 10)) }))}

@@ -12,7 +12,7 @@ export function Donut({ done, total, label, sub, size = 120 }: { done: number; t
         <circle cx="50" cy="50" r={r} className="donut-track" />
         {rate > 0 && <circle cx="50" cy="50" r={r} className={`donut-fill ${rate >= 1 ? "full" : ""}`} strokeDasharray={`${c * rate} ${c}`} transform="rotate(-90 50 50)" />}
         <text x="50" y="49" className="donut-v">{total ? `${Math.round(rate * 100)}%` : "-"}</text>
-        <text x="50" y="64" className="donut-s">{total ? `${done}/${total}` : "계약 없음"}</text>
+        <text x="50" y="64" className="donut-s">{total ? `${done}/${total}` : "항목 없음"}</text>
       </svg>
       <figcaption><b>{label}</b>{sub && <span className="faint">{sub}</span>}</figcaption>
     </figure>
@@ -21,7 +21,7 @@ export function Donut({ done, total, label, sub, size = 120 }: { done: number; t
 
 // 계약 항목 진행 막대 + 마감 D-day. 회색 세로선 = 오늘 기준 예상 진행 위치
 export function ItemBars({ items, period, today }: { items: ContractItem[]; period: string; today: string }) {
-  if (items.length === 0) return <div className="empty-state">이번 달 계약 항목이 없습니다.</div>;
+  if (items.length === 0) return <div className="empty-state">이번 달 업무 항목이 없습니다.</div>;
   const start = Date.parse(`${period}-01`);
   return (
     <ul className="ibars">
@@ -116,7 +116,7 @@ export function SpendChart({ daily, budget, days, period }: { daily: { date: str
 
 // 월별 달성률 막대 (최근 6개월)
 export function HistoryBars({ rows }: { rows: { period: string; quantity: number; done: number }[] }) {
-  if (rows.length === 0) return <div className="empty-state">등록된 월별 계약이 없습니다.</div>;
+  if (rows.length === 0) return <div className="empty-state">등록된 월별 기록이 없습니다.</div>;
   const W = 640, H = 170, L = 36, R = 8, T = 16, B = 24;
   const bw = Math.min(56, (W - L - R) / rows.length - 16);
   const y = (f: number) => T + (1 - f) * (H - T - B);

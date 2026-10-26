@@ -44,7 +44,7 @@ export default function ServiceGrid({ c, today, size = 92 }: { c: MonthClient; t
           );
           if (items.length === 0) return (
             <Link key={w.svc} href={`${base}/contracts`} className="card kpi donut-card sm">
-              <div className="label">{w.label}</div><div className="value sm-v">계약</div><div className="foot">월 수량 미등록 · 계약에서 입력</div>
+              <div className="label">{w.label}</div><div className="value sm-v">진행</div><div className="foot">월 수량 미등록</div>
             </Link>
           );
           const qty = items.reduce((s, i) => s + i.quantity, 0);

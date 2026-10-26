@@ -12,7 +12,7 @@ import AdContractButton from "./AdContractButton";
 import AdCreatives, { type Creative } from "./AdCreatives";
 import { supabaseForClientLink, supabaseForStaff } from "@/lib/supabase/server";
 import { getLinkStatus } from "@/lib/links";
-import { getMonthOverview, monthInfo } from "@/lib/month";
+import { getInHouseIds, getMonthOverview, monthInfo } from "@/lib/month";
 import { Donut } from "./charts";
 import SheetTabs, { type Sheet } from "./SheetTabs";
 import ReviewSection from "./review/ReviewSection";
@@ -71,6 +71,7 @@ export default async function ReportPage({
   const monthLabel = `${content.period.replace("-", "년 ")}월`;
 
   let title: string;
+  const inHouse = ctx.mode === "staff" && staffView ? (await getInHouseIds()).has(ctx.clientId) : false;   // 자사 마케팅: 계약 대신 업무 항목
   let body: React.ReactNode;
   if (section[0] === "ads") {
     const ch = AD_CHANNELS.find((c) => c.id === section[1]);
@@ -100,8 +101,8 @@ export default async function ReportPage({
   } else if (key === "contracts") {
     // 직원 경로에서만 열린다 (광고주 링크로는 이 주소가 없다)
     if (ctx.mode !== "staff" || !staffView) notFound();
-    title = "계약 · 견적 관리";
-    body = <ContractsSection clientId={ctx.clientId} requested={searchParams.period} />;
+    title = inHouse ? "업무 항목 관리" : "계약 · 견적 관리";
+    body = <ContractsSection clientId={ctx.clientId} requested={searchParams.period} inHouse={inHouse} />;
   } else {
     const menu = MENUS.find((m) => m.id === key);
     if (!menu || !visibleMenus(services).includes(menu)) notFound();   // 고정 메뉴가 아니고 계약하지 않은 항목(플레이스)의 주소는 열리지 않는다
@@ -134,7 +135,7 @@ export default async function ReportPage({
   return (
     <ReportShell client={client} base={base} section={section} title={title}
       eyebrow={`${client.name} · ${section[0] === "ads" ? "온라인 광고" : key === "history" || key === "contracts" ? "월별 관리" : `${monthLabel} 마케팅 리포트`}`}
-      staffTools={staffView} preview={preview ? basePath(ctx) : null} link={link} reviewPending={review?.pending ?? 0} services={services} period={content.period} thisMonth={currentPeriod()}>
+      staffTools={staffView} preview={preview ? basePath(ctx) : null} link={link} reviewPending={review?.pending ?? 0} inHouse={inHouse} services={services} period={content.period} thisMonth={currentPeriod()}>
       {body}
     </ReportShell>
   );
