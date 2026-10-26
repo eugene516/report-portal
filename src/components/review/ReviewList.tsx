@@ -227,7 +227,7 @@ function CardBoard({ r, staff, sel, setSel }: { r: Row; staff: boolean; sel: num
           <li key={f.id} className={notesOf(f.id).length ? "has-notes" : ""}>
             <button type="button" className="cn-art" onClick={() => { setSel(i); setText(""); }} title="원본 보기">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              {f.url ? <img src={f.url} alt={f.file_name} loading="lazy" /> : <span className="faint">불러오기 실패</span>}
+              {f.url ? <img src={f.url} alt={f.file_name} /> : <span className="faint">불러오기 실패</span>}
               <span className="cn-no">{i + 1}</span>
               {notesOf(f.id).length > 0 && <span className="cn-flag">수정 요청 {notesOf(f.id).length}</span>}
             </button>

@@ -1100,7 +1100,9 @@ img, svg { max-width: 100%; }
 .cn-orig-side textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); resize: vertical; }
 .cn-orig-side textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (max-width: 760px) {
-  .cn-board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; }
+  .cn-board { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; }
+  .cn-body { padding: 10px; }
+  .cn-art { padding: 4px; }
   /* 휴대폰: 원본은 화면 너비에 맞춰 크게, 코멘트 칸은 그 아래로 (창 안에서 스크롤) */
   .review-viewer:has(.cn-orig) .fv-head .fv-nav { display: none; }
   .cn-orig { overflow: auto; }
