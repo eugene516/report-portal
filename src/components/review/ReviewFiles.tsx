@@ -1,7 +1,10 @@
 "use client";
 // 검수 콘텐츠 파일 보기: 모든 파일을 썸네일로 정리 → 썸네일을 누르면 전체 내용 보기 (Word 원고 · 이미지 · PDF), 내려받기
 // 파일 주소는 서버가 로그인 세션으로 만든 30분짜리 서명 주소 (비공개 저장소). 등록 전 선택한 파일은 브라우저 안 주소(blob:)
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase/browser";
+import { ask, toast, toastError } from "@/components/ui";
 import type { ReviewFile } from "@/lib/review";
 
 export type ThumbFile = { id: string; name: string; url: string | null; mime: string | null; size: number | null; download?: string };
@@ -120,12 +123,24 @@ export function FileThumbs({ files, onRemove }: { files: ThumbFile[]; onRemove?:
   );
 }
 
-export default function ReviewFiles({ files }: { files: ReviewFile[] }) {
+// removable: 담당 직원이 지금 버전 · 다음 수정본 파일을 지울 수 있다 (기록을 먼저 지우고 저장소 파일을 지운다)
+export default function ReviewFiles({ files, removable = false }: { files: ReviewFile[]; removable?: boolean }) {
+  const router = useRouter();
+  async function remove(id: string) {
+    const f = files.find((x) => x.id === id);
+    if (!f || !await ask(`‘${f.file_name}’ 파일을 삭제할까요?
+삭제한 뒤 새 파일을 다시 올릴 수 있습니다.`)) return;
+    const sb = supabaseBrowser();
+    const { data, error } = await sb.from("review_files").delete().eq("id", id).select("id");
+    if (error || !data?.length) return toastError("파일을 삭제하지 못했습니다.");
+    await sb.storage.from("reviews").remove([f.storage_path]);
+    toast("파일을 삭제했습니다."); router.refresh();
+  }
   if (files.length === 0) return <div className="empty-state">첨부 파일이 없습니다.</div>;
   return (
     <section className="card pad review-files">
       <div className="card-h"><h3>파일 {files.length}개</h3><span className="faint">썸네일을 누르면 전체 내용을 볼 수 있습니다</span></div>
-      <FileThumbs files={files.map((f) => ({ id: f.id, name: f.file_name, url: f.url ?? null, mime: f.mime_type, size: f.size_bytes, download: dl(f) }))} />
+      <FileThumbs files={files.map((f) => ({ id: f.id, name: f.file_name, url: f.url ?? null, mime: f.mime_type, size: f.size_bytes, download: dl(f) }))} onRemove={removable ? remove : undefined} />
     </section>
   );
 }

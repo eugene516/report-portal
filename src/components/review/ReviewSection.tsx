@@ -52,10 +52,10 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
           </dl>
           {lastChange && <div className="notice mt-s">재검수 요청 ({lastChange.actor_name ?? "광고주"}, {kst(lastChange.created_at)}): {lastChange.comment}</div>}
         </section>
-        {staffView && <ReviewStaffActions clientId={clientId} itemId={item.id} status={item.status} version={item.version} hasDraftFiles={current.length > 0} pendingNext={next.length} base={base} />}
-        {staffView && next.length > 0 && <><h3 className="mt">{item.version + 1}차 수정본 (재검수 요청 전)</h3><ReviewFiles files={next} /></>}
+        {staffView && <ReviewStaffActions clientId={clientId} itemId={item.id} status={item.status} version={item.version} hasDraftFiles={current.length > 0} pendingNext={next.length} base={base} title={item.title} kind={item.kind} period={item.period} />}
+        {staffView && next.length > 0 && <><h3 className="mt">{item.version + 1}차 수정본 (재검수 요청 전)</h3><ReviewFiles files={next} removable /></>}
         <h3 className="mt">{item.status === "draft" ? "올린 파일" : `${item.version}차 원고`}</h3>
-        <ReviewFiles files={current} />
+        <ReviewFiles files={current} removable={staffView} />
         {!staffView && item.status === "pending" && <ReviewDecide itemId={item.id} version={item.version} title={item.title} />}
         {item.status === "approved" && !staffView && <div className="planned mt">이 콘텐츠는 검수 완료되었습니다.</div>}
         {item.status === "changes" && !staffView && <div className="planned mt">재검수 요청을 보냈습니다. 담당자가 수정본을 올리면 다시 검수할 수 있습니다.</div>}

@@ -10,6 +10,7 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { confirmDialog, toast, toastError } from "@/components/ui";
 import type { ReviewEvent, ReviewFile, ReviewItem } from "@/lib/review";
 import { DocxView, isDocx, isImage, isPdf, type ThumbFile } from "./ReviewFiles";
+import { removeReviewItem } from "./ReviewStaff";
 
 type Row = ReviewItem & { files: ReviewFile[]; events: ReviewEvent[] };
 const KIND: Record<string, string> = { blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
@@ -82,7 +83,8 @@ export default function ReviewList({ rows, staff, base }: { rows: Row[]; staff: 
                 {canApprove(r, staff) && <button className="btn sm decide-ok" disabled={busy} onClick={() => approve(r)}>✓ 검수 완료</button>}
                 {canChanges(r, staff) && <button className="btn sm" disabled={busy} onClick={() => setOpen({ id: r.id, write: true })}>재검수 요청</button>}
                 {!canApprove(r, staff) && !canChanges(r, staff) && <button className="btn sm" onClick={() => setOpen({ id: r.id, write: false })}>원문 보기</button>}
-                <Link className="btn sm ghost" href={`${base}/review/${r.id}`} title="버전 · 기록 · 파일 관리">상세</Link>
+                <Link className="btn sm ghost" href={`${base}/review/${r.id}`} title="버전 · 기록 · 파일 관리 · 수정">상세</Link>
+                {staff && <button className="btn sm ghost" disabled={busy} onClick={async () => { if (await removeReviewItem(r.id, r.title, r.status)) router.refresh(); }}>삭제</button>}
               </div>
             </td>
           </tr>

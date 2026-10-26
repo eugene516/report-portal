@@ -107,20 +107,35 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
 }
 
 // 상세 화면: 상태에 맞는 직원 작업
-export function ReviewStaffActions({ clientId, itemId, status, version, hasDraftFiles, pendingNext, base }: {
+export function ReviewStaffActions({ clientId, itemId, status, version, hasDraftFiles, pendingNext, base, title, kind, period }: {
   clientId: string; itemId: string; status: string; version: number; hasDraftFiles: boolean; pendingNext: number; base: string;
+  title: string; kind: string; period: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const sb = supabaseBrowser();
   const nextVersion = status === "draft" ? version : version + 1;
 
-  async function add(files: File[]) {
+  // v: 지금 버전(파일 교체) 또는 다음 버전(수정본)
+  async function add(files: File[], v: number) {
     if (!files.length) return;
     setBusy(true);
-    const ok = await uploadFiles(clientId, itemId, nextVersion, files);
+    const ok = await uploadFiles(clientId, itemId, v, files);
     setBusy(false);
-    toast(`${status === "draft" ? "" : `${nextVersion}차 수정본으로 `}파일 ${ok}개를 올렸습니다.`); router.refresh();
+    toast(`${v > version ? `${v}차 수정본으로 ` : ""}파일 ${ok}개를 올렸습니다.`); router.refresh();
+  }
+  // 제목 · 구분 · 대상 월 수정
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const t = String(fd.get("title") ?? "").trim();
+    if (!t) return toastError("제목을 입력해 주세요.");
+    setBusy(true);
+    const { error } = await sb.from("review_items").update({ title: t.slice(0, 200), kind: String(fd.get("kind")), period: String(fd.get("period")), updated_at: new Date().toISOString() }).eq("id", itemId);
+    setBusy(false);
+    if (error) return toastError("수정하지 못했습니다.");
+    toast("수정했습니다."); setEditing(false); router.refresh();
   }
   async function request() {
     setBusy(true);
@@ -147,13 +162,8 @@ export function ReviewStaffActions({ clientId, itemId, status, version, hasDraft
     if (error) return toastError(/no files/.test(error.message) ? "파일을 먼저 올려 주세요." : "완료 처리하지 못했습니다.");
     toast("검수 완료로 표시했습니다."); router.refresh();
   }
-  async function removeDraft() {
-    if (!await ask("작성 중인 콘텐츠를 삭제할까요?\n올린 파일도 함께 지워집니다.")) return;
-    const { data: files } = await sb.from("review_files").select("storage_path").eq("item_id", itemId);
-    const { error } = await sb.from("review_items").delete().eq("id", itemId);
-    if (error) return toastError("삭제하지 못했습니다.");
-    if (files?.length) await sb.storage.from("reviews").remove(files.map((f) => f.storage_path));
-    toast("삭제했습니다."); router.push(`${base}/review`); router.refresh();
+  async function remove() {
+    if (await removeReviewItem(itemId, title, status)) { router.push(`${base}/review`); router.refresh(); }
   }
 
   return (
@@ -163,17 +173,42 @@ export function ReviewStaffActions({ clientId, itemId, status, version, hasDraft
           <span className="faint">{status === "draft" ? "작성 중 — 파일을 확인하고 검수를 요청하세요." : status === "changes" ? "재검수 요청 상태입니다. 수정본을 올리고 수정본 검수 요청을 보내세요." : status === "pending" ? "광고주 검수 대기 중입니다." : "검수 완료. 수정이 생기면 수정본을 올려 다시 검수받을 수 있습니다."}</span>
         </div>
         <div className="row">
+          {status !== "draft" && <label className={`btn sm ${busy ? "disabled" : ""}`} title="지금 원고의 파일을 지운 뒤 새 파일로 바꿀 때">+ {version}차 원고에 파일 추가
+            <input type="file" hidden multiple accept={ACCEPT} onChange={(e) => { add([...(e.target.files ?? [])], version); e.target.value = ""; }} />
+          </label>}
           <label className={`btn sm ${busy ? "disabled" : ""}`}>{status === "draft" ? "+ 파일 추가" : `+ ${nextVersion}차 수정본 파일 올리기`}
-            <input type="file" hidden multiple accept={ACCEPT} onChange={(e) => { add([...(e.target.files ?? [])]); e.target.value = ""; }} />
+            <input type="file" hidden multiple accept={ACCEPT} onChange={(e) => { add([...(e.target.files ?? [])], nextVersion); e.target.value = ""; }} />
           </label>
           {status === "draft" && <button className="btn sm primary" disabled={busy || !hasDraftFiles} onClick={request}>검수 요청</button>}
           {status !== "draft" && <button className="btn sm primary" disabled={busy || pendingNext === 0} onClick={resubmit} title={pendingNext ? "" : "수정본 파일을 먼저 올리세요"}>수정본 검수 요청{pendingNext ? ` (${pendingNext}개 파일)` : ""}</button>}
           {status !== "approved" && <button className="btn sm decide-ok" disabled={busy || !hasDraftFiles} onClick={complete} title="이미 확정된 콘텐츠를 완료로 표시">✓ 완료 처리</button>}
-          {status === "draft" && <button className="btn sm" disabled={busy} onClick={removeDraft}>삭제</button>}
+          <button className="btn sm" disabled={busy} onClick={() => setEditing((x) => !x)}>수정</button>
+          <button className="btn sm" disabled={busy} onClick={remove}>삭제</button>
         </div>
       </div>
+      {editing && (
+        <form className="st-form mt-s" onSubmit={save}>
+          <label className="w2">제목<input name="title" defaultValue={title} required maxLength={200} className="search" /></label>
+          <label>구분<select name="kind" defaultValue={kind}>{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+          <label>대상 월<input name="period" type="month" defaultValue={period} required className="search" /></label>
+          <div className="st-act"><button className="btn sm primary" disabled={busy}>저장</button><button type="button" className="btn sm" onClick={() => setEditing(false)}>취소</button></div>
+        </form>
+      )}
     </section>
   );
+}
+
+// 검수 콘텐츠 삭제 (상태와 관계없이): 파일 · 검수 기록도 함께 지워진다. 기록을 먼저 지운 뒤 저장소 파일을 지운다
+export async function removeReviewItem(itemId: string, title: string, status: string) {
+  const warn = status === "draft" ? "올린 파일도 함께 지워집니다." : "올린 파일과 검수 기록(요청 · 완료 · 코멘트)이 모두 지워지고 되돌릴 수 없습니다.";
+  if (!await ask(`‘${title}’을(를) 삭제할까요?\n${warn}`)) return false;
+  const sb = supabaseBrowser();
+  const { data: files } = await sb.from("review_files").select("storage_path").eq("item_id", itemId);
+  const { data, error } = await sb.from("review_items").delete().eq("id", itemId).select("id");
+  if (error || !data?.length) { toastError("삭제하지 못했습니다."); return false; }
+  if (files?.length) await sb.storage.from("reviews").remove(files.map((f) => f.storage_path));
+  toast("삭제했습니다.");
+  return true;
 }
 
 // 광고주 계정 (파일 검수 로그인용)
