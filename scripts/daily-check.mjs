@@ -3,7 +3,7 @@
 //   2) ego-browser 로 네이버 검색 · 게시글 · 리포트 포털 화면을 확인한다 (scripts/daily-check-round.mjs)
 //   3) 결과를 DB 에 저장한다: blog_rank_results · place_rank_results · cafe_posts(삭제 여부 · 현재 조회/댓글)
 //   4) 기록: G:\공유 드라이브\15. 회사 자체 PJT\report-portal\collection-scripts\daily-check\{날짜}\ (입력 · 결과 · 요약)
-//   5) 정리: 3개월 지난 플레이스 캡쳐 이미지는 자동 삭제 (순위 기록은 유지)
+//   5) 정리: 플레이스 캡쳐는 광고주 · 키워드 · 달마다 가장 최근 한 장만 남기고 자동 삭제 (순위 기록은 유지)
 // 실행: node scripts/daily-check.mjs            (예약: Windows 작업 "ReportPortal-DailyCheck" 매일 09:00, scripts/schedule-tasks.ps1)
 //       node scripts/daily-check.mjs --dry      (대상만 확인, 브라우저 실행 · 저장 안 함)
 // 네이버 광고 성과는 Supabase 예약 작업(매일 09:00)이 따로 수집한다.
@@ -165,23 +165,30 @@ for (const p of r.portal ?? []) log(`화면 ${p.name}: ${p.ok ? "정상" : `확�
 for (const e of r.errors ?? []) log(`오류: ${e}`);
 if (r.portal?.some((p) => p.note === "로그인이 풀려 있음")) log("※ ego 브라우저에서 리포트 포털에 다시 로그인해 주세요.");
 
-// 5) 정리: 3개월 지난 플레이스 캡쳐(정상 노출 · 광고 노출)는 지우고, 순위 기록은 남긴 채 캡쳐 경로만 비운다 ----------
-// 저장소 captures/{광고주}/place(-ad)/… 와 이 PC 기록 폴더 {날짜}/captures. 게시글(카페) 캡쳐는 지우지 않는다.
-const cutoff = kstDate(new Date(Date.now() - 92 * 86400_000));
-const old = sql(`select name from storage.objects where bucket_id = 'captures' and split_part(name, '/', 2) in ('place', 'place-ad') and created_at < now() - interval '3 months' order by name limit 1000`).map((o) => o.name);
+// 5) 정리: 플레이스 캡쳐(정상 노출 · 광고 노출)는 광고주 · 키워드 · 달마다 가장 최근 한 장만 남긴다 -------------------
+// 리포트는 그 달 마지막 점검 캡쳐만 보여 주므로, 더 최근 캡쳐가 생긴 이전 캡쳐는 지우고 기록의 캡쳐 경로만 비운다(순위 기록은 유지).
+// 이 PC 기록 폴더의 캡쳐 사본({날짜}/captures)은 저장소에 올라가 있으므로 다음 날 지운다. 게시글(카페) 캡쳐는 지우지 않는다.
+const old = sql(`
+  with r as (
+    select client_id, keyword, collected_at, 'place' as kind, capture_path as path from public.place_rank_results where capture_path is not null
+    union all
+    select client_id, keyword, collected_at, 'ad', ad_capture_path from public.place_rank_results where ad_capture_path is not null),
+  ranked as (
+    select path, row_number() over (partition by client_id, keyword, kind, to_char(collected_at at time zone 'Asia/Seoul', 'YYYY-MM') order by collected_at desc) as rn from r)
+  select distinct path from ranked where rn > 1 and path not in (select path from ranked where rn = 1) order by path limit 2000`).map((o) => o.path);
 const removed = [];
 for (let i = 0; i < old.length; i += 50) {
   const chunk = old.slice(i, i + 50);
   try {
     execFileSync(process.execPath, [join(APP, "node_modules/supabase/dist/supabase.js"), "storage", "rm", "--linked", "--experimental", "--yes", "--workdir", APP, ...chunk.map((n) => `ss:///captures/${n}`)], { cwd: APP, stdio: "ignore" });
     removed.push(...chunk);
-  } catch { log(`오래된 캡쳐 삭제 실패: ${chunk.length}장 (다음 점검 때 다시 시도)`); }
+  } catch { log(`이전 캡쳐 삭제 실패: ${chunk.length}장 (다음 점검 때 다시 시도)`); }
 }
 if (removed.length) sql(`
   update public.place_rank_results set capture_path = null where capture_path = any(select jsonb_array_elements_text(${json(removed)}));
   update public.place_rank_results set ad_capture_path = null where ad_capture_path = any(select jsonb_array_elements_text(${json(removed)}));`);
 let oldDirs = 0;
 for (const d of readdirSync(ROOT)) {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d < cutoff && existsSync(join(ROOT, d, "captures"))) { rmSync(join(ROOT, d, "captures"), { recursive: true, force: true }); oldDirs++; }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d < day && existsSync(join(ROOT, d, "captures"))) { rmSync(join(ROOT, d, "captures"), { recursive: true, force: true }); oldDirs++; }
 }
-if (removed.length || oldDirs) log(`정리: 3개월 지난 캡쳐 ${removed.length}장 삭제 · 기록 폴더 캡쳐 ${oldDirs}일치 삭제 (순위 기록은 유지)`);
+if (removed.length || oldDirs) log(`정리: 이전 캡쳐 ${removed.length}장 삭제(달마다 최근 한 장 유지) · 기록 폴더 캡쳐 사본 ${oldDirs}일치 삭제`);
