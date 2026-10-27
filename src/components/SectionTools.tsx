@@ -119,7 +119,7 @@ export default function SectionTools({ clientId, period, kind, contracted, lastD
           </>}
           {kind === "place" && <>
             <label className="w2">플레이스 순위 키워드 *<input name="keyword" required maxLength={60} className="search" placeholder="예: 청량리 안과" /></label>
-            <p className="faint w2">순위는 매일 오전 9시 수집 또는 요청 시 수집 때 반영됩니다.</p>
+            <p className="faint w2">순위는 매일 오전 9시 30분 수집 또는 요청 시 수집 때 반영됩니다.</p>
           </>}
           {kind === "column" && <>
             <label className="w2">칼럼 제목 *<input name="title" required maxLength={200} className="search" /></label>

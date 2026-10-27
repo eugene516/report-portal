@@ -1,5 +1,5 @@
 ﻿# 리포트 포털 예약 작업 등록 (이 PC, 현재 로그인한 사용자로 실행)
-#   ReportPortal-DailyCheck    매일 09:00  ego-browser 지표 점검 (scripts/daily-check.mjs)
+#   ReportPortal-DailyCheck    매일 09:30  ego-browser 지표 점검 (scripts/daily-check.mjs)
 #   ReportPortal-MonthlyExport 매일 10:00 확인 → 지난달 리포트 엑셀이 아직 없으면 G 드라이브에 저장 (scripts/export-monthly.mjs --auto)
 # ego-browser 를 쓰므로 "사용자가 로그온되어 있을 때만" 실행된다. PC가 꺼져 있었다면 켜진 뒤 바로 한 번 실행한다(StartWhenAvailable).
 # 실행: powershell -ExecutionPolicy Bypass -File scripts\schedule-tasks.ps1
@@ -11,8 +11,8 @@ $user = "$env:USERDOMAIN\$env:USERNAME"
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
 $daily = New-ScheduledTaskAction -Execute $node -Argument "`"$app\scripts\daily-check.mjs`"" -WorkingDirectory $app
-Register-ScheduledTask -TaskName "ReportPortal-DailyCheck" -Action $daily -Trigger (New-ScheduledTaskTrigger -Daily -At 9:00am) `
-  -Settings $settings -Principal $principal -Description "리포트 포털: 매일 09:00 블로그·플레이스 순위, 카페·당근 게시글, 포털 화면 점검 (ego-browser)" -Force | Out-Null
+Register-ScheduledTask -TaskName "ReportPortal-DailyCheck" -Action $daily -Trigger (New-ScheduledTaskTrigger -Daily -At 9:30am) `
+  -Settings $settings -Principal $principal -Description "리포트 포털: 매일 09:30 블로그·플레이스 순위, 카페·당근 게시글, 포털 화면 점검 (ego-browser)" -Force | Out-Null
 
 # 월 1회 내보내기: 매일 10:00 에 확인하고, 지난달 파일이 아직 없을 때만 만든다(--auto)
 #   → 1일에 PC가 꺼져 있어도 켜진 첫날 저장된다

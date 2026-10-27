@@ -1,10 +1,10 @@
-// 매일 오전 9시 지표 점검 (ego-browser) — 이 PC가 켜져 있고 ego 브라우저에 리포트 포털이 로그인되어 있어야 한다
+// 매일 오전 9시 30분 지표 점검 (ego-browser) — 이 PC가 켜져 있고 ego 브라우저에 리포트 포털이 로그인되어 있어야 한다
 //   1) DB 에서 이번 달 점검 대상을 모은다: 블로그 원고 · 플레이스 키워드 · 카페/당근 게시글(이번 달·지난달 게시중)
 //   2) ego-browser 로 네이버 검색 · 게시글 · 리포트 포털 화면을 확인한다 (scripts/daily-check-round.mjs)
 //   3) 결과를 DB 에 저장한다: blog_rank_results · place_rank_results · cafe_posts(삭제 여부 · 현재 조회/댓글)
 //   4) 기록: G:\공유 드라이브\15. 회사 자체 PJT\report-portal\collection-scripts\daily-check\{날짜}\ (입력 · 결과 · 요약)
 //   5) 정리: 플레이스 캡쳐는 광고주 · 키워드 · 달마다 가장 최근 한 장만 남기고 자동 삭제 (순위 기록은 유지)
-// 실행: node scripts/daily-check.mjs            (예약: Windows 작업 "ReportPortal-DailyCheck" 매일 09:00, scripts/schedule-tasks.ps1)
+// 실행: node scripts/daily-check.mjs            (예약: Windows 작업 "ReportPortal-DailyCheck" 매일 09:30, scripts/schedule-tasks.ps1)
 //       node scripts/daily-check.mjs --dry      (대상만 확인, 브라우저 실행 · 저장 안 함)
 // 네이버 광고 성과는 Supabase 예약 작업(매일 09:00)이 따로 수집한다.
 import { execFileSync, execSync } from "node:child_process";

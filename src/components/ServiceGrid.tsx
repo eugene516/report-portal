@@ -39,7 +39,7 @@ export default function ServiceGrid({ c, today, size = 92 }: { c: MonthClient; t
           if (w.svc === "place") return (
             <Link key={w.svc} href={`${base}/place`} className="card kpi donut-card sm">
               <Donut done={c.place?.checked ?? 0} total={c.place?.total ?? 0} label="플레이스 순위 확인" size={size}
-                sub={c.place?.total ? `오늘 9시 ${c.place.checked}/${c.place.total}개 확인 · 정상 노출 ${c.place.ranked}개` : "키워드 미등록"} />
+                sub={c.place?.total ? `오늘 9시 30분 ${c.place.checked}/${c.place.total}개 확인 · 정상 노출 ${c.place.ranked}개` : "키워드 미등록"} />
             </Link>
           );
           if (items.length === 0) return (
