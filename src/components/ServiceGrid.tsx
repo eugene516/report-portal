@@ -23,12 +23,16 @@ export default function ServiceGrid({ c, today, size = 92 }: { c: MonthClient; t
   const base = `/admin/clients/${c.id}`;
   const by = (svc: string) => c.items.filter((i: ContractItem) => i.service === svc);
   const others = c.items.filter((i) => !WORK.some((w) => w.svc === i.service));
+  // 집행 중인 항목을 앞에 두고, 미집행은 뒤로 (각각은 기본 순서 유지)
+  const isOn = (svc: string) => by(svc).length > 0 || (c.services ?? []).includes(svc);
+  const work = [...WORK.filter((w) => isOn(w.svc)), ...WORK.filter((w) => !isOn(w.svc))];
+  const ads = [...ADS.filter((a) => c.channels[a.id]?.contracted), ...ADS.filter((a) => !c.channels[a.id]?.contracted)];
   return (
     <>
       <div className="svc-cards">
-        {WORK.map((w) => {
+        {work.map((w) => {
           const items = by(w.svc);
-          const contracted = items.length > 0 || (c.services ?? []).includes(w.svc);
+          const contracted = isOn(w.svc);
           if (!contracted) return (
             <div key={w.svc} className="card kpi donut-card off-card sm">
               <div className="label">{w.label}</div><div className="value">미집행</div>
@@ -65,7 +69,7 @@ export default function ServiceGrid({ c, today, size = 92 }: { c: MonthClient; t
         })()}
       </div>
       <div className="svc-cards mt-s">
-        {ADS.map((a) => {
+        {ads.map((a) => {
           const st = c.channels[a.id];
           if (!st?.contracted) return (
             <div key={a.id} className="card kpi donut-card off-card sm ad">
