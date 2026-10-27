@@ -17,6 +17,7 @@ import { corsHeaders, dateRange, getCaller, isCronRequest, json as jsonRaw, kstD
 const LOCK = "naver_sync";
 const LOCK_TTL_SECONDS = 15 * 60;
 const MAX_MANUAL_DAYS = 92;
+const DEADLINE_MS = 100_000;   // 함수 제한 시간(150초) 안에 기록 · 잠금 해제까지 끝내도록 여유를 둔다
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders(req) });
@@ -72,7 +73,8 @@ Deno.serve(async (req) => {
     return json({ error: "already running" }, 409);
   }
 
-  const results: { clientId: string; status: string; rows: number; error?: string; bizmoney?: string }[] = [];
+  const results: { clientId: string; status: string; rows: number; error?: string; bizmoney?: string; entityPending?: string | null }[] = [];
+  const deadline = Date.now() + DEADLINE_MS;
   try {
     let q = db.from("naver_ad_accounts").select("client_id, enc_payload, clients(name)").eq("is_active", true);
     if (onlyClient) q = q.eq("client_id", onlyClient);
@@ -88,10 +90,11 @@ Deno.serve(async (req) => {
       let creds: NaverCredentials | null = null;
       try {
         creds = await decryptCredentials(acc.enc_payload);
-        const { rows, bizmoney } = await syncClient(db, acc.client_id, creds, from, to);
+        const { rows, bizmoney, entityPending } = await syncClient(db, acc.client_id, creds, from, to, deadline);
+        const notes = [entityPending && `(광고비 수집 성공) 광고그룹 · 키워드 성과 ${from} ~ ${entityPending} 미수집: 시간 제한`, bizmoney !== "ok" && `(성과 수집 성공) 비즈머니: ${bizmoney}`].filter(Boolean);
         await db.from("naver_sync_logs").update({ status: "success", rows_upserted: rows, duration_ms: Date.now() - started, finished_at: new Date().toISOString(),
-          error_message: bizmoney === "ok" ? null : `(성과 수집 성공) 비즈머니: ${bizmoney}` }).eq("id", logRow!.id);
-        results.push({ clientId: acc.client_id, status: "success", rows, bizmoney });
+          error_message: notes.length ? notes.join(" / ") : null }).eq("id", logRow!.id);
+        results.push({ clientId: acc.client_id, status: "success", rows, bizmoney, entityPending });
       } catch (e) {
         const msg = errorMessage(e, creds ? [creds.customerId, creds.accessLicense, creds.secretKey] : []);
         await db.from("naver_sync_logs").update({ status: "failed", error_message: msg, duration_ms: Date.now() - started, finished_at: new Date().toISOString() }).eq("id", logRow!.id);
@@ -117,8 +120,8 @@ Deno.serve(async (req) => {
   return json({ runId, from, to, results: results.map(({ error: _e, ...r }) => r) });
 });
 
-// 광고주 한 곳: 캠페인·광고그룹·키워드 정보 갱신 → 날짜별 캠페인 성과 + 광고그룹·키워드 성과 upsert → 비즈머니 잔액
-async function syncClient(db: ReturnType<typeof serviceClient>, clientId: string, creds: NaverCredentials, from: string, to: string): Promise<{ rows: number; bizmoney: string }> {
+// 광고주 한 곳: 캠페인·광고그룹·키워드 정보 갱신 → 날짜별 캠페인 성과 → 광고그룹·키워드 성과(시간 제한 안에서) upsert → 비즈머니 잔액
+async function syncClient(db: ReturnType<typeof serviceClient>, clientId: string, creds: NaverCredentials, from: string, to: string, deadline: number): Promise<{ rows: number; bizmoney: string; entityPending: string | null }> {
   const now = new Date().toISOString();
   const entity = (r: Record<string, unknown>) => ({ client_id: clientId, updated_at: now, campaign_type: null, status: null, bid_amt: null, parent_ncc_id: null, ...r });
   const campaigns = await listCampaigns(creds);
@@ -156,8 +159,10 @@ async function syncClient(db: ReturnType<typeof serviceClient>, clientId: string
     };
   };
   const ids = campaigns.map((c) => c.nccCampaignId);
+  const days = dateRange(from, to);
   let total = 0;
-  for (const date of dateRange(from, to)) {
+  // 1) 캠페인 성과(광고비)는 기간 전체를 먼저 받는다 (하루 한 번 요청이라 빠르다)
+  for (const date of days) {
     const stats = await getDailyStats(creds, ids, date);
     if (stats.length) {
       const rows = stats.map((s) => {
@@ -169,7 +174,12 @@ async function syncClient(db: ReturnType<typeof serviceClient>, clientId: string
       if (error) throw new Error("stats upsert failed");
       total += rows.length;
     }
-    // 광고그룹 · 키워드 (수준별로 따로 요청)
+  }
+  // 2) 광고그룹 · 키워드 성과는 최근 날짜부터, 시간 제한 안에서만 받는다
+  //    키워드가 수천 개면 하루에 20초 넘게 걸려 함수 제한 시간(150초)을 넘긴다. 못 받은 앞쪽 날짜의 끝을 entityPending 으로 돌려준다.
+  let entityPending: string | null = null;
+  for (const date of [...days].reverse()) {
+    if (Date.now() > deadline) { entityPending = date; break; }
     for (const [level, list] of [["adgroup", adgroupIds], ["keyword", keywordIds]] as const) {
       if (!list.length) continue;
       const es = await getDailyStats(creds, list, date);
@@ -195,5 +205,5 @@ async function syncClient(db: ReturnType<typeof serviceClient>, clientId: string
     const { error } = await db.from("naver_account_status").upsert({ client_id: clientId, bizmoney: null, budget_lock: null, checked_at: new Date().toISOString(), error_message: biz });
     if (error) biz += ` / save failed: ${error.code ?? ""} ${error.message.slice(0, 120)}`;
   }
-  return { rows: total, bizmoney: biz };
+  return { rows: total, bizmoney: biz, entityPending };
 }

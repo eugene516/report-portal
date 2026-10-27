@@ -33,11 +33,20 @@ export default function NaverKeyPanel({ clientId, current }: { clientId: string;
   }
   async function resync() {
     setBusy(true); setMsg(null);
-    const { data, error } = await supabaseBrowser().functions.invoke("naver-sync", { body: { clientId, from, to } });
+    // 키워드가 많으면 한 번에 다 못 받는다 → 남은 앞쪽 날짜(entityPending)까지 이어서 다시 요청
+    let end = to, rows = 0;
+    for (let round = 0; round < 20; round++) {
+      const { data, error } = await supabaseBrowser().functions.invoke("naver-sync", { body: { clientId, from, to: end } });
+      if (error) { setBusy(false); return setMsg({ ok: false, text: "수집을 시작하지 못했습니다. (이미 실행 중이거나 기간이 잘못되었을 수 있습니다)" }); }
+      const r = data?.results?.[0];
+      if (r?.status !== "success") { setBusy(false); return setMsg({ ok: false, text: r ? "수집에 실패했습니다. 대시보드의 '확인 필요'를 확인하세요." : "사용 중인 키가 없습니다." }); }
+      if (round === 0) rows = r.rows;
+      if (!r.entityPending) break;
+      end = r.entityPending;
+      setMsg({ ok: true, text: `광고비 ${rows}건 저장 · 키워드 성과 이어서 수집 중 (${from} ~ ${end} 남음)` });
+    }
     setBusy(false);
-    if (error) return setMsg({ ok: false, text: "수집을 시작하지 못했습니다. (이미 실행 중이거나 기간이 잘못되었을 수 있습니다)" });
-    const r = data?.results?.[0];
-    setMsg(r?.status === "success" ? { ok: true, text: `수집 완료: ${r.rows}건 저장 (${from} ~ ${to})` } : { ok: false, text: r ? "수집에 실패했습니다. 대시보드의 '확인 필요'를 확인하세요." : "사용 중인 키가 없습니다." });
+    setMsg({ ok: true, text: `수집 완료: ${rows}건 저장 (${from} ~ ${to})` });
     router.refresh();
   }
 
