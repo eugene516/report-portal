@@ -15,8 +15,8 @@ const kst = (iso: string | null) => (iso ? new Date(Date.parse(iso) + 9 * 3600_0
 const ACTION: Record<string, string> = { request: "검수 요청", resubmit: "수정본 검수 요청", approve: "검수 완료", changes: "재검수 요청" };
 const Status = ({ s }: { s: string }) => <span className={`badge ${REVIEW_STATUS[s]?.badge ?? ""}`}>{REVIEW_STATUS[s]?.label ?? s}</span>;
 
-export default async function ReviewSection({ clientId, clientName, base, itemId, period, staffView, thisMonth, siteLogin }: {
-  clientId: string; clientName: string; base: string; itemId: string | null; period: string | undefined; staffView: boolean; thisMonth: string; siteLogin: string;
+export default async function ReviewSection({ clientId, clientName, base, itemId, period, kind, staffView, thisMonth, siteLogin }: {
+  clientId: string; clientName: string; base: string; itemId: string | null; period: string | undefined; kind?: string; staffView: boolean; thisMonth: string; siteLogin: string;
 }) {
   // 광고주 화면: 로그인 확인
   let viewerName: string | null = null;
@@ -41,7 +41,7 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
     return (
       <>
         {head}
-        <Link href={`${base}/review${item.period !== thisMonth ? `?period=${item.period}` : ""}`} className="faint back-link">‹ 파일 검수 목록</Link>
+        <Link href={`${base}/review?${new URLSearchParams({ ...(item.period !== thisMonth ? { period: item.period } : {}), kind: item.kind })}`} className="faint back-link">‹ {REVIEW_KINDS[item.kind] ?? "파일 검수"} 목록</Link>
         <section className="card pad review-info">
           <div className="card-h"><h2>{item.title}</h2><Status s={item.status} /></div>
           <dl className="kv">
@@ -80,13 +80,18 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
   const { items, periods } = await getReviewList(clientId, want);
   const visible = staffView ? items : items.filter((i) => i.status !== "draft");
   const months = [...new Set([thisMonth, ...periods])].sort().reverse();
+  // 구분별 상자 메뉴: 블로그 · 홈페이지 칼럼 · 카드뉴스는 항상, 기타는 있을 때만. 상자를 누르면 그 구분의 목록만 보인다.
   const byKind = Object.keys(REVIEW_KINDS).map((k) => {
-    const list = visible.filter((i) => i.kind === k && i.status !== "draft");
-    return { k, total: list.length, done: list.filter((i) => i.status === "approved").length };
-  }).filter((x) => x.total > 0);
+    const list = visible.filter((i) => i.kind === k);
+    const sent = list.filter((i) => i.status !== "draft");
+    return { k, total: list.length, sent: sent.length, done: sent.filter((i) => i.status === "approved").length,
+      pending: list.filter((i) => i.status === "pending").length, changes: list.filter((i) => i.status === "changes").length, draft: list.length - sent.length };
+  }).filter((x) => x.k !== "etc" || x.total > 0);
+  const sel = kind && byKind.some((x) => x.k === kind) ? kind : null;
+  const href = (k: string | null) => `${base}/review?${new URLSearchParams({ ...(want !== thisMonth ? { period: want } : {}), ...(k ? { kind: k } : {}) })}`;
   const accounts = staffView ? ((await (await supabaseForStaff()).from("client_users").select("user_id, name, email, must_change_password").eq("client_id", clientId).order("created_at")).data ?? []) : [];
   // 원고 번호 순 (10월블로그01 → 02 …)
-  const rows = await withFilesAndEvents([...visible].sort((a, b) => a.title.localeCompare(b.title, "ko", { numeric: true })));
+  const rows = sel ? await withFilesAndEvents(visible.filter((i) => i.kind === sel).sort((a, b) => a.title.localeCompare(b.title, "ko", { numeric: true }))) : [];
 
   return (
     <>
@@ -96,24 +101,28 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
         <form className="row" method="get">
           <label className="faint" htmlFor="rv-period">대상 월</label>
           <select id="rv-period" name="period" defaultValue={want}>{months.map((m) => <option key={m} value={m}>{m.replace("-", "년 ")}월</option>)}</select>
+          {sel && <input type="hidden" name="kind" value={sel} />}
           <button className="btn sm">보기</button>
         </form>
         {staffView && <ReviewCreate clientId={clientId} period={want} />}
       </div>
-      {byKind.length > 0 && (
-        <div className="review-kinds">
-          {byKind.map((x) => (
-            <div key={x.k} className="card kpi static">
-              <div className="label">{REVIEW_KINDS[x.k]}</div>
-              <div className="value num">{x.done}<small>/ {x.total}건</small></div>
-              <div className="foot">{x.total}건 중 {x.done}건 검수 완료</div>
+      <div className={`review-kinds${sel ? " compact" : ""}`}>
+        {byKind.map((x) => (
+          <Link key={x.k} href={href(sel === x.k ? null : x.k)} className={`card kpi${sel === x.k ? " active" : ""}`} aria-current={sel === x.k ? "page" : undefined}>
+            <div className="label">{REVIEW_KINDS[x.k]}</div>
+            <div className="value num">{x.done}<small>/ {x.sent}건 검수 완료</small></div>
+            <div className="foot">
+              {x.total === 0 ? "등록된 콘텐츠 없음" : [x.pending && `검수 대기 ${x.pending}`, x.changes && `재검수 요청 ${x.changes}`, staffView && x.draft && `작성 중 ${x.draft}`].filter(Boolean).join(" · ") || "모두 검수 완료"}
             </div>
-          ))}
-        </div>
-      )}
-      {visible.length === 0 ? <div className="empty-state mt">{staffView ? "이 달에 등록한 검수 콘텐츠가 없습니다. ‘+ 검수 콘텐츠 등록’으로 시작하세요." : "이 달에 검수할 콘텐츠가 없습니다."}</div> : (
-        <ReviewList rows={rows} staff={staffView} base={base} />
-      )}
+          </Link>
+        ))}
+      </div>
+      {!sel ? <div className="empty-state mt">{visible.length === 0 ? (staffView ? "이 달에 등록한 검수 콘텐츠가 없습니다. ‘+ 검수 콘텐츠 등록’으로 시작하세요." : "이 달에 검수할 콘텐츠가 없습니다.") : "위에서 구분을 눌러 목록을 확인하세요."}</div>
+        : rows.length === 0 ? <div className="empty-state mt">이 달에 등록된 {REVIEW_KINDS[sel]} 콘텐츠가 없습니다.</div>
+        : <>
+            <div className="row review-list-h mt"><h3>{REVIEW_KINDS[sel]} <span className="faint">{rows.length}건</span></h3><Link href={href(null)} className="faint">구분 목록으로</Link></div>
+            <ReviewList rows={rows} staff={staffView} base={base} />
+          </>}
     </>
   );
 }

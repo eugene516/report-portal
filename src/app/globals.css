@@ -973,6 +973,13 @@ img, svg { max-width: 100%; }
 .review-who { gap: 8px; }
 .review-bar { justify-content: space-between; align-items: center; }
 .review-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 12px; }
+.review-kinds .kpi { padding: 22px 20px; }
+.review-kinds .kpi.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.review-kinds .kpi.active .label { color: var(--accent); font-weight: 600; }
+.review-kinds.compact .kpi { padding: 12px 16px; }
+.review-kinds.compact .kpi .value { font-size: 20px; }
+.review-list-h { justify-content: space-between; align-items: baseline; }
+.review-list-h h3 { margin: 0; }
 .review-create { margin-top: 12px; width: 100%; }
 .check-row { flex-direction: row !important; align-items: center; gap: 8px !important; }
 .back-link { display: inline-block; margin-bottom: 10px; }
