@@ -44,6 +44,12 @@ for (const s of sources.filter((x) => x.kind === "blog")) {
 const blog = sql(`select b.client_id as client, b.keyword, b.url from public.blog_posts b where b.period = '${period}' order by b.client_id, b.sort`)
   .map((b) => { const m = b.url.match(/blog\.naver\.com\/([^/?#]+)\/(\d+)/); return m ? { ...b, account: m[1], post: m[2] } : null; })
   .filter(Boolean);
+// 블로그 추가 노출 키워드: 특정 원고 없이 광고주 블로그의 글 중 가장 높은 순위를 기록한다 (post "0" = 일치하는 원고 없음 → 같은 블로그 다른 글 순위로 잡힘)
+const blogExtra = sql(`select k.client_id as client, k.keyword, s.url as src from public.tracked_keywords k
+                         join public.client_sources s on s.client_id = k.client_id and s.kind = 'blog'
+                        where k.kind = 'blog_extra' and k.active order by k.client_id, k.sort`)
+  .map((k) => { const m = k.src.match(/blog\.naver\.com\/([^/?#]+)/); return m ? { client: k.client, keyword: k.keyword, url: null, account: m[1], post: "0" } : null; })
+  .filter(Boolean);
 const place = sql(`select k.client_id as client, k.keyword, c.name as "placeName",
                            row_number() over (partition by k.client_id order by k.important desc, k.sort, k.keyword) as idx
                       from public.tracked_keywords k join public.clients c on c.id = k.client_id
@@ -56,10 +62,10 @@ mkdirSync(captureDir, { recursive: true });
 // --only=place 처럼 일부만 다시 확인할 수 있다 (blog · place · cafe · channels · portal)
 const only = process.argv.find((x) => x.startsWith("--only="))?.slice(7).split(",");
 const pick = (k, v) => (!only || only.includes(k) ? v : []);
-const job = { site: SITE, period, blog: pick("blog", blog), place: pick("place", place), cafe: pick("cafe", cafe), portal: pick("portal", portal), captureDir, sources: pick("channels", sources.filter((x) => x.kind !== "blog")) };
+const job = { site: SITE, period, blog: pick("blog", [...blog, ...blogExtra]), place: pick("place", place), cafe: pick("cafe", cafe), portal: pick("portal", portal), captureDir, sources: pick("channels", sources.filter((x) => x.kind !== "blog")) };
 const input = join(dir, "input.json"), output = join(dir, "result.json");
 writeFileSync(input, JSON.stringify(job, null, 1), "utf8");
-log(`대상: 블로그 ${blog.length} · 플레이스 ${place.length} · 게시글 ${cafe.length} · 화면 ${portal.length}`);
+log(`대상: 블로그 ${blog.length} · 추가 키워드 ${blogExtra.length} · 플레이스 ${place.length} · 게시글 ${cafe.length} · 화면 ${portal.length}`);
 if (process.argv.includes("--dry")) process.exit(0);
 
 // 2) ego-browser 실행 ----------------------------------------------------------------------
@@ -74,6 +80,9 @@ try {
 }
 if (!existsSync(output)) { log("결과 파일이 없어 저장을 건너뜁니다."); process.exit(1); }
 const r = JSON.parse(readFileSync(output, "utf8"));
+// 추가 노출 키워드(url 없음): 같은 블로그 글 중 최고 순위를 순위 · 링크로 옮긴다
+const extraRes = (r.blog ?? []).filter((b) => !b.url).map((b) => ({ ...b, url: b.mainOther?.url ?? b.tabOther?.url ?? null, main: b.mainOther?.rank ?? null, blogTab: b.tabOther?.rank ?? null, mainOther: null, tabOther: null }));
+r.blog = [...(r.blog ?? []).filter((b) => b.url), ...extraRes];
 
 // 3) 저장 ----------------------------------------------------------------------------------
 if (r.blog?.length) sql(`
@@ -156,7 +165,8 @@ if (r.sns?.length) {
 
 // 4) 요약 ----------------------------------------------------------------------------------
 const deleted = (r.cafe ?? []).filter((c) => c.deleted).length;
-const ranked = (r.blog ?? []).filter((b) => b.main != null || b.blogTab != null).length;
+const ranked = (r.blog ?? []).filter((b) => !extraRes.includes(b) && (b.main != null || b.blogTab != null)).length;
+log(`블로그 추가 키워드: ${extraRes.length}개 중 노출 ${extraRes.filter((b) => b.main != null || b.blogTab != null).length}개`);
 const shownPlace = (r.place ?? []).filter((p) => p.rank != null).length;   // 정상 노출 키워드 수
 const shots = (r.place ?? []).filter((p) => p.capturePath).length;
 const adShots = (r.place ?? []).filter((p) => p.adCapturePath).length;
