@@ -109,7 +109,8 @@ export default async function ReportPage({
     title = menu.label;
     let inner: React.ReactNode;
     if (key === "") inner = <Dashboard ctx={ctx} client={client} content={content} base={base} staff={staffView} inHouse={inHouse} />;
-    else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} editable={staffView} />;
+    else if (key === "blog") inner = <BlogSection c={content} tab={searchParams.tab ?? "posts"} path={`${base}/blog`} editable={staffView}
+      urls={searchParams.tab === "etc" ? await captureUrls(ctx, content.keywords.map((k) => k.exposure?.capture ?? null)) : undefined} />;
     else if (key === "column") inner = <ColumnSection c={content} />;
     else if (key === "place") inner = <PlaceSection c={content} urls={await captureUrls(ctx, content.keywords.map((k) => k.place?.capture ?? null))} />;
     else if (key === "cafe" || key === "daangn") {

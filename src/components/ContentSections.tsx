@@ -25,14 +25,14 @@ const bestOther = (a: { rank: number; url: string } | null, b: { rank: number; u
 const naverSearch = (k: string) => `https://search.naver.com/search.naver?query=${encodeURIComponent(k)}`;
 
 // ── 블로그 · 콘텐츠 ──────────────────────────────────────────────────────
-export function BlogSection({ c, tab, path, editable = false, bare = false }: { c: ReportContent; tab: string; path: string; editable?: boolean; bare?: boolean }) {
+export function BlogSection({ c, tab, path, editable = false, bare = false, urls }: { c: ReportContent; tab: string; path: string; editable?: boolean; bare?: boolean; urls?: Map<string, string> }) {
   const extra = c.keywords.filter((k) => k.kind === "blog_extra");
-  const etc = c.keywords.filter((k) => k.kind === "etc");
-  const aeoKw = c.keywords.filter((k) => k.kind === "aeo");
+  // 기타 노출: 기타 · AEO 키워드를 합친 목록 (같은 키워드는 한 번만)
+  const etc = c.keywords.filter((k, i, all) => (k.kind === "etc" || k.kind === "aeo") && all.findIndex((x) => (x.kind === "etc" || x.kind === "aeo") && x.keyword === k.keyword) === i);
   const tabs = [
     { id: "posts", label: `블로그 원고 ${c.blog.length}` },
     extra.length ? { id: "extra", label: `추가 노출 키워드 ${extra.length}` } : null,
-    etc.length || aeoKw.length || c.aeo.length ? { id: "etc", label: `기타 · AEO 노출 ${etc.length + aeoKw.length}` } : null,
+    etc.length ? { id: "etc", label: `기타 노출 ${etc.length}` } : null,
   ].filter((t): t is { id: string; label: string } => !!t);
   const on = tabs.find((t) => t.id === tab)?.id ?? "posts";
   const href = (id: string) => `${path}?period=${c.period}&tab=${id}`;
@@ -68,12 +68,7 @@ export function BlogSection({ c, tab, path, editable = false, bare = false }: { 
           ))}</tbody>
         </table></div>
       )}
-      {on === "etc" && (
-        <div className="grid g-2">
-          <KeywordList title="기타 노출" desc="통합검색의 블로그 외 영역에서 노출을 확인한 키워드" list={etc.map((k) => k.keyword)} />
-          <KeywordList title="AEO 노출" desc="AI 답변형 검색에서 병원 언급을 확인한 키워드" list={aeoKw.map((k) => k.keyword)} />
-        </div>
-      )}
+      {on === "etc" && <ExposureList rows={etc} urls={urls ?? new Map()} />}
     </>
   );
 }
@@ -89,13 +84,46 @@ export function ColumnSection({ c }: { c: ReportContent }) {
     </table></div>
   );
 }
-function KeywordList({ title, desc, list }: { title: string; desc: string; list: string[] }) {
+// ── 기타 노출 (기타 · AEO 통합): 홈페이지 · AI 브리핑 · 파워링크 노출과 캡쳐 ──────────────────
+function ExposureList({ rows, urls }: { rows: ReportContent["keywords"]; urls: Map<string, string> }) {
+  const checked = rows.filter((r) => r.exposure);
+  const count = (f: (e: NonNullable<ReportContent["keywords"][number]["exposure"]>) => boolean) => checked.filter((r) => f(r.exposure!)).length;
+  const last = rows.map((r) => r.exposure?.at).filter(Boolean).sort().at(-1);
   return (
-    <div className="card pad">
-      <div className="card-h"><h3>{title}</h3><span className="faint">{list.length}개</span></div>
-      <p className="faint" style={{ marginTop: 0 }}>{desc}</p>
-      <ul className="list">{list.map((k) => <li key={k}><b>{k}</b><a className="btn sm" href={naverSearch(k)} target="_blank" rel="noopener noreferrer">네이버 검색</a></li>)}</ul>
-    </div>
+    <>
+      <p className="muted">키워드를 네이버 메인에서 검색했을 때 병원 <b>홈페이지</b>가 웹 결과에 나오는지, <b>AI 브리핑</b>에 병원이 언급되는지, <b>파워링크 광고</b>가 노출되는지 확인합니다. 캡쳐에서 검색 키워드와 해당 영역을 빨간 박스로 표시했습니다.</p>
+      {checked.length > 0 && (
+        <div className="row place-sum">
+          <span className="badge good">홈페이지 {count((e) => e.homepage != null)} / {checked.length}</span>
+          <span className="badge acc">AI 브리핑 언급 {count((e) => e.aiMention)}</span>
+          <span className="badge acc">파워링크 {count((e) => e.powerlink != null)}</span>
+          <span className="faint">키워드 {rows.length}개 매일 확인 · {kst(last)} 확인</span>
+        </div>
+      )}
+      <div className="place-grid">
+        {rows.map((r, i) => {
+          const e = r.exposure;
+          const src = e?.capture ? urls.get(e.capture) : undefined;
+          return (
+            <figure key={r.keyword} className="place-card card">
+              <figcaption>
+                <div className="pk"><span className="faint num">{i + 1}</span><b>{r.keyword}</b></div>
+                {e ? (
+                  <div className="row exp-tags">
+                    <span className={`badge ${e.homepage != null ? "good" : ""}`}>홈페이지 {e.homepage != null ? `${e.homepage}번째` : "미노출"}</span>
+                    <span className={`badge ${e.aiMention ? "good" : ""}`}>AI 브리핑 {e.aiMention ? "언급" : e.aiShown ? "미언급" : "없음"}</span>
+                    <span className={`badge ${e.powerlink != null ? "acc" : ""}`}>파워링크 {e.powerlink != null ? `${e.powerlink}번째` : "미노출"}</span>
+                  </div>
+                ) : <span className="rank none">수집 전</span>}
+              </figcaption>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {src ? <a href={src} target="_blank" rel="noopener noreferrer"><img loading="lazy" src={src} alt={`${r.keyword} 기타 노출 화면`} /></a> : <div className="noimg">{e ? "캡쳐 없음" : "수집 전"}</div>}
+              <div className="pf faint"><span>{e ? `${kst(e.at)} 수집` : ""}</span><a href={naverSearch(r.keyword)} target="_blank" rel="noopener noreferrer">네이버 검색</a></div>
+            </figure>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

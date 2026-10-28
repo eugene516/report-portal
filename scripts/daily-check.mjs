@@ -3,7 +3,7 @@
 //   2) ego-browser 로 네이버 검색 · 게시글 · 리포트 포털 화면을 확인한다 (scripts/daily-check-round.mjs)
 //   3) 결과를 DB 에 저장한다: blog_rank_results · place_rank_results · cafe_posts(삭제 여부 · 현재 조회/댓글)
 //   4) 기록: G:\공유 드라이브\15. 회사 자체 PJT\report-portal\collection-scripts\daily-check\{날짜}\ (입력 · 결과 · 요약)
-//   5) 정리: 플레이스 캡쳐는 광고주 · 키워드 · 달마다 가장 최근 한 장만 남기고 자동 삭제 (순위 기록은 유지)
+//   5) 정리: 플레이스 · 기타 노출 캡쳐는 광고주 · 키워드 · 달마다 가장 최근 한 장만 남기고 자동 삭제 (순위 기록은 유지)
 // 실행: node scripts/daily-check.mjs            (예약: Windows 작업 "ReportPortal-DailyCheck" 매일 09:30, scripts/schedule-tasks.ps1)
 //       node scripts/daily-check.mjs --dry      (대상만 확인, 브라우저 실행 · 저장 안 함)
 // 네이버 광고 성과는 Supabase 예약 작업(매일 09:00)이 따로 수집한다.
@@ -50,6 +50,12 @@ const blogExtra = sql(`select k.client_id as client, k.keyword, s.url as src fro
                         where k.kind = 'blog_extra' and k.active order by k.client_id, k.sort`)
   .map((k) => { const m = k.src.match(/blog\.naver\.com\/([^/?#]+)/); return m ? { client: k.client, keyword: k.keyword, url: null, account: m[1], post: "0" } : null; })
   .filter(Boolean);
+// 기타 노출: 기타 · AEO 키워드를 합쳐 한 번씩 (홈페이지 주소는 '홈페이지 칼럼' 수집 채널의 도메인)
+const exposure = sql(`select distinct on (k.client_id, k.keyword) k.client_id as client, k.keyword, c.name,
+                             (select regexp_replace(substring(s.url from '^https?://([^/]+)'), '^www\\.', '') from public.client_sources s where s.client_id = k.client_id and s.kind = 'column' limit 1) as domain
+                        from public.tracked_keywords k join public.clients c on c.id = k.client_id
+                       where k.kind in ('aeo', 'etc') and k.active order by k.client_id, k.keyword`)
+  .map((x, i) => ({ ...x, idx: i + 1 }));
 const place = sql(`select k.client_id as client, k.keyword, c.name as "placeName",
                            row_number() over (partition by k.client_id order by k.important desc, k.sort, k.keyword) as idx
                       from public.tracked_keywords k join public.clients c on c.id = k.client_id
@@ -59,13 +65,13 @@ const first = sql(`select id from public.clients order by name limit 1`)[0];
 const portal = [["대시보드", "/admin"], ["광고주 현황", "/admin/clients"], ["업무 확인", "/admin/tasks"], ...(first ? [["광고주 리포트", `/admin/clients/${first.id}`]] : [])];
 const captureDir = join(dir, "captures").replace(/\\/g, "/");
 mkdirSync(captureDir, { recursive: true });
-// --only=place 처럼 일부만 다시 확인할 수 있다 (blog · place · cafe · channels · portal)
+// --only=place 처럼 일부만 다시 확인할 수 있다 (blog · place · exposure · cafe · channels · portal)
 const only = process.argv.find((x) => x.startsWith("--only="))?.slice(7).split(",");
 const pick = (k, v) => (!only || only.includes(k) ? v : []);
-const job = { site: SITE, period, blog: pick("blog", [...blog, ...blogExtra]), place: pick("place", place), cafe: pick("cafe", cafe), portal: pick("portal", portal), captureDir, sources: pick("channels", sources.filter((x) => x.kind !== "blog")) };
+const job = { site: SITE, period, blog: pick("blog", [...blog, ...blogExtra]), place: pick("place", place), exposure: pick("exposure", exposure), cafe: pick("cafe", cafe), portal: pick("portal", portal), captureDir, sources: pick("channels", sources.filter((x) => x.kind !== "blog")) };
 const input = join(dir, "input.json"), output = join(dir, "result.json");
 writeFileSync(input, JSON.stringify(job, null, 1), "utf8");
-log(`대상: 블로그 ${blog.length} · 추가 키워드 ${blogExtra.length} · 플레이스 ${place.length} · 게시글 ${cafe.length} · 화면 ${portal.length}`);
+log(`대상: 블로그 ${blog.length} · 추가 키워드 ${blogExtra.length} · 기타 노출 ${exposure.length} · 플레이스 ${place.length} · 게시글 ${cafe.length} · 화면 ${portal.length}`);
 if (process.argv.includes("--dry")) process.exit(0);
 
 // 2) ego-browser 실행 ----------------------------------------------------------------------
@@ -110,6 +116,17 @@ if (r.place?.length) sql(`
   insert into public.place_rank_results (client_id, keyword, rank, ad_rank, page, capture_path, ad_capture_path, collected_at, method)
   select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, (x->>'page')::int, x->>'capturePath', x->>'adCapturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
     from jsonb_array_elements(${json(r.place.filter((p) => !p.noBlock))}) x`);
+// 기타 노출 캡쳐 → captures/{광고주}/exposure/{시각}/{번호}.jpg
+for (const x of r.exposure ?? []) {
+  x.capturePath = null;
+  if (!x.capture || !existsSync(x.capture)) continue;
+  const dest = `${x.client}/exposure/${stampDir}/${String(x.idx).padStart(2, "0")}.jpg`;
+  try { upload(x.capture, dest); x.capturePath = dest; } catch { log(`기타 노출 캡쳐 업로드 실패: ${x.keyword}`); }
+}
+if (r.exposure?.length) sql(`
+  insert into public.exposure_results (client_id, keyword, homepage_rank, ai_shown, ai_mention, powerlink_rank, capture_path, collected_at, method)
+  select (x->>'client')::uuid, x->>'keyword', (x->>'homepage')::int, coalesce((x->>'aiShown')::boolean, false), coalesce((x->>'aiMention')::boolean, false), (x->>'powerlink')::int, x->>'capturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
+    from jsonb_array_elements(${json(r.exposure)}) x`);
 if (r.cafe?.length) sql(`
   update public.cafe_posts p
      set status = case when (x->>'deleted')::boolean then '삭제됨' else p.status end,
@@ -171,6 +188,10 @@ const shownPlace = (r.place ?? []).filter((p) => p.rank != null).length;   // �
 const shots = (r.place ?? []).filter((p) => p.capturePath).length;
 const adShots = (r.place ?? []).filter((p) => p.adCapturePath).length;
 log(`저장: 블로그 ${r.blog?.length ?? 0}건(노출 ${ranked}) · 플레이스 ${r.place?.length ?? 0}건(정상 노출 ${shownPlace} · 캡쳐 ${shots} · 광고 노출 캡쳐 ${adShots}) · 게시글 ${r.cafe?.length ?? 0}건(삭제 감지 ${deleted})`);
+if (r.exposure?.length) {
+  const ex = r.exposure;
+  log(`기타 노출: ${ex.length}개 · 홈페이지 ${ex.filter((x) => x.homepage != null).length} · AI 브리핑 언급 ${ex.filter((x) => x.aiMention).length}(브리핑 표시 ${ex.filter((x) => x.aiShown).length}) · 파워링크 ${ex.filter((x) => x.powerlink != null).length} · 캡쳐 ${ex.filter((x) => x.capturePath).length}`);
+}
 for (const p of r.portal ?? []) log(`화면 ${p.name}: ${p.ok ? "정상" : `확인 필요 (${p.note})`}`);
 for (const e of r.errors ?? []) log(`오류: ${e}`);
 if (r.portal?.some((p) => p.note === "로그인이 풀려 있음")) log("※ ego 브라우저에서 리포트 포털에 다시 로그인해 주세요.");
@@ -182,7 +203,9 @@ const old = sql(`
   with r as (
     select client_id, keyword, collected_at, 'place' as kind, capture_path as path from public.place_rank_results where capture_path is not null
     union all
-    select client_id, keyword, collected_at, 'ad', ad_capture_path from public.place_rank_results where ad_capture_path is not null),
+    select client_id, keyword, collected_at, 'ad', ad_capture_path from public.place_rank_results where ad_capture_path is not null
+    union all
+    select client_id, keyword, collected_at, 'exposure', capture_path from public.exposure_results where capture_path is not null),
   ranked as (
     select path, row_number() over (partition by client_id, keyword, kind, to_char(collected_at at time zone 'Asia/Seoul', 'YYYY-MM') order by collected_at desc) as rn from r)
   select distinct path from ranked where rn > 1 and path not in (select path from ranked where rn = 1) order by path limit 2000`).map((o) => o.path);
@@ -196,7 +219,8 @@ for (let i = 0; i < old.length; i += 50) {
 }
 if (removed.length) sql(`
   update public.place_rank_results set capture_path = null where capture_path = any(select jsonb_array_elements_text(${json(removed)}));
-  update public.place_rank_results set ad_capture_path = null where ad_capture_path = any(select jsonb_array_elements_text(${json(removed)}));`);
+  update public.place_rank_results set ad_capture_path = null where ad_capture_path = any(select jsonb_array_elements_text(${json(removed)}));
+  update public.exposure_results set capture_path = null where capture_path = any(select jsonb_array_elements_text(${json(removed)}));`);
 let oldDirs = 0;
 for (const d of readdirSync(ROOT)) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d < day && existsSync(join(ROOT, d, "captures"))) { rmSync(join(ROOT, d, "captures"), { recursive: true, force: true }); oldDirs++; }

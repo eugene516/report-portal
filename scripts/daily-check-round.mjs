@@ -2,6 +2,7 @@
 // 입력: globalThis.__RP_CHECK = { input, output } (JSON 파일 경로)
 // 1) 블로그 원고: 네이버 메인(통합검색) · 블로그 탭 순위, 같은 블로그의 다른 글 순위
 // 2) 플레이스 키워드: 플레이스 영역 순위(광고 제외) · 광고 자리
+//    기타 노출 키워드: 홈페이지 · AI 브리핑 · 파워링크 노출과 캡쳐
 // 3) 카페 · 당근 게시글: 삭제 여부 · 현재 조회수 · 댓글 수
 // 4) 홈페이지 칼럼 · 인스타그램 · 카카오 채널 · 당근 소식: 이번 달 게시물 링크와 제목 (캡쳐 없음)
 // 5) 리포트 포털 화면 점검: 주요 화면이 오류 없이 열리는지
@@ -153,6 +154,78 @@ for (const p of job.place) {
     if (tool && !noBlock) { try { capture = await capturePlace(p, "org"); } catch (e) { result.errors.push(`캡쳐 ${p.keyword}: ${String(e).slice(0, 100)}`); } }
     result.place.push({ client: p.client, keyword: p.keyword, idx: p.idx, rank, adRank, page: pageNo, noBlock, capture, adCapture, at: new Date().toISOString() });
   } catch (e) { result.errors.push(`플레이스 ${p.keyword}: ${String(e).slice(0, 120)}`); }
+  await save(); await pause(2000, 4000);
+}
+
+// 2-1) 기타 노출(기타 · AEO 키워드): 통합검색에서 홈페이지 · AI 브리핑 · 파워링크에 병원이 나오는지
+//      캡쳐(위아래로 합친 JPG): 검색창(키워드 빨간 박스) + 찾은 영역마다 한 장(해당 항목 빨간 박스). 아무 데도 없으면 검색 첫 화면.
+const exposureScan = ({ NAME, DOMAIN }) => {
+  const has = (el) => (DOMAIN && el.querySelector(`a[href*='${DOMAIN}']`)) || (el.innerText || "").includes(NAME);
+  // 파워링크: 광고 목록의 최상위 항목 중 몇 번째인지
+  const pl = document.querySelector("#power_link_body");
+  const ads = pl ? [...pl.querySelectorAll("li")].filter((li) => !li.parentElement.closest("#power_link_body li") && li.querySelector("a")) : [];
+  const adIdx = ads.findIndex(has);
+  if (adIdx >= 0) ads[adIdx].dataset.rpExp = "ad";
+  // AI 브리핑: 'AI 브리핑' 글자가 든 영역
+  const label = [...document.querySelectorAll("#main_pack *")].find((e) => e.children.length < 3 && /AI\s*브리핑/.test(e.textContent || ""));
+  const aiBox = label?.closest(".api_subject_bx, section, [id^='fdr-']") ?? null;
+  const aiMention = !!(aiBox && has(aiBox));
+  if (aiBox) aiBox.dataset.rpExp = aiMention ? "ai" : "ai-none";
+  // 홈페이지: 광고 · 플레이스를 뺀 통합검색 결과 블록 중 홈페이지 링크가 든 첫 블록의 순서
+  const blocks = [...document.querySelectorAll("#main_pack .api_subject_bx, #main_pack [id^='fdr-']")]
+    .filter((b) => !b.parentElement.closest(".api_subject_bx, [id^='fdr-']") && !b.closest("#place-app-root") && !b.querySelector("#power_link_body") && b !== aiBox && (b.innerText || "").trim() && b.getBoundingClientRect().height > 0);
+  const homeIdx = DOMAIN ? blocks.findIndex((b) => b.querySelector(`a[href*='${DOMAIN}']`)) : -1;
+  if (homeIdx >= 0) blocks[homeIdx].dataset.rpExp = "home";
+  return { powerlink: adIdx >= 0 ? adIdx + 1 : null, aiShown: !!aiBox, aiMention, homepage: homeIdx >= 0 ? homeIdx + 1 : null };
+};
+async function captureExposure(x) {
+  const rect = await page.evaluate(async ({ RED }) => {
+    const input = document.querySelector("#nx_query");
+    if (input) { input.style.outline = RED; input.style.outlineOffset = "5px"; input.style.borderRadius = "2px"; }
+    const rc = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, w: b.width, h: b.height }; };
+    const parts = [];
+    // 순서: 파워링크 → AI 브리핑 → 홈페이지 (화면 위에서 아래 순서와 같다)
+    for (const kind of ["ad", "ai", "ai-none", "home"]) {
+      const el = document.querySelector(`[data-rp-exp='${kind}']`);
+      if (!el) continue;
+      if (kind !== "ai-none") { el.style.outline = RED; el.style.outlineOffset = "-4px"; el.style.position = "relative"; el.style.zIndex = "5"; }
+      // 파워링크는 광고 영역 전체, 나머지는 해당 블록
+      const area = kind === "ad" ? (el.closest(".api_subject_bx") ?? el) : el;
+      parts.push(rc(area));
+    }
+    scrollTo(0, 0);
+    for (const el of document.querySelectorAll("body *")) {
+      const pos = getComputedStyle(el).position;
+      if ((pos === "fixed" || pos === "sticky") && !el.contains(input) && el.getBoundingClientRect().height < 200) el.style.visibility = "hidden";
+    }
+    await new Promise((ok) => setTimeout(ok, 600));
+    return { input: input && rc(input), parts, width: Math.min(document.querySelector("#main_pack")?.getBoundingClientRect().width || 700, 900), left: (document.querySelector("#main_pack")?.getBoundingClientRect().left || 0) + scrollX };
+  }, { RED });
+  if (!rect.input) return null;
+  const base = `${job.captureDir}/${x.client}_x${String(x.idx).padStart(2, "0")}`;
+  const files = [base + "_head.png"];
+  await page.screenshot({ path: files[0], fullPage: true, clip: { x: rect.left, y: Math.max(0, rect.input.y - 22), width: rect.width, height: rect.input.h + 44 } });
+  // 아무 데도 없으면 검색 첫 화면(광고 · 플레이스가 보이는 위쪽)을 근거로 남긴다
+  const parts = rect.parts.length ? rect.parts : [{ x: rect.left, y: rect.input.y + rect.input.h + 30, w: rect.width, h: 1100 }];
+  for (const [i, p] of parts.entries()) {
+    const f = `${base}_${i}.png`;
+    await page.screenshot({ path: f, fullPage: true, clip: { x: p.x, y: p.y, width: p.w, height: Math.min(p.h, 1600) } });
+    files.push(f);
+  }
+  await stitch(files, base + ".jpg");
+  return base + ".jpg";
+}
+result.exposure = [];
+for (const x of job.exposure ?? []) {
+  try {
+    await page.goto("https://search.naver.com/search.naver?where=nexearch&query=" + encodeURIComponent(x.keyword));
+    await page.waitForLoadState(); await page.waitForTimeout(2000);
+    await scrollAll(10);   // 아래쪽 결과까지 불러온다
+    const r = await page.evaluate(exposureScan, { NAME: x.name, DOMAIN: x.domain });
+    let capture = null;
+    if (tool) { try { capture = await captureExposure(x); } catch (e) { result.errors.push(`기타 노출 캡쳐 ${x.keyword}: ${String(e).slice(0, 100)}`); } }
+    result.exposure.push({ client: x.client, keyword: x.keyword, idx: x.idx, ...r, capture, at: new Date().toISOString() });
+  } catch (e) { result.errors.push(`기타 노출 ${x.keyword}: ${String(e).slice(0, 120)}`); }
   await save(); await pause(2000, 4000);
 }
 

@@ -1131,3 +1131,6 @@ img, svg { max-width: 100%; }
 .review-edit { width: min(560px, calc(100vw - 32px)); }
 .review-edit h3 { margin: 0; }
 .form-err { margin: 0; color: var(--bad); font-size: 13.5px; }
+
+/* 기타 노출 카드: 홈페이지 · AI 브리핑 · 파워링크 표시는 줄바꿈 허용 */
+.place-card figcaption .row.exp-tags { flex-wrap: wrap; }
