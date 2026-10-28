@@ -382,7 +382,7 @@ async function FullReport({ ctx, client, content, base, services, staffView, sea
   if (exposure.size) sheets.push({ id: "exposure", label: "기타 노출", badge: String(exposure.size), node: <BlogSection c={content} tab="etc" path={`${base}/blog`} bare urls={eUrls} /> });
   void staffView;
   const [yy, mm] = content.period.split("-").map(Number);
-  return <SheetTabs sheets={sheets} title={`${client.name} ${yy}년 ${mm}월 레포트`} />;
+  return <SheetTabs sheets={sheets} title={`${client.name} ${yy}년 ${mm}월 레포트`} xlsx={`${basePath(ctx)}/export?period=${content.period}`} />;
 }
 
 // 대시보드 '이번 달 요약' 아래: 콘텐츠 검수 현황 (유형별 건수만, 리포트 · PDF 에는 넣지 않음)

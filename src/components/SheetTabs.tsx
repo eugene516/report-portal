@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 export type Sheet = { id: string; label: string; badge?: string | null; node: React.ReactNode };
 
-export default function SheetTabs({ sheets, title }: { sheets: Sheet[]; title: string }) {
+export default function SheetTabs({ sheets, title, xlsx }: { sheets: Sheet[]; title: string; xlsx?: string }) {
   const [on, setOn] = useState(sheets[0]?.id ?? "");
   // 주소 끝의 #탭 으로 바로 열기 (새로 고쳐도 같은 탭)
   useEffect(() => {
@@ -25,6 +25,7 @@ export default function SheetTabs({ sheets, title }: { sheets: Sheet[]; title: s
             </button>
           ))}
         </nav>
+        {xlsx && <a className="btn sm sheet-pdf" href={xlsx} download title="탭마다 엑셀 시트로 나눠 저장합니다. 플레이스 · 기타 노출 캡쳐가 함께 들어가 몇 초 걸릴 수 있습니다.">⤓ 엑셀로 저장</a>}
         <button className="btn sm primary sheet-pdf" onClick={() => window.print()} title="모든 탭을 탭마다 새 페이지로 나눠 저장합니다. 인쇄 창에서 'PDF로 저장'을 고르세요.">⤓ PDF로 저장 (전체)</button>
       </div>
       {sheets.map((s) => (
