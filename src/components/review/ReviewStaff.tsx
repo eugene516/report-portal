@@ -1,5 +1,5 @@
 "use client";
-// 직원: 파일 검수 관리 — 콘텐츠 등록(유형 · 월 · Word · 이미지) → 검수 요청 → 수정 요청 확인 → 수정본 등록(새 버전) → 재검수 요청
+// 직원: 파일 검수 관리 — 콘텐츠 등록(유형 · 월 · Word · 엑셀 · 이미지) → 검수 요청 → 수정 요청 확인 → 수정본 등록(새 버전) → 재검수 요청
 // 검수 완료는 광고주가 처리한다. 이미 확정된 콘텐츠만 담당 직원이 '완료 처리'(기록에 남음). 저장소 · 표 규칙이 담당 여부와 버전을 다시 확인한다
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -7,10 +7,12 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ask, toast, toastError } from "@/components/ui";
 import { FileThumbs } from "./ReviewFiles";
 
-const KINDS = [["blog", "블로그"], ["column", "홈페이지 칼럼"], ["cardnews", "SNS 카드뉴스"], ["etc", "기타"]] as const;
-const ACCEPT = ".docx,.doc,.pdf,.hwp,.txt,image/png,image/jpeg,image/webp,image/gif";
-const DOC = /\.(docx?|hwp|pdf|txt)$/i;
-const kindOf = (name: string, fallback: string) => (/칼럼|홈페이지/.test(name) ? "column" : /블로그/.test(name) ? "blog" : /카드\s*뉴스|인스타/.test(name) ? "cardnews" : fallback);
+const KINDS = [["keyword", "주제 · 키워드"], ["blog", "블로그"], ["column", "홈페이지 칼럼"], ["cardnews", "SNS 카드뉴스"], ["etc", "기타"]] as const;
+const ACCEPT = ".docx,.doc,.pdf,.hwp,.txt,.xlsx,.xls,.csv,image/png,image/jpeg,image/webp,image/gif";
+const DOC = /\.(docx?|hwp|pdf|txt|xlsx?|csv)$/i;
+// 엑셀은 브라우저가 형식을 비우거나 다르게 보내기도 해서 확장자로 정한다 (저장소가 허용 형식을 확인)
+const MIME: Record<string, string> = { ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xls": "application/vnd.ms-excel", ".csv": "text/csv" };
+const kindOf = (name: string, fallback: string) => (/키워드|주제/.test(name) ? "keyword" : /칼럼|홈페이지/.test(name) ? "column" : /블로그/.test(name) ? "blog" : /카드\s*뉴스|인스타/.test(name) ? "cardnews" : fallback);
 const safe = (name: string) => name.replace(/[^\w.\-가-힣 ()]/g, "_").slice(-100);
 
 async function uploadFiles(clientId: string, itemId: string, version: number, files: File[]) {
@@ -20,9 +22,10 @@ async function uploadFiles(clientId: string, itemId: string, version: number, fi
     if (f.size > 30 * 1024 * 1024) continue;
     const ext = (f.name.match(/\.[A-Za-z0-9]{1,5}$/)?.[0] ?? "").toLowerCase();
     const path = `${clientId}/${itemId}/v${version}/${crypto.randomUUID()}${ext}`;
-    const up = await sb.storage.from("reviews").upload(path, f, { contentType: f.type || undefined, upsert: false });
+    const type = MIME[ext] ?? (f.type || undefined);
+    const up = await sb.storage.from("reviews").upload(path, f, { contentType: type, upsert: false });
     if (up.error) continue;
-    const { error } = await sb.from("review_files").insert({ item_id: itemId, client_id: clientId, version, file_name: safe(f.name), storage_path: path, mime_type: f.type || null, size_bytes: f.size, sort: i });
+    const { error } = await sb.from("review_files").insert({ item_id: itemId, client_id: clientId, version, file_name: safe(f.name), storage_path: path, mime_type: type ?? null, size_bytes: f.size, sort: i });
     if (error) { await sb.storage.from("reviews").remove([path]); continue; }
     ok++;
   }
@@ -85,10 +88,10 @@ export function ReviewCreate({ clientId, period }: { clientId: string; period: s
     <form className="card pad review-create" onSubmit={create}>
       <h3>검수 콘텐츠 등록</h3>
       <div className="st-form">
-        <label>구분{card ? "" : " (파일명에 ‘블로그’ · ‘칼럼’이 있으면 자동)"}<select name="kind" value={kind} onChange={(e) => setKind(e.target.value)}>{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <label>구분{card ? "" : " (파일명에 ‘키워드’ · ‘블로그’ · ‘칼럼’이 있으면 자동)"}<select name="kind" value={kind} onChange={(e) => setKind(e.target.value)}>{KINDS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label>대상 월<input name="period" type="month" defaultValue={period} required className="search" /></label>
         {card && <label className="w2">카드뉴스 주제<input name="topic" required maxLength={200} className="search" placeholder="예: 29회차 야맹증" autoFocus /></label>}
-        <label className="w-all">{card ? "카드뉴스 이미지 (한 주제의 이미지를 모두 선택, 파일명 순서대로 정리)" : "원고 · 이미지 (여러 개 선택, 파일당 30MB 이하)"}<input type="file" multiple accept={card ? "image/png,image/jpeg,image/webp,image/gif" : ACCEPT} className="search" onChange={(e) => { pick([...(e.target.files ?? [])]); e.target.value = ""; }} /></label>
+        <label className="w-all">{card ? "카드뉴스 이미지 (한 주제의 이미지를 모두 선택, 파일명 순서대로 정리)" : "원고 · 엑셀 · 이미지 (여러 개 선택, 파일당 30MB 이하)"}<input type="file" multiple accept={card ? "image/png,image/jpeg,image/webp,image/gif" : ACCEPT} className="search" onChange={(e) => { pick([...(e.target.files ?? [])]); e.target.value = ""; }} /></label>
         {picked.length > 0 && (
           <div className="w-all">
             <p className="faint">선택한 파일 {picked.length}개 — {card ? "주제 1개가 목록 1줄로 등록됩니다" : "원고 1개가 목록 1줄로 등록됩니다"}. 썸네일을 누르면 전체 내용을 볼 수 있습니다{tooBig ? ` · 30MB가 넘는 ${tooBig}개는 올라가지 않습니다` : ""}</p>

@@ -1,5 +1,5 @@
 "use client";
-// 검수 콘텐츠 파일 보기: 모든 파일을 썸네일로 정리 → 썸네일을 누르면 전체 내용 보기 (Word 원고 · 이미지 · PDF), 내려받기
+// 검수 콘텐츠 파일 보기: 모든 파일을 썸네일로 정리 → 썸네일을 누르면 전체 내용 보기 (Word 원고 · 엑셀 · 이미지 · PDF), 내려받기
 // 파일 주소는 서버가 로그인 세션으로 만든 30분짜리 서명 주소 (비공개 저장소). 등록 전 선택한 파일은 브라우저 안 주소(blob:)
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -11,6 +11,7 @@ export type ThumbFile = { id: string; name: string; url: string | null; mime: st
 
 export const isImage = (f: ThumbFile) => /^image\//.test(f.mime ?? "") || /\.(png|jpe?g|webp|gif)$/i.test(f.name);
 export const isDocx = (f: ThumbFile) => /\.docx$/i.test(f.name) || f.mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const isSheet = (f: ThumbFile) => /\.(xlsx|csv)$/i.test(f.name);
 export const isPdf = (f: ThumbFile) => /\.pdf$/i.test(f.name) || f.mime === "application/pdf";
 const size = (n: number | null) => (n == null ? "" : n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 const ext = (name: string) => (name.match(/\.([A-Za-z0-9]{1,5})$/)?.[1] ?? "파일").toUpperCase();
@@ -52,6 +53,68 @@ export function DocxView({ url, thumb }: { url: string; thumb?: boolean }) {
   if (err) return thumb ? <span className="thumb-icon">DOCX</span> : <div className="notice">미리보기를 만들지 못했습니다. 파일을 내려받아 확인해 주세요.</div>;
   if (html === null) return thumb ? <span className="thumb-icon faint">불러오는 중…</span> : <div className="faint pad-x">원고 불러오는 중…</div>;
   return <article className={thumb ? "docx-thumb" : "docx-view"} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+// 엑셀(xlsx) · CSV → 시트별 표 (값만, 서식 없음). 글자는 React 가 그대로 이스케이프한다
+type Sheet = { name: string; rows: string[][] };
+const sheetCache = new Map<string, Promise<Sheet[]>>();
+const MAX_ROWS = 500;
+function sheetData(url: string, name: string) {
+  let p = sheetCache.get(url);
+  if (!p) {
+    p = (async () => {
+      const buf = await (await fetch(url)).arrayBuffer();
+      if (/\.csv$/i.test(name)) {
+        // 한국어 엑셀이 저장한 CSV 는 EUC-KR 인 경우가 많다: UTF-8 로 안 읽히면 EUC-KR 로 다시 읽는다
+        let text: string;
+        try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); } catch { text = new TextDecoder("euc-kr").decode(buf); }
+        const rows = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim()).slice(0, MAX_ROWS)
+          .map((l) => (l.match(/("([^"]|"")*"|[^,]*)(,|$)/g) ?? []).map((c) => c.replace(/,$/, "").replace(/^"|"$/g, "").replace(/""/g, "\"")).slice(0, -1));
+        return [{ name: "CSV", rows }];
+      }
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      return wb.worksheets.map((ws) => {
+        const rows: string[][] = [];
+        ws.eachRow({ includeEmpty: false }, (row) => {
+          if (rows.length >= MAX_ROWS) return;
+          const cells: string[] = [];
+          for (let c = 1; c <= ws.columnCount; c++) cells.push(row.getCell(c).text ?? "");
+          rows.push(cells);
+        });
+        return { name: ws.name, rows };
+      });
+    })();
+    p.catch(() => sheetCache.delete(url));
+    sheetCache.set(url, p);
+  }
+  return p;
+}
+
+export function SheetView({ url, name }: { url: string; name: string }) {
+  const [state, setState] = useState<{ url: string; sheets: Sheet[] | null; err: boolean } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    sheetData(url, name).then((sheets) => { if (alive) setState({ url, sheets, err: false }); }, () => { if (alive) setState({ url, sheets: null, err: true }); });
+    return () => { alive = false; };
+  }, [url, name]);
+  const cur = state?.url === url ? state : null;
+  if (cur?.err) return <div className="notice">미리보기를 만들지 못했습니다. 파일을 내려받아 확인해 주세요.</div>;
+  if (!cur?.sheets) return <div className="faint pad-x">엑셀 불러오는 중…</div>;
+  return (
+    <div className="sheet-view">
+      {cur.sheets.filter((s) => s.rows.length).map((s) => (
+        <section key={s.name}>
+          {cur.sheets!.length > 1 && <h4>{s.name}</h4>}
+          <div className="table-wrap"><table><tbody>
+            {s.rows.map((r, i) => <tr key={i}>{r.map((c, j) => (i === 0 ? <th key={j}>{c}</th> : <td key={j}>{c}</td>))}</tr>)}
+          </tbody></table></div>
+          {s.rows.length >= MAX_ROWS && <p className="faint">처음 {MAX_ROWS}줄만 보입니다. 전체는 내려받아 확인해 주세요.</p>}
+        </section>
+      ))}
+    </div>
+  );
 }
 
 function Thumb({ f }: { f: ThumbFile }) {
@@ -113,6 +176,7 @@ export function FileThumbs({ files, onRemove }: { files: ThumbFile[]; onRemove?:
                 // eslint-disable-next-line @next/next/no-img-element
                 : isImage(cur) ? <img src={cur.url} alt={cur.name} />
                 : isDocx(cur) ? <DocxView url={cur.url} />
+                : isSheet(cur) ? <SheetView url={cur.url} name={cur.name} />
                 : isPdf(cur) ? <iframe src={cur.url} title={cur.name} />
                 : <div className="notice">이 형식은 화면에서 바로 볼 수 없습니다. {cur.download ? "내려받아 확인해 주세요." : "등록한 뒤 내려받아 확인할 수 있습니다."}</div>}
             </div>

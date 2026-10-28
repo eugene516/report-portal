@@ -6,7 +6,7 @@ import "server-only";
 import type { ReportCtx } from "./report";
 import { supabaseForClientLink, supabaseForStaff } from "./supabase/server";
 
-export const REVIEW_KINDS: Record<string, string> = { blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
+export const REVIEW_KINDS: Record<string, string> = { keyword: "당월 주제 · 키워드", blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
 export const REVIEW_STATUS: Record<string, { label: string; badge: string }> = {
   draft: { label: "작성 중", badge: "" },
   pending: { label: "검수 대기", badge: "warn" },

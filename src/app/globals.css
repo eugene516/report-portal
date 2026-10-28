@@ -1040,6 +1040,12 @@ img, svg { max-width: 100%; }
 .fv-body img { max-width: 100%; height: auto; display: block; margin: auto; }
 .fv-body iframe { width: 100%; height: 100%; border: 0; background: #fff; }
 .fv-body .docx-view { max-height: none; width: min(820px, 100%); margin: 0; border: 0; border-radius: 0; min-height: 100%; }
+.sheet-view { width: min(1000px, 100%); background: #fff; color: #1b1f27; padding: 14px; border-radius: 8px; overflow: auto; }
+.sheet-view h4 { margin: 10px 0 6px; }
+.sheet-view .table-wrap { overflow: auto; }
+.sheet-view table { border-collapse: collapse; font-size: 13.5px; }
+.sheet-view th, .sheet-view td { border: 1px solid #d9dde5; padding: 5px 9px; text-align: left; white-space: nowrap; }
+.sheet-view th { background: #f2f4f8; font-weight: 600; position: sticky; top: 0; }
 .fv-body .notice { margin: 24px; }
 @media (max-width: 600px) {
   .file-thumbs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
