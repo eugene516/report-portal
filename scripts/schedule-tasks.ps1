@@ -10,13 +10,16 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit
 $user = "$env:USERDOMAIN\$env:USERNAME"
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
-$daily = New-ScheduledTaskAction -Execute $node -Argument "`"$app\scripts\daily-check.mjs`"" -WorkingDirectory $app
+# 명령 창 없이 백그라운드로 실행한다 (창을 닫으면 점검이 중단되던 문제: 종료 코드 0xC000013A)
+$hidden = "$env:SystemRoot\System32\wscript.exe"
+$wrap = "`"$app\scripts\run-hidden.vbs`" `"$node`""
+$daily = New-ScheduledTaskAction -Execute $hidden -Argument "$wrap `"$app\scripts\daily-check.mjs`"" -WorkingDirectory $app
 Register-ScheduledTask -TaskName "ReportPortal-DailyCheck" -Action $daily -Trigger (New-ScheduledTaskTrigger -Daily -At 9:30am) `
   -Settings $settings -Principal $principal -Description "리포트 포털: 매일 09:30 블로그·플레이스 순위, 카페·당근 게시글, 포털 화면 점검 (ego-browser)" -Force | Out-Null
 
 # 월 1회 내보내기: 매일 10:00 에 확인하고, 지난달 파일이 아직 없을 때만 만든다(--auto)
 #   → 1일에 PC가 꺼져 있어도 켜진 첫날 저장된다
-$monthly = New-ScheduledTaskAction -Execute $node -Argument "`"$app\scripts\export-monthly.mjs`" --auto" -WorkingDirectory $app
+$monthly = New-ScheduledTaskAction -Execute $hidden -Argument "$wrap `"$app\scripts\export-monthly.mjs`" --auto" -WorkingDirectory $app
 Register-ScheduledTask -TaskName "ReportPortal-MonthlyExport" -Action $monthly -Trigger (New-ScheduledTaskTrigger -Daily -At 10:00am) `
   -Settings $settings -Principal $principal -Description "리포트 포털: 지난달 리포트 엑셀을 G 드라이브 monthly-reports 에 저장 (매월 처음 한 번)" -Force | Out-Null
 
