@@ -30,8 +30,7 @@ export function BlogSection({ c, tab, path, editable = false, bare = false, urls
   // 기타 노출: 기타 · AEO 키워드를 합친 목록 (같은 키워드는 한 번만)
   const etc = c.keywords.filter((k, i, all) => (k.kind === "etc" || k.kind === "aeo") && all.findIndex((x) => (x.kind === "etc" || x.kind === "aeo") && x.keyword === k.keyword) === i);
   const tabs = [
-    { id: "posts", label: `블로그 원고 ${c.blog.length}` },
-    extra.length ? { id: "extra", label: `추가 노출 키워드 ${extra.length}` } : null,
+    { id: "posts", label: `블로그 원고 ${c.blog.length}${extra.length ? ` · 추가 키워드 ${extra.length}` : ""}` },
     etc.length ? { id: "etc", label: `기타 노출 ${etc.length}` } : null,
   ].filter((t): t is { id: string; label: string } => !!t);
   const on = tabs.find((t) => t.id === tab)?.id ?? "posts";
@@ -56,17 +55,22 @@ export function BlogSection({ c, tab, path, editable = false, bare = false, urls
               ))}
             </tbody>
           </table></div>
+          {/* 추가 노출 키워드: 원고 순위 바로 아래 (특정 원고 없이 같은 블로그 글 중 가장 높은 순위) */}
+          {extra.length > 0 && (
+            <>
+              <h3 className="mt">추가 노출 키워드 <span className="faint">{extra.length}개</span></h3>
+              <p className="muted">원고와 별도로 관리하는 키워드에서 블로그 글이 노출되는 순위입니다(블로그 글 중 가장 높은 순위).</p>
+              <div className="card tbl-wrap"><table>
+                <thead><tr><th>No</th><th>키워드</th><th className="r">순위</th><th>수집 시각</th></tr></thead>
+                <tbody>{extra.map((k, i) => (
+                  <tr key={k.keyword}><td className="faint num">{i + 1}</td><td><b>{k.keyword}</b></td>
+                    <td className="r"><Rank v={best(k.blogRank?.main, k.blogRank?.blogTab)} collected={!!k.blogRank} /></td>
+                    <td className="faint num">{kst(k.blogRank?.at)}</td></tr>
+                ))}</tbody>
+              </table></div>
+            </>
+          )}
         </>
-      )}
-      {on === "extra" && (
-        <div className="card tbl-wrap"><table>
-          <thead><tr><th>No</th><th>키워드</th><th className="r">순위</th><th>수집 시각</th></tr></thead>
-          <tbody>{extra.map((k, i) => (
-            <tr key={k.keyword}><td className="faint num">{i + 1}</td><td><b>{k.keyword}</b></td>
-              <td className="r"><Rank v={best(k.blogRank?.main, k.blogRank?.blogTab)} collected={!!k.blogRank} /></td>
-              <td className="faint num">{kst(k.blogRank?.at)}</td></tr>
-          ))}</tbody>
-        </table></div>
       )}
       {on === "etc" && <ExposureList rows={etc} urls={urls ?? new Map()} />}
     </>
@@ -87,16 +91,12 @@ export function ColumnSection({ c }: { c: ReportContent }) {
 // ── 기타 노출 (기타 · AEO 통합): 홈페이지 · AI 브리핑 · 파워링크 노출과 캡쳐 ──────────────────
 function ExposureList({ rows, urls }: { rows: ReportContent["keywords"]; urls: Map<string, string> }) {
   const checked = rows.filter((r) => r.exposure);
-  const count = (f: (e: NonNullable<ReportContent["keywords"][number]["exposure"]>) => boolean) => checked.filter((r) => f(r.exposure!)).length;
   const last = rows.map((r) => r.exposure?.at).filter(Boolean).sort().at(-1);
   return (
     <>
       <p className="muted">키워드를 네이버 메인에서 검색했을 때 병원 <b>홈페이지</b>가 웹 결과에 나오는지, <b>AI 브리핑</b>에 병원이 언급되는지, <b>파워링크 광고</b>가 노출되는지 확인합니다. 캡쳐에서 검색 키워드와 해당 영역을 빨간 박스로 표시했습니다.</p>
       {checked.length > 0 && (
         <div className="row place-sum">
-          <span className="badge good">홈페이지 {count((e) => e.homepage != null)} / {checked.length}</span>
-          <span className="badge acc">AI 브리핑 언급 {count((e) => e.aiMention)}</span>
-          <span className="badge acc">파워링크 {count((e) => e.powerlink != null)}</span>
           <span className="faint">키워드 {rows.length}개 매일 확인 · {kst(last)} 확인</span>
         </div>
       )}
