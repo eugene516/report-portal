@@ -1,68 +1,47 @@
 "use client";
-// 파일 검수 로그인 (광고주 계정) · 첫 로그인 비밀번호 변경 · 로그아웃
-// 리포트 보기는 링크로 열리지만, 검수 완료 · 수정 요청은 이 로그인을 해야 할 수 있다.
+// 광고주 로그인 (광고주 링크 화면) · 로그아웃
+// 광고주 링크를 열고 그 광고주에 등록된 이메일만 입력하면 바로 로그인된다 (비밀번호 · 메일 인증 없음).
+// 링크 토큰 · 이메일 확인과 로그인 토큰 발급은 client-login 함수가 한다.
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import { toast, toastError } from "@/components/ui";
+import { toastError } from "@/components/ui";
 
-const RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{10,}$/;
-
-export function ReviewLogin({ clientName, other }: { clientName: string; other: boolean }) {
+export function ClientEmailLogin({ token, clientName, other = false }: { token: string | null; clientName: string; other?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   async function login(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    if (!token) return;
+    const email = String(new FormData(e.currentTarget).get("email") ?? "").trim();
     setBusy(true);
     const sb = supabaseBrowser();
+    const { data, error } = await sb.functions.invoke("client-login", { body: { token, email } });
+    if (error || !data?.tokenHash) {
+      setBusy(false);
+      let msg = "로그인하지 못했습니다.";
+      try { msg = (await (error as { context?: Response })?.context?.json())?.error ?? msg; } catch { /* 기본 문구 */ }
+      return toastError(msg);
+    }
     if (other) await sb.auth.signOut();
-    const { error } = await sb.auth.signInWithPassword({ email: String(fd.get("email") ?? "").trim(), password: String(fd.get("password") ?? "") });
+    const { error: e2 } = await sb.auth.verifyOtp({ token_hash: data.tokenHash, type: "magiclink" });
     setBusy(false);
-    if (error) return toastError("이메일 또는 비밀번호가 맞지 않습니다.");
+    if (e2) return toastError("로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     router.refresh();
   }
   return (
     <section className="card pad review-login">
-      <h2>파일 검수 로그인</h2>
-      <p className="faint">{clientName} 담당자 계정으로 로그인하면 콘텐츠를 확인하고 검수 완료 · 수정 요청을 할 수 있습니다. 계정은 믿는구석 담당자가 발급해 드립니다.</p>
-      {other && <div className="notice mt-s">지금 로그인한 계정은 {clientName} 검수 계정이 아닙니다. 검수 계정으로 다시 로그인해 주세요.</div>}
-      <form className="login-form" method="post" onSubmit={login}>
-        <input name="email" type="email" required placeholder="이메일" className="search" autoComplete="username" />
-        <input name="password" type="password" required placeholder="비밀번호" className="search" autoComplete="current-password" />
-        <button className="btn primary" disabled={busy}>{busy ? "확인 중…" : "로그인"}</button>
-      </form>
-    </section>
-  );
-}
-
-export function ReviewChangePassword() {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  async function change(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const pw = String(fd.get("pw") ?? ""), pw2 = String(fd.get("pw2") ?? "");
-    if (!RULE.test(pw)) return toastError("비밀번호는 10자 이상, 영문 대·소문자와 숫자를 포함해야 합니다.");
-    if (pw !== pw2) return toastError("두 비밀번호가 다릅니다.");
-    setBusy(true);
-    const sb = supabaseBrowser();
-    const { error } = await sb.auth.updateUser({ password: pw });
-    if (!error) await sb.rpc("client_user_password_changed");
-    setBusy(false);
-    if (error) return toastError("비밀번호를 바꾸지 못했습니다.");
-    toast("비밀번호를 바꿨습니다.");
-    router.refresh();
-  }
-  return (
-    <section className="card pad review-login">
-      <h2>새 비밀번호 설정</h2>
-      <p className="faint">처음 로그인하셨습니다. 임시 비밀번호를 새 비밀번호로 바꿔 주세요.</p>
-      <form className="login-form" method="post" onSubmit={change}>
-        <input name="pw" type="password" required placeholder="새 비밀번호 (10자 이상, 대·소문자·숫자)" className="search" autoComplete="new-password" />
-        <input name="pw2" type="password" required placeholder="새 비밀번호 확인" className="search" autoComplete="new-password" />
-        <button className="btn primary" disabled={busy}>{busy ? "저장 중…" : "비밀번호 저장"}</button>
-      </form>
+      <h2>{clientName} 리포트 로그인</h2>
+      {token
+        ? <p className="faint">믿는구석에 등록된 담당자 이메일을 입력하면 바로 리포트를 볼 수 있습니다. 이메일 등록은 믿는구석 담당자에게 요청해 주세요.</p>
+        : <p className="faint">광고주는 광고주 링크에서 등록된 이메일을 입력해 로그인합니다. 미리보기에서는 로그인할 수 없습니다.</p>}
+      {other && <div className="notice mt-s">지금 로그인한 계정은 {clientName}에 등록된 이메일이 아닙니다. 등록된 이메일로 다시 로그인해 주세요.</div>}
+      {token && (
+        <form className="login-form" method="post" onSubmit={login}>
+          <input name="email" type="email" required placeholder="등록된 이메일" className="search" autoComplete="email" maxLength={200} autoFocus />
+          <button className="btn primary" disabled={busy}>{busy ? "확인 중…" : "로그인"}</button>
+        </form>
+      )}
     </section>
   );
 }

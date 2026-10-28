@@ -435,3 +435,7 @@ verify_jwt = true
 # report-capture: 광고주 링크(로그인 없음) 화면의 이미지 요청. 함수 안에서 링크 토큰을 검증한다.
 [functions.report-capture]
 verify_jwt = false
+
+# client-login: 광고주 링크 화면의 이메일 로그인(로그인 전 호출). 함수 안에서 링크 토큰과 등록 이메일을 검증한다.
+[functions.client-login]
+verify_jwt = false

@@ -91,7 +91,7 @@ export default async function ReportPage({
     );
   } else if (section[0] === "review" && section.length <= 2) {
     title = section[1] ? "파일 검수 · 상세" : "파일 검수";
-    body = <ReviewSection clientId={client.id} clientName={client.name} base={base} itemId={section[1] ?? null} period={searchParams.period} kind={searchParams.kind} staffView={staffView} thisMonth={currentPeriod()} siteLogin={`${base}/review`} />;
+    body = <ReviewSection clientId={client.id} clientName={client.name} base={base} itemId={section[1] ?? null} period={searchParams.period} kind={searchParams.kind} staffView={staffView} thisMonth={currentPeriod()} linkToken={ctx.mode === "client" ? ctx.token : null} />;
   } else if (key === "full") {
     title = "레포트 상세보기";
     body = <FullReport ctx={ctx} client={client} content={content} base={base} services={services} staffView={staffView} searchParams={searchParams} />;

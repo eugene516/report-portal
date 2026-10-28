@@ -177,7 +177,7 @@ export default function ClientSettings(p: Props) {
 
       <section className="card pad mt">
         <div className="card-h"><h2>광고주 링크</h2><IssueLinkButton clientId={id} /></div>
-        <p className="faint">광고주에게 보내는 전용 주소입니다. 링크는 발급할 때 한 번만 보이며, 잃어버리면 새로 발급하고 기존 링크는 폐기하세요.</p>
+        <p className="faint">광고주에게 보내는 전용 주소입니다. 광고주는 이 링크에서 등록된 이메일(아래 ‘광고주 로그인 이메일’)을 입력해 로그인합니다. 링크는 발급할 때 한 번만 보이며, 잃어버리면 새로 발급하고 기존 링크는 폐기하세요.</p>
         <div className="tbl-wrap"><table>
           <thead><tr><th>발급</th><th>최근 접속</th><th>상태</th><th></th></tr></thead>
           <tbody>

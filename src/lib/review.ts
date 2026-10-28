@@ -30,15 +30,15 @@ export async function getReviewSummary(ctx: ReportCtx, period: string): Promise<
 }
 
 // 지금 로그인한 사람이 이 광고주의 광고주 계정인지 (리포트 링크 화면에서 검수하려면 필요)
-export type ReviewViewer = { kind: "none" } | { kind: "other" } | { kind: "client"; userId: string; name: string; email: string; mustChange: boolean };
+export type ReviewViewer = { kind: "none" } | { kind: "other" } | { kind: "client"; userId: string; name: string; email: string };
 export async function getReviewViewer(clientId: string): Promise<ReviewViewer> {
   const db = await supabaseForStaff();
   const { data: claims } = await db.auth.getClaims();
   const uid = claims?.claims?.sub;
   if (!uid) return { kind: "none" };
-  const { data } = await db.from("client_users").select("user_id, client_id, name, email, must_change_password").eq("user_id", uid).maybeSingle();
+  const { data } = await db.from("client_users").select("user_id, client_id, name, email").eq("user_id", uid).maybeSingle();
   if (!data || data.client_id !== clientId) return { kind: "other" };
-  return { kind: "client", userId: uid, name: data.name ?? data.email, email: data.email, mustChange: data.must_change_password };
+  return { kind: "client", userId: uid, name: data.name ?? data.email, email: data.email };
 }
 
 // 로그인 세션(직원 · 광고주 계정)으로 목록 · 상세 읽기 — 볼 수 있는 범위는 RLS 가 정한다

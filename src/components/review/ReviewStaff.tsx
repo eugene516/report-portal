@@ -230,11 +230,11 @@ export async function removeReviewItem(itemId: string, title: string, status: st
   return true;
 }
 
-// 광고주 계정 (파일 검수 로그인용)
-export function ClientAccounts({ clientId, accounts, loginUrl }: { clientId: string; accounts: { user_id: string; name: string | null; email: string; must_change_password: boolean }[]; loginUrl: string }) {
+// 광고주 로그인 이메일 (광고주 링크에서 이 이메일만 입력해 로그인한다)
+export function ClientAccounts({ clientId, accounts }: { clientId: string; accounts: { user_id: string; name: string | null; email: string }[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [issued, setIssued] = useState<{ email: string; pw: string } | null>(null);
+  const [added, setAdded] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const sb = supabaseBrowser();
   const fnErr = async (e: unknown, fb: string) => { try { const j = await (e as { context?: Response }).context?.json(); return (j?.error as string) ?? fb; } catch { return fb; } };
@@ -245,48 +245,43 @@ export function ClientAccounts({ clientId, accounts, loginUrl }: { clientId: str
     setBusy(true);
     const { data, error } = await sb.functions.invoke("client-account", { body: { action: "create", clientId, email: String(fd.get("email")).trim(), name: String(fd.get("name") ?? "").trim() } });
     setBusy(false);
-    if (error) return toastError(await fnErr(error, "계정을 만들지 못했습니다."));
-    form.reset(); setCopied(false); setIssued({ email: data.email, pw: data.tempPassword }); router.refresh();
-  }
-  async function reset(userId: string, email: string) {
-    if (!await ask(`${email} 의 임시 비밀번호를 다시 발급할까요?\n지금 비밀번호로는 더 이상 로그인할 수 없습니다.`)) return;
-    setBusy(true);
-    const { data, error } = await sb.functions.invoke("client-account", { body: { action: "reset", userId } });
-    setBusy(false);
-    if (error) return toastError(await fnErr(error, "재발급하지 못했습니다."));
-    setCopied(false); setIssued({ email: data.email, pw: data.tempPassword }); router.refresh();
+    if (error) return toastError(await fnErr(error, "이메일을 등록하지 못했습니다."));
+    form.reset(); setCopied(false); setAdded(data.email); router.refresh();
   }
   async function remove(userId: string, email: string) {
-    if (!await ask(`${email} 계정을 삭제할까요?\n이 계정으로 더 이상 검수할 수 없습니다. 지난 검수 기록은 남습니다.`)) return;
+    if (!await ask(`${email} 등록을 삭제할까요?
+이 이메일로 더 이상 리포트에 로그인할 수 없습니다. 지난 검수 기록은 남습니다.`)) return;
     setBusy(true);
     const { error } = await sb.functions.invoke("client-account", { body: { action: "remove", userId } });
     setBusy(false);
     if (error) return toastError(await fnErr(error, "삭제하지 못했습니다."));
-    toast("계정을 삭제했습니다."); router.refresh();
+    toast("삭제했습니다."); router.refresh();
   }
-  const text = issued ? `[믿는구석] 콘텐츠 파일 검수 안내\n\n리포트 링크에서 '파일 검수' 메뉴를 열고 아래 계정으로 로그인해 주세요.\n아이디: ${issued.email}\n임시 비밀번호: ${issued.pw}\n\n첫 로그인 후 새 비밀번호로 바꿔 주세요.` : "";
+  const text = added ? `[믿는구석] 마케팅 리포트 안내
+
+전달드린 광고주 링크를 열고 아래 이메일을 입력하면 바로 리포트를 볼 수 있습니다.
+로그인 이메일: ${added}` : "";
 
   return (
     <details className="card pad review-accounts">
-      <summary><b>광고주 검수 계정</b> <span className="faint">{accounts.length ? `${accounts.length}개` : "없음 — 광고주가 검수하려면 계정이 필요합니다"}</span></summary>
+      <summary><b>광고주 로그인 이메일</b> <span className="faint">{accounts.length ? `${accounts.length}개` : "없음 — 광고주가 링크로 리포트를 보려면 이메일 등록이 필요합니다"}</span></summary>
       <ul className="list mt-s">
         {accounts.map((a) => (
           <li key={a.user_id}>
-            <span><b>{a.name ?? a.email}</b> <span className="faint">{a.email}</span> {a.must_change_password && <span className="badge warn">첫 로그인 전</span>}</span>
-            <span className="row"><button className="btn sm" disabled={busy} onClick={() => reset(a.user_id, a.email)}>임시 비밀번호 재발급</button><button className="btn sm" disabled={busy} onClick={() => remove(a.user_id, a.email)}>삭제</button></span>
+            <span><b>{a.name ?? a.email}</b> <span className="faint">{a.email}</span></span>
+            <span className="row"><button className="btn sm" disabled={busy} onClick={() => remove(a.user_id, a.email)}>삭제</button></span>
           </li>
         ))}
       </ul>
       <form className="st-form mt-s" onSubmit={create} autoComplete="off">
         <label>담당자 이름<input name="name" maxLength={40} className="search" placeholder="예: 배석현 원장" /></label>
-        <label className="w2">이메일<input name="email" type="email" required className="search" placeholder="광고주 담당자 이메일" /></label>
-        <div className="st-act"><button className="btn sm primary" disabled={busy}>계정 만들기</button></div>
+        <label className="w2">이메일<input name="email" type="email" required maxLength={200} className="search" placeholder="광고주 담당자 이메일" /></label>
+        <div className="st-act"><button className="btn sm primary" disabled={busy}>이메일 등록</button></div>
       </form>
-      {issued && (
+      {added && (
         <div className="invite-box mt-s">
-          <p className="faint">이 화면을 벗어나면 임시 비밀번호를 다시 볼 수 없습니다. 광고주 링크와 함께 전달해 주세요. (로그인 위치: {loginUrl})</p>
-          <table><tbody><tr><td className="faint">아이디</td><td><code>{issued.email}</code></td></tr><tr><td className="faint">임시 비밀번호</td><td><code className="big">{issued.pw}</code></td></tr></tbody></table>
-          <div className="row mt-s"><button className="btn sm primary" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); } catch { setCopied(false); } }}>{copied ? "복사했습니다" : "안내 문구 복사"}</button><button className="btn sm" onClick={() => setIssued(null)}>닫기</button></div>
+          <p className="faint">{added} 를 등록했습니다. 광고주 링크와 함께 이 이메일로 로그인하라고 안내해 주세요.</p>
+          <div className="row mt-s"><button className="btn sm primary" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); } catch { setCopied(false); } }}>{copied ? "복사했습니다" : "안내 문구 복사"}</button><button className="btn sm" onClick={() => setAdded(null)}>닫기</button></div>
         </div>
       )}
     </details>

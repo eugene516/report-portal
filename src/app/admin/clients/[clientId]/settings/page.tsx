@@ -6,6 +6,7 @@ import { supabaseForStaff } from "@/lib/supabase/server";
 import ClientSettings from "./ClientSettings";
 import SourcesEditor from "./SourcesEditor";
 import ClientTabs from "@/components/ClientTabs";
+import { ClientAccounts } from "@/components/review/ReviewStaff";
 
 export const metadata = { title: "광고주 설정 · 리포트 포털" };
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
   const db = await supabaseForStaff();
   const { data: client } = await db.from("clients").select("id, name, category, area").eq("id", clientId).maybeSingle();
   if (!client) notFound();   // 담당이 아니면 RLS로 조회되지 않는다
-  const [svc, ch, assign, dir, quotes, tokens, keys, srcs] = await Promise.all([
+  const [svc, ch, assign, dir, quotes, tokens, keys, srcs, emails] = await Promise.all([
     db.from("client_services").select("service, monthly_target").eq("client_id", clientId),
     db.from("client_ad_channels").select("channel, contracted, api_connected, monthly_budget").eq("client_id", clientId),
     db.from("client_staff").select("user_id, is_primary").eq("client_id", clientId),
@@ -27,6 +28,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
     db.from("client_access_tokens").select("id, label, created_at, expires_at, revoked_at, last_used_at").eq("client_id", clientId).order("created_at", { ascending: false }),
     db.rpc("admin_naver_account_status"),
     db.from("client_sources").select("kind, url").eq("client_id", clientId),
+    db.from("client_users").select("user_id, name, email").eq("client_id", clientId).order("created_at"),
   ]);
   const directory = (dir.data ?? []) as { id: string; name: string; email: string }[];
   // 주담당 먼저, 나머지는 직급 순(직원 목록 순서)
@@ -55,6 +57,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
         assigned={assigned} directory={directory} canManageStaff={canManageStaff} isAdmin={isAdminRole(me.role)}
         quotes={quotes.data ?? []} tokens={tokens.data ?? []} naverKey={key}
       />
+      <ClientAccounts clientId={clientId} accounts={emails.data ?? []} />
       <SourcesEditor clientId={clientId} sources={Object.fromEntries((srcs.data ?? []).map((x) => [x.kind, x.url]))} />
     </div>
   );

@@ -1,11 +1,11 @@
 // 파일 검수 화면 (서버 컴포넌트) — 리포트 · 성과 집계와 분리된 별도 기능
-// - 광고주(리포트 링크 · 미리보기): 광고주 계정으로 로그인해야 목록 · 파일 · 검수 버튼이 보인다
-// - 직원(staffView): 콘텐츠 등록 · 검수 요청 · 수정 요청 확인 · 수정본 등록 · 광고주 계정 관리
+// - 광고주(리포트 링크): 등록된 이메일로 로그인해야 목록 · 파일 · 검수 버튼이 보인다
+// - 직원(staffView): 콘텐츠 등록 · 검수 요청 · 수정 요청 확인 · 수정본 등록 · 광고주 로그인 이메일 관리
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getReviewDetail, getReviewList, getReviewViewer, REVIEW_KINDS, REVIEW_STATUS, withFilesAndEvents } from "@/lib/review";
 import { supabaseForStaff } from "@/lib/supabase/server";
-import { ReviewChangePassword, ReviewLogin, ReviewLogout } from "./ReviewAuth";
+import { ClientEmailLogin, ReviewLogout } from "./ReviewAuth";
 import ReviewFiles from "./ReviewFiles";
 import ReviewDecide from "./ReviewDecide";
 import ReviewList from "./ReviewList";
@@ -15,15 +15,14 @@ const kst = (iso: string | null) => (iso ? new Date(Date.parse(iso) + 9 * 3600_0
 const ACTION: Record<string, string> = { request: "검수 요청", resubmit: "수정본 검수 요청", approve: "검수 완료", changes: "재검수 요청" };
 const Status = ({ s }: { s: string }) => <span className={`badge ${REVIEW_STATUS[s]?.badge ?? ""}`}>{REVIEW_STATUS[s]?.label ?? s}</span>;
 
-export default async function ReviewSection({ clientId, clientName, base, itemId, period, kind, staffView, thisMonth, siteLogin }: {
-  clientId: string; clientName: string; base: string; itemId: string | null; period: string | undefined; kind?: string; staffView: boolean; thisMonth: string; siteLogin: string;
+export default async function ReviewSection({ clientId, clientName, base, itemId, period, kind, staffView, thisMonth, linkToken }: {
+  clientId: string; clientName: string; base: string; itemId: string | null; period: string | undefined; kind?: string; staffView: boolean; thisMonth: string; linkToken: string | null;
 }) {
   // 광고주 화면: 로그인 확인
   let viewerName: string | null = null;
   if (!staffView) {
     const v = await getReviewViewer(clientId);
-    if (v.kind !== "client") return <ReviewLogin clientName={clientName} other={v.kind === "other"} />;
-    if (v.mustChange) return <ReviewChangePassword />;
+    if (v.kind !== "client") return <ClientEmailLogin token={linkToken} clientName={clientName} other={v.kind === "other"} />;
     viewerName = v.name;
   }
   const head = viewerName && <div className="row review-head"><ReviewLogout name={viewerName} /></div>;
@@ -89,14 +88,14 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
   }).filter((x) => x.k !== "etc" || x.total > 0);
   const sel = kind && byKind.some((x) => x.k === kind) ? kind : null;
   const href = (k: string | null) => `${base}/review?${new URLSearchParams({ ...(want !== thisMonth ? { period: want } : {}), ...(k ? { kind: k } : {}) })}`;
-  const accounts = staffView ? ((await (await supabaseForStaff()).from("client_users").select("user_id, name, email, must_change_password").eq("client_id", clientId).order("created_at")).data ?? []) : [];
+  const accounts = staffView ? ((await (await supabaseForStaff()).from("client_users").select("user_id, name, email").eq("client_id", clientId).order("created_at")).data ?? []) : [];
   // 원고 번호 순 (10월블로그01 → 02 …)
   const rows = sel ? await withFilesAndEvents(visible.filter((i) => i.kind === sel).sort((a, b) => a.title.localeCompare(b.title, "ko", { numeric: true }))) : [];
 
   return (
     <>
       {head}
-      {staffView && <ClientAccounts clientId={clientId} accounts={accounts} loginUrl={siteLogin} />}
+      {staffView && <ClientAccounts clientId={clientId} accounts={accounts} />}
       <div className="row period-bar review-bar">
         <form className="row" method="get">
           <label className="faint" htmlFor="rv-period">대상 월</label>
