@@ -51,7 +51,9 @@ const blogExtra = sql(`select k.client_id as client, k.keyword, s.url as src fro
   .map((k) => { const m = k.src.match(/blog\.naver\.com\/([^/?#]+)/); return m ? { client: k.client, keyword: k.keyword, url: null, account: m[1], post: "0" } : null; })
   .filter(Boolean);
 // 기타 노출: 기타 · AEO 키워드를 합쳐 한 번씩 (홈페이지 주소는 '홈페이지 칼럼' 수집 채널의 도메인)
-const exposure = sql(`select distinct on (k.client_id, k.keyword) k.client_id as client, k.keyword, c.name,
+// 저장 테이블(exposure_results)이 아직 DB에 없으면 건너뛴다
+const hasExposure = sql(`select to_regclass('public.exposure_results') is not null as ok`)[0]?.ok === true;
+const exposure = !hasExposure ? [] : sql(`select distinct on (k.client_id, k.keyword) k.client_id as client, k.keyword, c.name,
                              (select regexp_replace(substring(s.url from '^https?://([^/]+)'), '^www\\.', '') from public.client_sources s where s.client_id = k.client_id and s.kind = 'column' limit 1) as domain
                         from public.tracked_keywords k join public.clients c on c.id = k.client_id
                        where k.kind in ('aeo', 'etc') and k.active order by k.client_id, k.keyword`)
@@ -204,8 +206,7 @@ const old = sql(`
     select client_id, keyword, collected_at, 'place' as kind, capture_path as path from public.place_rank_results where capture_path is not null
     union all
     select client_id, keyword, collected_at, 'ad', ad_capture_path from public.place_rank_results where ad_capture_path is not null
-    union all
-    select client_id, keyword, collected_at, 'exposure', capture_path from public.exposure_results where capture_path is not null),
+    ${hasExposure ? "union all select client_id, keyword, collected_at, 'exposure', capture_path from public.exposure_results where capture_path is not null" : ""}),
   ranked as (
     select path, row_number() over (partition by client_id, keyword, kind, to_char(collected_at at time zone 'Asia/Seoul', 'YYYY-MM') order by collected_at desc) as rn from r)
   select distinct path from ranked where rn > 1 and path not in (select path from ranked where rn = 1) order by path limit 2000`).map((o) => o.path);
@@ -220,7 +221,7 @@ for (let i = 0; i < old.length; i += 50) {
 if (removed.length) sql(`
   update public.place_rank_results set capture_path = null where capture_path = any(select jsonb_array_elements_text(${json(removed)}));
   update public.place_rank_results set ad_capture_path = null where ad_capture_path = any(select jsonb_array_elements_text(${json(removed)}));
-  update public.exposure_results set capture_path = null where capture_path = any(select jsonb_array_elements_text(${json(removed)}));`);
+  ${hasExposure ? `update public.exposure_results set capture_path = null where capture_path = any(select jsonb_array_elements_text(${json(removed)}));` : ""}`);
 let oldDirs = 0;
 for (const d of readdirSync(ROOT)) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d < day && existsSync(join(ROOT, d, "captures"))) { rmSync(join(ROOT, d, "captures"), { recursive: true, force: true }); oldDirs++; }
