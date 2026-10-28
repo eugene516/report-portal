@@ -337,10 +337,12 @@ async function FullReport({ ctx, client, content, base, services, staffView, sea
   const cafe = content.cafe.filter((x) => (x.channel ?? "cafe") === "cafe");
   const daangn = content.cafe.filter((x) => x.channel === "daangn");
   const place = content.keywords.filter((k) => k.kind === "place");
-  const [pUrls, cUrls, dUrls] = await Promise.all([
+  const exposure = new Set(content.keywords.filter((k) => k.kind === "etc" || k.kind === "aeo").map((k) => k.keyword));
+  const [pUrls, cUrls, dUrls, eUrls] = await Promise.all([
     captureUrls(ctx, place.map((k) => k.place?.capture ?? null)),
     captureUrls(ctx, cafe.map((x) => x.capture)),
     captureUrls(ctx, daangn.map((x) => x.capture)),
+    exposure.size ? captureUrls(ctx, content.keywords.map((k) => k.exposure?.capture ?? null)) : Promise.resolve(new Map<string, string>()),
   ]);
   // 광고: 그달 1일 ~ 어제(지난 달이면 말일)
   const from = `${content.period}-01`;
@@ -376,6 +378,8 @@ async function FullReport({ ctx, client, content, base, services, staffView, sea
     if (ch.id === "naver") ads.push(<section key="naver-place" className="sheet-block"><h3 className="sheet-sub">네이버 플레이스 광고</h3><PlaceAdsSection c={content} area={client.area} /></section>);
   }
   if (ads.length) sheets.push({ id: "ads", label: "온라인 광고", node: <>{ads}</> });
+  // 기타 노출 (기타 · AEO 키워드): 맨 마지막 탭
+  if (exposure.size) sheets.push({ id: "exposure", label: "기타 노출", badge: String(exposure.size), node: <BlogSection c={content} tab="etc" path={`${base}/blog`} bare urls={eUrls} /> });
   void staffView;
   const [yy, mm] = content.period.split("-").map(Number);
   return <SheetTabs sheets={sheets} title={`${client.name} ${yy}년 ${mm}월 레포트`} />;
