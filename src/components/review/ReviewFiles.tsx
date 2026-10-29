@@ -142,7 +142,8 @@ export function SheetView({ url, name }: { url: string; name: string }) {
           {cur.sheets!.length > 1 && <h4>{s.name}</h4>}
           {/* 화면 폭에 맞춰 열 비율대로 줄이고, 너무 좁으면(엑셀 너비 합 또는 900px 중 작은 값) 가로로 넘긴다 */}
           <div className="table-wrap"><table style={{ width: "100%", minWidth: Math.min(900, s.cols.reduce((a, b) => a + b, 0)) }}>
-            <colgroup>{s.cols.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+            {/* 남는 폭은 가장 넓은 열(보통 제목)만 받는다 → 키워드 같은 짧은 열이 같이 늘어나지 않게 */}
+            <colgroup>{s.cols.map((w, i) => <col key={i} style={i === s.cols.indexOf(Math.max(...s.cols)) ? undefined : { width: w }} />)}</colgroup>
             <tbody>
               {s.rows.map((r, i) => <tr key={i}>{r.map((c, j) => c && <td key={j} colSpan={c.cs} rowSpan={c.rs} className={c.b ? "b" : undefined}>{c.v}</td>)}</tr>)}
             </tbody>
