@@ -113,9 +113,9 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
         {byKind.map((x) => (
           <Link key={x.k} href={href(sel === x.k ? null : x.k)} className={`card kpi${sel === x.k ? " active" : ""}`} aria-current={sel === x.k ? "page" : undefined}>
             <div className="label">{REVIEW_KINDS[x.k]}</div>
-            <div className="value num">{x.done}<small>/ {x.sent}건 검수 완료</small></div>
+            <div className="value num">{x.pending}<small>건 검수 대기 /</small> {x.done}<small>건 검수 완료</small></div>
             <div className="foot">
-              {x.total === 0 ? "등록된 콘텐츠 없음" : [x.pending && `검수 대기 ${x.pending}`, x.changes && `재검수 요청 ${x.changes}`, staffView && x.draft && `작성 중 ${x.draft}`].filter(Boolean).join(" · ") || "모두 검수 완료"}
+              {x.total === 0 ? "등록된 콘텐츠 없음" : [x.changes && `재검수 요청 ${x.changes}`, staffView && x.draft && `작성 중 ${x.draft}`].filter(Boolean).join(" · ") || (x.pending ? `검수 요청 ${x.sent}건` : "모두 검수 완료")}
             </div>
           </Link>
         ))}
