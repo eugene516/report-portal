@@ -113,7 +113,10 @@ function sheetData(url: string, name: string) {
           }
           if (filled.length) rows.push(cells);
         });
-        return { name: ws.name, cols: Array.from({ length: last }, (_, i) => colPx(ws.getColumn(i + 1).width)), rows };
+        // 열 너비: 엑셀 열 너비와 그 열의 가장 긴 글(한 칸짜리 줄 제외, 한 줄 기준) 중 좁은 쪽 → 글보다 넓게 잡힌 칸을 줄인다
+        const textPx = (t: string) => [...t].reduce((n, ch) => n + (ch.charCodeAt(0) > 0x2e80 ? 13.5 : 7.5), 0);   // 한글 · 한자는 넓게
+        const longest = Array.from({ length: last }, (_, i) => Math.max(0, ...rows.map((r) => (r[i] && !r[i]!.cs ? Math.max(0, ...r[i]!.v.split(/\r?\n/).map(textPx)) : 0))));
+        return { name: ws.name, cols: Array.from({ length: last }, (_, i) => Math.min(colPx(ws.getColumn(i + 1).width), Math.max(48, Math.round(longest[i] + 22)))), rows };
       });
     })();
     p.catch(() => sheetCache.delete(url));
