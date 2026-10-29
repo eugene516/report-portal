@@ -55,10 +55,14 @@ export function DocxView({ url, thumb }: { url: string; thumb?: boolean }) {
   return <article className={thumb ? "docx-thumb" : "docx-view"} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-// 엑셀(xlsx) · CSV → 시트별 표 (값만, 서식 없음). 글자는 React 가 그대로 이스케이프한다
-type Sheet = { name: string; rows: string[][] };
+// 엑셀(xlsx) · CSV → 시트별 표 (값 · 굵게 · 병합 · 열 너비만). 글자는 React 가 그대로 이스케이프한다
+// - 병합된 셀은 한 칸으로 합쳐 그린다 (제목 · 안내 줄이 열마다 반복되지 않도록)
+// - 열 너비는 엑셀 열 너비를 따르고, 긴 글은 칸 안에서 줄바꿈한다
+type SheetCell = { v: string; cs?: number; rs?: number; b?: boolean };
+type Sheet = { name: string; cols: number[]; rows: (SheetCell | null)[][] };   // null = 병합으로 가려진 칸
 const sheetCache = new Map<string, Promise<Sheet[]>>();
 const MAX_ROWS = 500;
+const colPx = (w: number | undefined) => Math.round(Math.min(420, Math.max(48, (w ?? 10) * 7.5)));
 function sheetData(url: string, name: string) {
   let p = sheetCache.get(url);
   if (!p) {
@@ -70,20 +74,40 @@ function sheetData(url: string, name: string) {
         try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); } catch { text = new TextDecoder("euc-kr").decode(buf); }
         const rows = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim()).slice(0, MAX_ROWS)
           .map((l) => (l.match(/("([^"]|"")*"|[^,]*)(,|$)/g) ?? []).map((c) => c.replace(/,$/, "").replace(/^"|"$/g, "").replace(/""/g, "\"")).slice(0, -1));
-        return [{ name: "CSV", rows }];
+        const width = Math.max(0, ...rows.map((r) => r.length));
+        return [{ name: "CSV", cols: Array.from({ length: width }, () => colPx(14)), rows: rows.map((r, i) => r.map((v) => ({ v, b: i === 0 }))) }];
       }
       const ExcelJS = (await import("exceljs")).default;
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.load(buf);
       return wb.worksheets.map((ws) => {
-        const rows: string[][] = [];
+        // 병합: "A1:F1" → 시작 칸에 colSpan · rowSpan, 나머지 칸은 건너뜀
+        const span = new Map<string, { cs: number; rs: number }>();
+        const hidden = new Set<string>();
+        for (const m of (ws.model as { merges?: string[] }).merges ?? []) {
+          const [a, b] = m.split(":").map((x) => ws.getCell(x));
+          if (!a || !b) continue;
+          const [r1, c1, r2, c2] = [Number(a.row), Number(a.col), Number(b.row), Number(b.col)];
+          span.set(`${r1}:${c1}`, { cs: c2 - c1 + 1, rs: r2 - r1 + 1 });
+          for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) if (r !== r1 || c !== c1) hidden.add(`${r}:${c}`);
+        }
+        // 내용이 있는 마지막 열까지만
+        let last = 0;
+        ws.eachRow({ includeEmpty: false }, (row) => row.eachCell({ includeEmpty: false }, (cell, c) => { if (String(cell.text ?? "").trim() && !hidden.has(`${row.number}:${c}`)) last = Math.max(last, c + (span.get(`${row.number}:${c}`)?.cs ?? 1) - 1); }));
+        const rows: (SheetCell | null)[][] = [];
         ws.eachRow({ includeEmpty: false }, (row) => {
           if (rows.length >= MAX_ROWS) return;
-          const cells: string[] = [];
-          for (let c = 1; c <= ws.columnCount; c++) cells.push(row.getCell(c).text ?? "");
-          rows.push(cells);
+          const cells: (SheetCell | null)[] = [];
+          for (let c = 1; c <= last; c++) {
+            const key = `${row.number}:${c}`;
+            if (hidden.has(key)) { cells.push(null); continue; }
+            const cell = row.getCell(c);
+            const sp = span.get(key);
+            cells.push({ v: String(cell.text ?? ""), cs: sp ? Math.min(sp.cs, last - c + 1) : undefined, rs: sp?.rs, b: !!cell.font?.bold });
+          }
+          if (cells.some((x) => x?.v.trim())) rows.push(cells);
         });
-        return { name: ws.name, rows };
+        return { name: ws.name, cols: Array.from({ length: last }, (_, i) => colPx(ws.getColumn(i + 1).width)), rows };
       });
     })();
     p.catch(() => sheetCache.delete(url));
@@ -107,9 +131,12 @@ export function SheetView({ url, name }: { url: string; name: string }) {
       {cur.sheets.filter((s) => s.rows.length).map((s) => (
         <section key={s.name}>
           {cur.sheets!.length > 1 && <h4>{s.name}</h4>}
-          <div className="table-wrap"><table><tbody>
-            {s.rows.map((r, i) => <tr key={i}>{r.map((c, j) => (i === 0 ? <th key={j}>{c}</th> : <td key={j}>{c}</td>))}</tr>)}
-          </tbody></table></div>
+          <div className="table-wrap"><table style={{ width: s.cols.reduce((a, b) => a + b, 0) }}>
+            <colgroup>{s.cols.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+            <tbody>
+              {s.rows.map((r, i) => <tr key={i}>{r.map((c, j) => c && <td key={j} colSpan={c.cs} rowSpan={c.rs} className={c.b ? "b" : undefined}>{c.v}</td>)}</tr>)}
+            </tbody>
+          </table></div>
           {s.rows.length >= MAX_ROWS && <p className="faint">처음 {MAX_ROWS}줄만 보입니다. 전체는 내려받아 확인해 주세요.</p>}
         </section>
       ))}
