@@ -1140,3 +1140,9 @@ img, svg { max-width: 100%; }
 
 /* 기타 노출 카드: 홈페이지 · AI 브리핑 · 파워링크 표시는 줄바꿈 허용 */
 .place-card figcaption .row.exp-tags { flex-wrap: wrap; }
+/* 파일 검수 목록: 주제 · 키워드 엑셀을 목록 안에서 바로 표로 */
+.review-table tr.has-inline td { border-bottom: 0; }
+.review-table tr.rv-inline td { padding-top: 0; }
+.rv-inline-sheet + .rv-inline-sheet { margin-top: 10px; }
+.rv-inline .sheet-view { width: 100%; max-height: 520px; overflow: auto; border: 1px solid var(--border); padding: 10px; }
+.rv-body .sheet-view { width: 100%; }

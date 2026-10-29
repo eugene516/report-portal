@@ -5,15 +5,15 @@
 // - 담당 직원: 이미 확정 · 전화로 받은 요청을 대신 표시 (review_staff_complete / review_staff_changes, 기록에 담당자로 남음)
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { confirmDialog, toast, toastError } from "@/components/ui";
 import type { ReviewEvent, ReviewFile, ReviewItem } from "@/lib/review";
-import { DocxView, isDocx, isImage, isPdf, type ThumbFile } from "./ReviewFiles";
+import { DocxView, isDocx, isImage, isPdf, isSheet, SheetView, type ThumbFile } from "./ReviewFiles";
 import { removeReviewItem, ReviewEditDialog } from "./ReviewStaff";
 
 type Row = ReviewItem & { files: ReviewFile[]; events: ReviewEvent[] };
-const KIND: Record<string, string> = { blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
+const KIND: Record<string, string> = { keyword: "주제 · 키워드", blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
 const STATUS: Record<string, [string, string]> = { draft: ["작성 중", ""], pending: ["검수 대기", "warn"], approved: ["검수 완료", "good"], changes: ["재검수 요청", "bad"] };
 const kst = (iso: string | null) => (iso ? new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ") : "-");
 const thumb = (f: ReviewFile): ThumbFile => ({ id: f.id, name: f.file_name, url: f.url ?? null, mime: f.mime_type, size: f.size_bytes });
@@ -66,8 +66,11 @@ export default function ReviewList({ rows, staff, base }: { rows: Row[]; staff: 
     <>
       <div className="card tbl-wrap mt"><table className="rtable review-table">
         <thead><tr><th>원고 제목</th><th>구분</th><th>검수 상태</th><th>요청일</th><th className="r">검수</th></tr></thead>
-        <tbody>{rows.map((r) => (
-          <tr key={r.id}>
+        <tbody>{rows.map((r) => {
+          // 주제 · 키워드: 엑셀 · CSV 내용을 목록 안에서 바로 표로 펼친다
+          const sheets = r.kind === "keyword" ? r.files.filter((f) => f.url && isSheet(thumb(f))) : [];
+          return (<Fragment key={r.id}>
+          <tr className={sheets.length ? "has-inline" : ""}>
             <td>
               <button type="button" className="linkish cname" onClick={() => setOpen({ id: r.id, write: false })} title="원문 보기">{r.title}</button>
               {r.version > 1 && <span className="faint"> · {r.version}차</span>}
@@ -90,7 +93,13 @@ export default function ReviewList({ rows, staff, base }: { rows: Row[]; staff: 
               </div>
             </td>
           </tr>
-        ))}</tbody>
+          {sheets.length > 0 && (
+            <tr className="rv-inline"><td colSpan={5}>
+              {sheets.map((f) => <div key={f.id} className="rv-inline-sheet">{sheets.length > 1 && <div className="faint">{f.file_name}</div>}<SheetView url={f.url!} name={f.file_name} /></div>)}
+            </td></tr>
+          )}
+          </Fragment>);
+        })}</tbody>
       </table></div>
       {edit && <ReviewEditDialog item={edit} onClose={() => setEdit(null)} />}
       {cur && <Viewer key={cur.id} r={cur} staff={staff} write={open!.write} busy={busy} onClose={() => setOpen(null)} onApprove={() => approve(cur)} onChanges={(c) => changes(cur, c)}
@@ -149,6 +158,7 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
                   : isDocx(t) ? <DocxView url={f.url} />
                   // eslint-disable-next-line @next/next/no-img-element
                   : isImage(t) ? <img src={f.url} alt={f.file_name} />
+                  : isSheet(t) ? <SheetView url={f.url} name={f.file_name} />
                   : isPdf(t) ? <iframe src={f.url} title={f.file_name} />
                   : <div className="notice">이 형식은 화면에서 바로 볼 수 없습니다. <a href={dl(f)}>내려받기</a></div>}
               </section>
