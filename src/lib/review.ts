@@ -6,6 +6,8 @@ import "server-only";
 import type { ReportCtx } from "./report";
 import { supabaseForClientLink, supabaseForStaff } from "./supabase/server";
 
+// 광고주 화면에서 보이는 파일 검수 시작 월 (그 전 달 검수 기록은 직원 화면에서만 본다)
+export const CLIENT_REVIEW_FROM = "2026-11";
 export const REVIEW_KINDS: Record<string, string> = { keyword: "당월 주제 · 키워드", blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
 export const REVIEW_STATUS: Record<string, { label: string; badge: string }> = {
   draft: { label: "작성 중", badge: "" },

@@ -17,7 +17,7 @@ import { Donut } from "./charts";
 import SheetTabs, { type Sheet } from "./SheetTabs";
 import ReviewSection from "./review/ReviewSection";
 import QuotesSection from "./QuotesSection";
-import { getReviewSummary, REVIEW_KINDS } from "@/lib/review";
+import { CLIENT_REVIEW_FROM, getReviewSummary, REVIEW_KINDS } from "@/lib/review";
 
 // 받침 있으면 "은", 없으면 "는" (예: 당근마켓 바이럴은, 홈페이지 칼럼은, SNS 카드뉴스는)
 const eunNeun = (w: string) => {
@@ -393,6 +393,7 @@ async function FullReport({ ctx, client, content, base, services, staffView, sea
 // 대시보드 '이번 달 요약' 아래: 콘텐츠 검수 현황 (유형별 건수만, 리포트 · PDF 에는 넣지 않음)
 // 유형별 전체 = 검수 요청 건수와 그달 계약 수량 중 큰 값 → 일부만 등록 · 승인된 상태를 '검수 완료'로 표시하지 않는다
 async function ReviewStatus({ ctx, period, base }: { ctx: ReportCtx; period: string; base: string }) {
+  if (ctx.mode === "client" && period < CLIENT_REVIEW_FROM) return null;
   const s = await getReviewSummary(ctx, period);
   const kinds = s?.kinds ?? [];
   if (kinds.length === 0) return null;

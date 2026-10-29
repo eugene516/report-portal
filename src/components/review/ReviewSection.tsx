@@ -3,7 +3,7 @@
 // - 직원(staffView): 콘텐츠 등록 · 검수 요청 · 수정 요청 확인 · 수정본 등록 · 광고주 로그인 이메일 관리
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getReviewDetail, getReviewList, getReviewViewer, REVIEW_KINDS, REVIEW_STATUS, withFilesAndEvents } from "@/lib/review";
+import { CLIENT_REVIEW_FROM, getReviewDetail, getReviewList, getReviewViewer, REVIEW_KINDS, REVIEW_STATUS, withFilesAndEvents } from "@/lib/review";
 import { supabaseForStaff } from "@/lib/supabase/server";
 import { ClientEmailLogin, ReviewLogout } from "./ReviewAuth";
 import ReviewFiles from "./ReviewFiles";
@@ -31,7 +31,7 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
   if (itemId) {
     if (!/^[0-9a-f-]{36}$/.test(itemId)) notFound();
     const d = await getReviewDetail(itemId);
-    if (!d || d.item.client_id !== clientId) notFound();
+    if (!d || d.item.client_id !== clientId || (!staffView && d.item.period < CLIENT_REVIEW_FROM)) notFound();
     const { item, files, events } = d;
     const current = files.filter((f) => f.version === item.version);
     const next = files.filter((f) => f.version > item.version);
@@ -75,10 +75,14 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
   }
 
   // 목록
-  const want = period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period : thisMonth;
-  const { items, periods } = await getReviewList(clientId, want);
+  // 광고주 화면은 CLIENT_REVIEW_FROM 달부터: 그 전 달을 고르면 시작 월로 연다
+  const from = staffView ? "" : CLIENT_REVIEW_FROM;
+  const asked = period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period : thisMonth;
+  const want = asked < from ? from : asked;
+  const { items, periods: allPeriods } = await getReviewList(clientId, want);
+  const periods = allPeriods.filter((p) => p >= from);
   const visible = staffView ? items : items.filter((i) => i.status !== "draft");
-  const months = [...new Set([thisMonth, ...periods])].sort().reverse();
+  const months = [...new Set([thisMonth < from ? from : thisMonth, ...periods])].sort().reverse();
   // 구분별 상자 메뉴: 블로그 · 홈페이지 칼럼 · 카드뉴스는 항상, 기타는 있을 때만. 상자를 누르면 그 구분의 목록만 보인다.
   const byKind = Object.keys(REVIEW_KINDS).map((k) => {
     const list = visible.filter((i) => i.kind === k);
