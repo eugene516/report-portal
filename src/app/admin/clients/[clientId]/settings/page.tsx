@@ -25,7 +25,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
     db.from("client_staff").select("user_id, is_primary").eq("client_id", clientId),
     db.rpc("staff_directory"),
     db.from("client_quotes").select("id, storage_path, file_name, size_bytes, created_at").eq("client_id", clientId).order("created_at", { ascending: false }),
-    db.from("client_access_tokens").select("id, label, created_at, expires_at, revoked_at, last_used_at").eq("client_id", clientId).order("created_at", { ascending: false }),
+    db.from("client_access_tokens").select("id, label, created_at, expires_at, revoked_at, last_used_at, token_enc").eq("client_id", clientId).order("created_at", { ascending: false }),
     db.rpc("admin_naver_account_status"),
     db.from("client_sources").select("kind, url").eq("client_id", clientId),
     db.from("client_users").select("user_id, name, email").eq("client_id", clientId).order("created_at"),
@@ -55,7 +55,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
         services={Object.fromEntries((svc.data ?? []).map((s) => [s.service, { on: true, target: s.monthly_target == null ? "" : String(s.monthly_target) }]))}
         channels={Object.fromEntries((ch.data ?? []).map((c) => [c.channel, { contracted: c.contracted, apiConnected: c.api_connected, budget: c.monthly_budget }]))}
         assigned={assigned} directory={directory} canManageStaff={canManageStaff} isAdmin={isAdminRole(me.role)}
-        quotes={quotes.data ?? []} tokens={tokens.data ?? []} naverKey={key}
+        quotes={quotes.data ?? []} tokens={(tokens.data ?? []).map(({ token_enc, ...t }) => ({ ...t, revealable: !!token_enc }))} naverKey={key}
       />
       <ClientAccounts clientId={clientId} accounts={emails.data ?? []} />
       <SourcesEditor clientId={clientId} sources={Object.fromEntries((srcs.data ?? []).map((x) => [x.kind, x.url]))} />

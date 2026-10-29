@@ -51,3 +51,25 @@ export async function decryptCredentials(payload: string): Promise<NaverCredenti
 }
 
 export const last4 = (v: string) => v.slice(-4);
+
+// 광고주 링크 토큰 등 짧은 문자열 암호화 (같은 마스터키, 용도 문자열을 추가 인증 데이터로 묶어 다른 용도 값과 섞어 쓸 수 없게 한다)
+export async function encryptText(text: string, purpose: string): Promise<string> {
+  const key = await importMasterKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plain = new TextEncoder().encode(text);
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(purpose) }, key, plain));
+  plain.fill(0);
+  const out = new Uint8Array(iv.length + cipher.length);
+  out.set(iv);
+  out.set(cipher, iv.length);
+  return `${VERSION}:${toB64(out)}`;
+}
+
+export async function decryptText(payload: string, purpose: string): Promise<string> {
+  const [version, body] = payload.split(":", 2);
+  if (version !== VERSION || !body) throw new Error("unsupported payload");
+  const key = await importMasterKey();
+  const bytes = fromB64(body);
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.slice(0, 12), additionalData: new TextEncoder().encode(purpose) }, key, bytes.slice(12));
+  return new TextDecoder().decode(plain);
+}

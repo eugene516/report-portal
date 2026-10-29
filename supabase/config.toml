@@ -443,3 +443,7 @@ verify_jwt = false
 # report-quote: 광고주 링크(로그인 없음) 화면의 견적서 열람. 함수 안에서 링크 토큰을 검증한다.
 [functions.report-quote]
 verify_jwt = false
+
+# client-link: 광고주 링크 발급 · 다시 보기 (담당 직원 · 오너 · 관리자, 함수 안에서 담당 여부 확인)
+[functions.client-link]
+verify_jwt = true

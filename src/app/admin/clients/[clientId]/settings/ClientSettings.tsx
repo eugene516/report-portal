@@ -8,7 +8,7 @@ import Link from "next/link";
 import { AD_CHANNEL_OPTIONS, SERVICES, type ServiceState } from "@/components/ServicePicker";
 import { uploadQuotes } from "@/components/quotes";
 import { applyQuote } from "@/app/admin/actions";
-import IssueLinkButton from "@/app/admin/IssueLinkButton";
+import IssueLinkButton, { LinkReveal } from "@/app/admin/IssueLinkButton";
 import NaverKeyPanel from "./NaverKeyPanel";
 
 type Props = {
@@ -19,7 +19,7 @@ type Props = {
   directory: { id: string; name: string; email: string }[];
   canManageStaff: boolean; isAdmin: boolean;
   quotes: { id: string; storage_path: string; file_name: string; size_bytes: number | null; created_at: string }[];
-  tokens: { id: string; label: string | null; created_at: string; expires_at: string | null; revoked_at: string | null; last_used_at: string | null }[];
+  tokens: { id: string; label: string | null; created_at: string; expires_at: string | null; revoked_at: string | null; last_used_at: string | null; revealable: boolean }[];
   naverKey: { customer_id_last4: string; access_license_last4: string; secret_key_last4: string; is_active: boolean; updated_at: string } | null;
 };
 
@@ -177,7 +177,7 @@ export default function ClientSettings(p: Props) {
 
       <section className="card pad mt">
         <div className="card-h"><h2>광고주 링크</h2><IssueLinkButton clientId={id} /></div>
-        <p className="faint">광고주에게 보내는 전용 주소입니다. 광고주는 이 링크에서 등록된 이메일(아래 ‘광고주 로그인 이메일’)을 입력해 로그인합니다. 링크는 발급할 때 한 번만 보이며, 잃어버리면 새로 발급하고 기존 링크는 폐기하세요.</p>
+        <p className="faint">광고주에게 보내는 전용 주소입니다. 광고주는 이 링크에서 등록된 이메일(아래 ‘광고주 로그인 이메일’)을 입력해 로그인합니다. 사용 중인 링크는 ‘링크 보기’로 언제든 다시 확인 · 복사할 수 있습니다. 링크 보기 기능 전에 발급한 링크는 다시 볼 수 없으니, 필요하면 새로 발급하고 기존 링크는 폐기하세요.</p>
         <div className="tbl-wrap"><table>
           <thead><tr><th>발급</th><th>최근 접속</th><th>상태</th><th></th></tr></thead>
           <tbody>
@@ -188,7 +188,7 @@ export default function ClientSettings(p: Props) {
                 <tr key={t.id}>
                   <td className="num">{day(t.created_at)}</td><td className="num faint">{day(t.last_used_at)}</td>
                   <td>{t.revoked_at ? <span className="badge">폐기됨</span> : expired ? <span className="badge">만료</span> : <span className="badge good">사용 중</span>}</td>
-                  <td className="r">{!t.revoked_at && <button className="btn sm" disabled={busy} onClick={() => revoke(t.id)}>폐기</button>}</td>
+                  <td className="r">{!t.revoked_at && !expired && (t.revealable ? <LinkReveal clientId={id} tokenId={t.id} /> : <span className="faint">다시 볼 수 없음 </span>)}{!t.revoked_at && <button className="btn sm" disabled={busy} onClick={() => revoke(t.id)}>폐기</button>}</td>
                 </tr>
               );
             })}
