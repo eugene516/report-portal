@@ -20,6 +20,8 @@ const day = kstDate();
 const dir = join(ROOT, day);
 mkdirSync(dir, { recursive: true });
 const log = (m) => { const line = `[${kst().toISOString().slice(11, 19)}] ${m}`; console.log(line); appendFileSync(join(dir, "summary.txt"), line + "\n", "utf8"); };
+// 처리 안 된 오류도 요약 기록에 남긴다 (예약 실행은 콘솔 출력이 남지 않음)
+process.on("uncaughtException", (e) => { try { log(`오류로 중단: ${String(e?.message ?? e).slice(0, 500)}`); } finally { process.exit(1); } });
 const period = day.slice(0, 7);
 // period · prevPeriod 는 이 스크립트가 만든 YYYY-MM 값이라 SQL 에 바로 넣는다
 const prevPeriod = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);

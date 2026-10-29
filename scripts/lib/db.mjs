@@ -2,7 +2,7 @@
 // - 비밀값을 파일에 두지 않는다: CLI 가 저장해 둔 로그인 정보를 그대로 쓴다.
 // - 긴 SQL 은 임시 파일로 넘긴다(명령줄 길이 제한).
 // - 값은 jsonb 로 묶어 넘겨 SQL 문자열에 직접 끼워 넣지 않는다(lit / json 참고).
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,9 +16,14 @@ export function sql(query) {
   const file = join(dir, "q.sql");
   writeFileSync(file, query, "utf8");
   try {
-    const out = execFileSync(process.execPath, [CLI, "db", "query", "--linked", "-f", file], { cwd: APP, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
-    const start = out.indexOf("{");
-    return start < 0 ? [] : (JSON.parse(out.slice(start)).rows ?? []);
+    const r = spawnSync(process.execPath, [CLI, "db", "query", "--linked", "--output-format", "json", "-f", file], { cwd: APP, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+    const out = r.stdout ?? "";
+    // 출력: 일반 실행은 행 배열 [...], AI 도구 안에서 실행하면 { rows: [...] } (CLI 가 실행 환경에 따라 바꾼다)
+    const start = out.search(/[[{]/);
+    // 결과 JSON 이 없으면 빈 결과로 넘기지 않고 CLI 출력과 함께 실패시킨다 (예약 실행에서 로그인 · 연결 문제를 찾기 위해)
+    if (r.status !== 0 || start < 0) throw new Error(`Supabase CLI 실패(코드 ${r.status}): ${(r.stderr || out || String(r.error ?? "")).replace(/\s+/g, " ").slice(0, 400)}`);
+    const parsed = JSON.parse(out.slice(start));
+    return Array.isArray(parsed) ? parsed : (parsed.rows ?? []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
