@@ -6,7 +6,6 @@
 // - "홈으로 돌아가기", "설정", "데이터 업로드"는 직원 경로에서 서버가 권한을 확인한 경우에만 그린다.
 //   서버에서만 렌더링되므로 광고주 링크 페이지의 HTML·스크립트에는 포함되지 않는다.
 import Link from "next/link";
-import { Fragment } from "react";
 import type { ClientSummary } from "@/lib/report";
 import { logoUrl } from "@/lib/logo";
 import LogoEditor from "./LogoEditor";
@@ -46,7 +45,7 @@ export function visibleMenus(services: string[]) {
 export const isContracted = (services: string[], svc: string | null) => !svc || services.includes(svc);
 
 export default function ReportShell({
-  client, base, section, title, eyebrow, staffTools, preview = null, link = null, reviewPending = 0, inHouse = false, services, period, thisMonth, children,
+  client, base, section, title, eyebrow, staffTools, preview = null, link = null, reviewPending = 0, inHouse = false, period, thisMonth, children,
 }: {
   client: ClientSummary; base: string; section: string[]; title: string; eyebrow: string;
   staffTools: boolean; services: string[]; period: string; thisMonth: string; children: React.ReactNode;
@@ -57,7 +56,7 @@ export default function ReportShell({
 }) {
   const current = section.join("/");
   const inAds = section[0] === "ads";
-  const tool = current === "history" || current === "contracts" || section[0] === "review";
+  const tool = current === "history" || current === "contracts" || current === "quotes" || section[0] === "review";
   const past = period !== thisMonth && !inAds && !tool;
   const q = past ? `?period=${period}` : "";
   return (
@@ -74,44 +73,15 @@ export default function ReportShell({
           </div>
         </div>
         <nav className="nav">
-          {visibleMenus(services).map((m) => (
-            <Fragment key={m.id}>
-              <Link href={`${m.id ? `${base}/${m.id}` : base}${q}`} className={`${current === m.id ? "on" : ""} ${isContracted(services, m.svc) ? "" : "off"}`}>
-                {m.label}{!isContracted(services, m.svc) && <span className="cnt">미집행</span>}
-              </Link>
-              {/* 대시보드 바로 아래: 파일 검수 (대기 건수) */}
-              {m.id === "" && (
-                <Link href={`${base}/review`} className={section[0] === "review" ? "on" : ""}>
-                  파일 검수{reviewPending > 0 && <span className="cnt review-cnt">{reviewPending}건 대기</span>}
-                </Link>
-              )}
-            </Fragment>
-          ))}
-          <details open className="nav-group">
-            <summary className={`nav-parent ${inAds ? "on" : ""}`}>온라인 광고<span className="chev" aria-hidden="true">▾</span></summary>
-            <div className="subnav">
-              {AD_CHANNELS.map((ch) => {
-                const active = isActiveChannel(client, ch.id);
-                const contracted = !!client.channels[ch.id]?.contracted;
-                const tag = contracted ? "연결 전" : "미집행";
-                // 네이버 광고는 파워링크 · 플레이스 광고 두 하위 메뉴
-                if (ch.id === "naver") return (
-                  <div key={ch.id} className="subnav-group">
-                    <span className={`subnav-h ${contracted ? "" : "off"}`}>{ch.label}{!contracted && <span className="cnt">미집행</span>}</span>
-                    <Link href={`${base}/ads/naver`} className={`sub2 ${current === "ads/naver" ? "on" : ""} ${active ? "" : "off"}`}>파워링크 광고{contracted && !active && <span className="cnt">연결 전</span>}</Link>
-                    <Link href={`${base}/ads/naver/place`} className={`sub2 ${current === "ads/naver/place" ? "on" : ""} ${contracted ? "" : "off"}`}>플레이스 광고</Link>
-                  </div>
-                );
-                return (
-                  <Link key={ch.id} href={`${base}/ads/${ch.id}`} className={`${current === `ads/${ch.id}` ? "on" : ""} ${active ? "" : "off"}`}>
-                    {ch.label}{!active && <span className="cnt">{tag}</span>}
-                  </Link>
-                );
-              })}
-            </div>
-          </details>
-          <div className="nav-div" />
+          {/* 메뉴: 대시보드 · 레포트 상세 · 파일 검수 · 지난 레포트 (항목별 내용은 레포트 상세의 탭에서 본다) */}
+          <Link href={`${base}${q}`} className={current === "" ? "on" : ""}>대시보드</Link>
+          <Link href={`${base}/full${q}`} className={current === "full" ? "on" : ""}>레포트 상세</Link>
+          <Link href={`${base}/review`} className={section[0] === "review" ? "on" : ""}>
+            파일 검수{reviewPending > 0 && <span className="cnt review-cnt">{reviewPending}건 대기</span>}
+          </Link>
           <Link href={`${base}/history`} className={current === "history" || past ? "on" : ""}>지난 레포트 보기</Link>
+          {!staffTools && <Link href={`${base}/quotes`} className={current === "quotes" ? "on" : ""}>견적서</Link>}
+          {staffTools && <div className="nav-div" />}
           {staffTools && <Link href={`${base}/contracts`} className={current === "contracts" ? "on" : ""}>{inHouse ? "업무 항목 관리" : "계약 · 견적 관리"}<span className="cnt">직원용</span></Link>}
         </nav>
         {staffTools && (
