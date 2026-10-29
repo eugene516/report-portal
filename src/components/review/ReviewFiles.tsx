@@ -105,7 +105,13 @@ function sheetData(url: string, name: string) {
             const sp = span.get(key);
             cells.push({ v: String(cell.text ?? ""), cs: sp ? Math.min(sp.cs, last - c + 1) : undefined, rs: sp?.rs, b: !!cell.font?.bold });
           }
-          if (cells.some((x) => x?.v.trim())) rows.push(cells);
+          // 글자가 한 칸뿐인 줄(제목 · 안내 문구): 엑셀에서 옆 빈칸으로 넘쳐 보이던 것처럼 줄 끝까지 한 칸으로
+          const filled = cells.filter((x) => x?.v.trim());
+          if (filled.length === 1 && !filled[0]!.cs) {
+            const i = cells.indexOf(filled[0]);
+            if (cells.slice(i + 1).every((x) => x && !x.v.trim())) { filled[0]!.cs = cells.length - i; for (let k = i + 1; k < cells.length; k++) cells[k] = null; }
+          }
+          if (filled.length) rows.push(cells);
         });
         return { name: ws.name, cols: Array.from({ length: last }, (_, i) => colPx(ws.getColumn(i + 1).width)), rows };
       });
@@ -131,7 +137,8 @@ export function SheetView({ url, name }: { url: string; name: string }) {
       {cur.sheets.filter((s) => s.rows.length).map((s) => (
         <section key={s.name}>
           {cur.sheets!.length > 1 && <h4>{s.name}</h4>}
-          <div className="table-wrap"><table style={{ width: s.cols.reduce((a, b) => a + b, 0) }}>
+          {/* 화면 폭에 맞춰 열 비율대로 줄이고, 너무 좁으면(엑셀 너비 합 또는 900px 중 작은 값) 가로로 넘긴다 */}
+          <div className="table-wrap"><table style={{ width: "100%", minWidth: Math.min(900, s.cols.reduce((a, b) => a + b, 0)) }}>
             <colgroup>{s.cols.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
             <tbody>
               {s.rows.map((r, i) => <tr key={i}>{r.map((c, j) => c && <td key={j} colSpan={c.cs} rowSpan={c.rs} className={c.b ? "b" : undefined}>{c.v}</td>)}</tr>)}
