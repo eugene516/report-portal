@@ -120,8 +120,11 @@ for (const p of job.place) {
   try {
     await page.goto("https://search.naver.com/search.naver?where=nexearch&query=" + encodeURIComponent(p.keyword));
     await page.waitForLoadState(); await page.waitForTimeout(1500);
-    let organicBefore = 0, rank = null, adRank = null, pageNo = 1, noBlock = false, adCapture = null;
-    for (; pageNo <= 5; pageNo++) {
+    // 일반 순위와 광고 자리 순위를 5페이지까지 함께 찾는다. 광고 순위는 그 페이지 광고 자리 중 몇 번째인지 + 페이지
+    // 광고 전용 키워드(adOnly)는 광고 자리만 찾고 캡쳐하지 않는다
+    let organicBefore = 0, rank = null, rankPage = null, adRank = null, adPage = null, noBlock = false, capture = null;
+    const adCapture = null;
+    for (let pageNo = 1; pageNo <= 5; pageNo++) {
       const r = await page.evaluate(({ NAME, organicBefore, src }) => {
         const box = new Function("return " + src)()();
         if (!box) return { noBlock: true };
@@ -138,10 +141,14 @@ for (const p of job.place) {
         return { organic, rank, adRank, hasNext: !disabled };
       }, { NAME: p.placeName, organicBefore, src: placeBox.toString() });
       if (r.noBlock) { noBlock = true; break; }
-      // 플레이스 광고: 첫 페이지 광고 자리 순위만 기록 (캡쳐 안 함)
-      if (pageNo === 1 && r.adRank != null) adRank = r.adRank;
-      if (r.rank != null) { rank = r.rank; break; }
+      if (adRank == null && r.adRank != null) { adRank = r.adRank; adPage = pageNo; }
+      if (rank == null && !p.adOnly && r.rank != null) {
+        rank = r.rank; rankPage = pageNo;
+        // 찾은 페이지에서 바로 캡쳐 (뒤 페이지로 넘어가기 전에)
+        if (tool) { try { capture = await capturePlace(p, "org"); } catch (e) { result.errors.push(`캡쳐 ${p.keyword}: ${String(e).slice(0, 100)}`); } }
+      }
       organicBefore = r.organic;
+      if ((rank != null || p.adOnly) && adRank != null) break;
       if (!r.hasNext) break;
       await page.evaluate((src) => {
         const box = new Function("return " + src)()();
@@ -149,10 +156,9 @@ for (const p of job.place) {
       }, placeBox.toString());
       await page.waitForTimeout(1500);
     }
-    if (rank == null) pageNo = null;
-    let capture = null;
-    if (tool && !noBlock) { try { capture = await capturePlace(p, "org"); } catch (e) { result.errors.push(`캡쳐 ${p.keyword}: ${String(e).slice(0, 100)}`); } }
-    result.place.push({ client: p.client, keyword: p.keyword, idx: p.idx, rank, adRank, page: pageNo, noBlock, capture, adCapture, at: new Date().toISOString() });
+    // 5페이지까지 없으면 마지막으로 본 페이지를 캡쳐 (순위 밖 근거)
+    if (tool && !noBlock && !p.adOnly && rank == null) { try { capture = await capturePlace(p, "org"); } catch (e) { result.errors.push(`캡쳐 ${p.keyword}: ${String(e).slice(0, 100)}`); } }
+    result.place.push({ client: p.client, keyword: p.keyword, idx: p.idx, rank, adRank, adPage, page: rankPage, noBlock, capture, adCapture, at: new Date().toISOString() });
   } catch (e) { result.errors.push(`플레이스 ${p.keyword}: ${String(e).slice(0, 120)}`); }
   await save(); await pause(2000, 4000);
 }

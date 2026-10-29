@@ -153,7 +153,7 @@ export function PlaceSection({ c, urls }: { c: ReportContent; urls: Map<string, 
             <figure key={r.keyword} className="place-card card">
               <figcaption>
                 <div className="pk"><span className="faint num">{i + 1}</span><b>{r.keyword}</b>{r.important && <span className="badge warn" title="중점 관리 키워드">중점</span>}</div>
-                <div className="row"><Rank v={r.place?.rank} collected={!!r.place} />{r.place?.page && r.place.rank != null && <span className="badge" title="플레이스 목록 페이지">{r.place.page}페이지</span>}{r.place?.adRank && <span className="badge acc">광고 {r.place.adRank}번째</span>}</div>
+                <div className="row"><Rank v={r.place?.rank} collected={!!r.place} />{r.place?.page && r.place.rank != null && <span className="badge" title="플레이스 목록 페이지">{r.place.page}페이지</span>}{r.place?.adRank && <span className="badge acc">광고 {(r.place.adPage ?? 1) > 1 ? `${r.place.adPage}페이지 ` : ""}{r.place.adRank}번째</span>}</div>
               </figcaption>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {src ? <a href={src} target="_blank" rel="noopener noreferrer"><img loading="lazy" src={src} alt={`${r.keyword} 플레이스 노출 화면`} /></a> : <div className="noimg">{r.place ? "캡쳐 없음" : "수집 전"}</div>}
@@ -167,33 +167,33 @@ export function PlaceSection({ c, urls }: { c: ReportContent; urls: Map<string, 
 }
 
 // ── 네이버 플레이스 광고 (플레이스 순위와 같은 키워드, 순위만 표시) ───────────────────────
-// 정렬: 광고 자리 순위가 높은 키워드 먼저 → 같은 순위면 광고주 주소지 지역(광고주 정보의 지역) 키워드 먼저 → 미노출은 맨 뒤
+// 키워드: 플레이스 순위 키워드 + 플레이스 광고 전용 키워드(place_ad) 중 광고 자리에 노출된 것만 (미노출 · 확인 전은 빼고 보여준다)
+// 정렬: 광고 자리 순위가 높은 키워드 먼저 → 같은 순위면 광고주 주소지 지역(광고주 정보의 지역) 키워드 먼저
 export function PlaceAdsSection({ c, area }: { c: ReportContent; area: string | null }) {
-  const rows = c.keywords.filter((k) => k.kind === "place");
+  const rows = c.keywords.filter((k, i, all) => (k.kind === "place" || k.kind === "place_ad") && k.place?.adRank != null && all.findIndex((x) => x.keyword === k.keyword && x.place?.adRank != null) === i);
   const local = (area ?? "").split(/[\s·,/]+/).map((t) => t.replace(/(동|구|역)$/, "")).filter((t) => t.length >= 2);
   const isLocal = (kw: string) => local.some((t) => kw.includes(t));
   const sorted = [...rows].sort((x, y) =>
-    (x.place?.adRank ?? 99) - (y.place?.adRank ?? 99) || Number(isLocal(y.keyword)) - Number(isLocal(x.keyword)) || Number(!!y.important) - Number(!!x.important));
-  const shown = rows.filter((r) => r.place?.adRank != null);
+    (x.place?.adPage ?? 1) - (y.place?.adPage ?? 1) || (x.place?.adRank ?? 99) - (y.place?.adRank ?? 99) || Number(isLocal(y.keyword)) - Number(isLocal(x.keyword)) || Number(!!y.important) - Number(!!x.important));
   const last = rows.map((r) => r.place?.at).filter(Boolean).sort().at(-1);
   return (
     <>
-      <p className="muted">플레이스 순위와 같은 키워드를 네이버 메인에서 검색했을 때 플레이스 영역의 <b>광고 자리</b>에 몇 번째로 노출되는지입니다. 상위에 노출되는 키워드부터 보여주고, 노출되지 않은 키워드는 아래에 모았습니다.</p>
+      <p className="muted">키워드를 네이버 메인에서 검색했을 때 플레이스 영역의 <b>광고 자리</b>에 몇 번째로 노출되는지입니다. 플레이스 목록 5페이지까지 확인해 광고가 노출되는 키워드만 상위 순위부터 보여줍니다.</p>
       {rows.length > 0 && (
         <div className="row place-sum">
-          <span className="badge acc">광고 노출 {shown.length} / {rows.length}개 키워드</span>
-          <span className="badge good">광고 1번째 {shown.filter((r) => r.place?.adRank === 1).length}개</span>
+          <span className="badge acc">광고 노출 키워드 {rows.length}개</span>
+          <span className="badge good">첫 페이지 광고 1번째 {rows.filter((r) => r.place?.adRank === 1 && (r.place?.adPage ?? 1) === 1).length}개</span>
           <span className="faint">{kst(last)} 확인</span>
         </div>
       )}
-      {rows.length === 0 ? <div className="empty-state">등록된 플레이스 키워드가 없습니다.</div> : (
+      {rows.length === 0 ? <div className="empty-state">광고 자리에 노출된 키워드가 없습니다.</div> : (
         <div className="card tbl-wrap"><table className="ad-rank-table">
           <thead><tr><th>No</th><th>키워드</th><th className="r">광고 순위</th><th>확인 시각</th><th></th></tr></thead>
           <tbody>{sorted.map((r, i) => (
             <tr key={r.keyword} className={r.place?.adRank == null ? "muted-row" : ""}>
               <td className="faint num">{i + 1}</td>
               <td><b>{r.keyword}</b>{r.important && <span className="badge warn">중점</span>}{isLocal(r.keyword) && <span className="badge">주소지</span>}</td>
-              <td className="r">{!r.place ? <span className="rank none">확인 전</span> : r.place.adRank != null ? <span className={`rank ${r.place.adRank === 1 ? "top" : "mid"}`}>{r.place.adRank}번째</span> : <span className="rank out">미노출</span>}</td>
+              <td className="r">{!r.place ? <span className="rank none">확인 전</span> : r.place.adRank != null ? <span className={`rank ${r.place.adRank === 1 && (r.place.adPage ?? 1) === 1 ? "top" : "mid"}`}>{(r.place.adPage ?? 1) > 1 ? `${r.place.adPage}페이지 ` : ""}{r.place.adRank}번째</span> : <span className="rank out">미노출</span>}</td>
               <td className="faint num">{kst(r.place?.at)}</td>
               <td className="r"><a className="btn sm" href={naverSearch(r.keyword)} target="_blank" rel="noopener noreferrer">네이버 검색</a></td>
             </tr>

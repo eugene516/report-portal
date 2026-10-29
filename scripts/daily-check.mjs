@@ -58,12 +58,17 @@ const exposure = !hasExposure ? [] : sql(`select distinct on (k.client_id, k.key
                         from public.tracked_keywords k join public.clients c on c.id = k.client_id
                        where k.kind in ('aeo', 'etc') and k.active order by k.client_id, k.keyword`)
   .map((x, i) => ({ ...x, idx: i + 1 }));
-const place = sql(`select k.client_id as client, k.keyword, c.name as "placeName",
-                           row_number() over (partition by k.client_id order by k.important desc, k.sort, k.keyword) as idx
+// 플레이스 순위 키워드 + 플레이스 광고 전용 키워드(place_ad: 첫 페이지 광고 자리 순위만, 캡쳐 없음). 같은 키워드는 순위 키워드로 한 번만
+const place = sql(`select k.client_id as client, k.keyword, c.name as "placeName", k.kind = 'place_ad' as "adOnly",
+                           row_number() over (partition by k.client_id order by k.kind = 'place_ad', k.important desc, k.sort, k.keyword) as idx
                       from public.tracked_keywords k join public.clients c on c.id = k.client_id
-                     where k.kind = 'place' and k.active order by c.name, idx`);
+                     where k.active and (k.kind = 'place' or (k.kind = 'place_ad' and not exists (
+                             select 1 from public.tracked_keywords x where x.client_id = k.client_id and x.kind = 'place' and x.active and x.keyword = k.keyword)))
+                     order by c.name, idx`);
 const cafe = sql(`select p.id, p.url from public.cafe_posts p where p.status = '게시중' and p.period in ('${period}', '${prevPeriod}') order by p.posted_on`);
 const first = sql(`select id from public.clients order by name limit 1`)[0];
+// 광고주가 하나도 안 읽히면 DB 조회 실패(부팅 직후 네트워크 · CLI 로그인 등): 빈 점검으로 끝내지 않고 실패로 남긴다
+if (!first) { log("DB 조회 실패: 광고주 목록을 읽지 못했습니다. 네트워크 · Supabase CLI 로그인을 확인한 뒤 다시 실행하세요."); process.exit(1); }
 const portal = [["대시보드", "/admin"], ["광고주 현황", "/admin/clients"], ["업무 확인", "/admin/tasks"], ...(first ? [["광고주 리포트", `/admin/clients/${first.id}`]] : [])];
 const captureDir = join(dir, "captures").replace(/\\/g, "/");
 mkdirSync(captureDir, { recursive: true });
@@ -114,9 +119,11 @@ for (const p of r.place ?? []) {
     p.capturePath = dest;
   } catch { p.capturePath = null; log(`캡쳐 업로드 실패: ${p.keyword}`); }
 }
+// 광고 페이지(ad_page) 칸이 아직 없으면(마이그레이션 전) 빼고 저장한다
+const hasAdPage = sql(`select 1 as ok from information_schema.columns where table_schema = 'public' and table_name = 'place_rank_results' and column_name = 'ad_page'`).length > 0;
 if (r.place?.length) sql(`
-  insert into public.place_rank_results (client_id, keyword, rank, ad_rank, page, capture_path, ad_capture_path, collected_at, method)
-  select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, (x->>'page')::int, x->>'capturePath', x->>'adCapturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
+  insert into public.place_rank_results (client_id, keyword, rank, ad_rank, ${hasAdPage ? "ad_page, " : ""}page, capture_path, ad_capture_path, collected_at, method)
+  select (x->>'client')::uuid, x->>'keyword', (x->>'rank')::int, (x->>'adRank')::int, ${hasAdPage ? "(x->>'adPage')::int, " : ""}(x->>'page')::int, x->>'capturePath', x->>'adCapturePath', (x->>'at')::timestamptz, 'ego-browser 매일 점검'
     from jsonb_array_elements(${json(r.place.filter((p) => !p.noBlock))}) x`);
 // 기타 노출 캡쳐 → captures/{광고주}/exposure/{시각}/{번호}.jpg
 for (const x of r.exposure ?? []) {

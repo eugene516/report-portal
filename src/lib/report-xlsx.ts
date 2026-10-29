@@ -218,7 +218,7 @@ function placeSheet(wb: ExcelJS.Workbook, client: ClientSummary, c: ReportConten
   s.note("순위: 광고를 제외한 플레이스 목록 순위 · 고정 키워드 매일 확인", 6);
   s.table(
     [{ header: "NO", width: 6 }, { header: "키워드", width: 28, key: true }, { header: "순위(광고 제외)", width: 14 }, { header: "목록 페이지", width: 11 }, { header: "광고 순위", width: 11 }, { header: "수집 시각", width: 17 }],
-    rows.map((k, i) => [i + 1, k.keyword, rankText(k.place?.rank, !!k.place), k.place?.page ? `${k.place.page}페이지` : "", k.place?.adRank ? `${k.place.adRank}번째` : "", kst(k.place?.at)]),
+    rows.map((k, i) => [i + 1, k.keyword, rankText(k.place?.rank, !!k.place), k.place?.page ? `${k.place.page}페이지` : "", k.place?.adRank ? `${(k.place.adPage ?? 1) > 1 ? `${k.place.adPage}페이지 ` : ""}${k.place.adRank}번째` : "", kst(k.place?.at)]),
   );
   if (rows.some((k) => k.place?.capture)) {
     s.title("플레이스 노출 캡쳐", 27);
@@ -264,12 +264,13 @@ async function adsSheet(wb: ExcelJS.Workbook, ctx: ReportCtx, client: ClientSumm
       n.daily.map((x, i) => [i + 1, x.date, won(x.cost), x.impressions, x.clicks, x.conversions]),
     );
   }
-  const place = c.keywords.filter((k) => k.kind === "place");
+  const place = c.keywords.filter((k, i, all) => (k.kind === "place" || k.kind === "place_ad") && k.place?.adRank != null && all.findIndex((x) => x.keyword === k.keyword && x.place?.adRank != null) === i);
   if (place.length) {
-    s.title("네이버 플레이스 광고 (광고 자리 노출 순위)", 8);
+    s.title("네이버 플레이스 광고 (광고 자리에 노출된 키워드)", 8);
     s.table(
       [{ header: "NO", width: 6 }, { header: "키워드", width: 28, key: true }, { header: "광고 순위", width: 11 }, { header: "확인 시각", width: 17 }],
-      [...place].sort((a, b) => (a.place?.adRank ?? 99) - (b.place?.adRank ?? 99)).map((k, i) => [i + 1, k.keyword, !k.place ? "확인 전" : k.place.adRank != null ? `${k.place.adRank}번째` : "미노출", kst(k.place?.at)]),
+      [...place].sort((a, b) => (a.place?.adPage ?? 1) - (b.place?.adPage ?? 1) || (a.place?.adRank ?? 99) - (b.place?.adRank ?? 99))
+        .map((k, i) => [i + 1, k.keyword, `${(k.place?.adPage ?? 1) > 1 ? `${k.place?.adPage}페이지 ` : ""}${k.place?.adRank}번째`, kst(k.place?.at)]),
     );
   }
 }
