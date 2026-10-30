@@ -16,7 +16,7 @@ export type Todo = {
   laterColumn: Column | undefined;
   open: (kind: Kind, id: string) => void;
   // 카드 · 세부 항목
-  addCard: (columnId: string, title: string) => Promise<boolean>;
+  addCard: (columnId: string, title: string, extra?: Partial<Card>) => Promise<boolean>;
   addItem: (cardId: string, title: string) => Promise<boolean>;
   patchCard: (id: string, p: Partial<Card>) => Promise<boolean>;
   patchItem: (id: string, p: Partial<Item>) => Promise<boolean>;

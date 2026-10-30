@@ -94,9 +94,9 @@ export default function TodoApp(props: {
   const newAssignee = filter !== "mine" && filter !== "all" ? filter : myMemberId;   // 다른 멤버를 보고 있으면 그 멤버에게
 
   // ── 카드 · 세부 항목 ─────────────────────────────────────
-  async function addCard(columnId: string, title: string) {
+  async function addCard(columnId: string, title: string, extra: Partial<Card> = {}) {
     const sort = Math.max(0, ...cards.filter((c) => c.column_id === columnId).map((c) => c.sort)) + 1;
-    const { data, error } = await sb.from("todo_cards").insert({ column_id: columnId, title, assignee_id: newAssignee, created_by: meId, sort }).select(CARD_COLS).single();
+    const { data, error } = await sb.from("todo_cards").insert({ column_id: columnId, title, assignee_id: newAssignee, created_by: meId, sort, ...extra }).select(CARD_COLS).single();
     if (error || !data) { fail("할 일을 추가하지 못했습니다."); return false; }
     setCards((l) => upsert(l, data as Card));
     return true;

@@ -59,8 +59,8 @@
 .iq-filters input { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; min-width: 0; flex: 1 1 200px; max-width: 320px; }
 
 /* 보드 */
-.iq-board { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; align-items: flex-start; }
-.iq-col { flex: 0 0 236px; background: var(--surface-2); border-radius: var(--iq-r); padding: 8px; min-height: 120px; }
+.iq-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; padding-bottom: 10px; align-items: start; }
+.iq-col { min-width: 0; background: var(--surface-2); border-radius: var(--iq-r); padding: 8px; min-height: 120px; }
 .iq-col.over { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .iq-col h3 { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 8px; font-size: 13px; }
 .iq-col h3 .iq-n { background: var(--surface); }
@@ -180,7 +180,6 @@ textarea.iq-draft { display: block; min-height: 220px; resize: vertical; margin-
 @media (max-width: 760px) {
   .iq-ic-grid { grid-template-columns: 1fr 1fr; }
   .iq-grid2, .iq-split { grid-template-columns: 1fr; }
-  .iq-col { flex-basis: 210px; }
   .iq-ph, .iq-pb { padding-left: 16px; padding-right: 16px; }
   .iq-mb { padding: 16px; }
   .iq-modal { padding: 8px; }

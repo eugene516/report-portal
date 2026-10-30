@@ -63,8 +63,9 @@ export function TaskRow({ kind, t, parent, acts, context = true }: { kind: Kind;
 const Empty = () => <div className="td-empty">없음</div>;
 
 // 한 줄 입력(Enter로 추가, Esc로 닫기)
-function AddInline({ label, placeholder, onAdd, max = 300, className = "td-add" }: { label: string; placeholder: string; onAdd: (v: string) => Promise<boolean>; max?: number; className?: string }) {
-  const [open, setOpen] = useState(false);
+// always: 버튼 없이 입력창을 늘 보여준다 (오늘 할 일 · 루틴)
+function AddInline({ label, placeholder, onAdd, max = 300, className = "td-add", always = false }: { label: string; placeholder: string; onAdd: (v: string) => Promise<boolean>; max?: number; className?: string; always?: boolean }) {
+  const [open, setOpen] = useState(always);
   const [v, setV] = useState("");
   const [busy, setBusy] = useState(false);
   if (!open) return <button type="button" className={className} onClick={() => setOpen(true)}>{label}</button>;
@@ -77,10 +78,10 @@ function AddInline({ label, placeholder, onAdd, max = 300, className = "td-add" 
       if (await onAdd(t)) setV("");
       setBusy(false);
     }}>
-      <input autoFocus value={v} onChange={(e) => setV(e.target.value)} maxLength={max} placeholder={placeholder} aria-label={placeholder}
-        onKeyDown={(e) => { if (e.key === "Escape") { setOpen(false); setV(""); } }} />
+      <input value={v} onChange={(e) => setV(e.target.value)} maxLength={max} placeholder={placeholder} aria-label={placeholder}
+        onKeyDown={(e) => { if (e.key === "Escape") { setOpen(always); setV(""); } }} autoFocus={!always} />
       <button className="btn sm primary" disabled={busy || !v.trim()}>추가</button>
-      <button type="button" className="btn sm" onClick={() => { setOpen(false); setV(""); }}>닫기</button>
+      {!always && <button type="button" className="btn sm" onClick={() => { setOpen(false); setV(""); }}>닫기</button>}
     </form>
   );
 }
@@ -89,8 +90,9 @@ function AddInline({ label, placeholder, onAdd, max = 300, className = "td-add" 
 type Entry = { kind: Kind; t: Card | Item; parent?: Card };
 
 export function TodayView() {
-  const { today, cards, items, routines, logs, filter, myMemberId, pass, laterColumn, patchCard, patchItem, addRoutine } = useTodo();
+  const { today, cards, items, routines, logs, filter, myMemberId, pass, laterColumn, patchCard, patchItem, addRoutine, addCard, columns } = useTodo();
   const cardById = new Map(cards.map((c) => [c.id, c]));
+  const firstColumn = [...columns].sort((a, b) => a.sort - b.sort).find((c) => !c.is_later);
   // 세부 항목이 없는 카드는 카드 한 줄, 있으면 세부 항목마다 한 줄
   const all: Entry[] = [];
   for (const k of cards) if (!items.some((i) => i.card_id === k.id)) all.push({ kind: "card", t: k });
@@ -136,11 +138,13 @@ export function TodayView() {
       <section className="td-sec">
         <h2>☀ 오늘 할 일 <span className="n">{todays.length}</span></h2>
         {list(todays)}
+        {/* 오늘 할 일 바로 추가: '나중에'가 아닌 첫 열에 ☀ 오늘 표시로 만든다 */}
+        {firstColumn && <AddInline always label="" placeholder="오늘 할 일 입력 후 Enter" onAdd={(t) => addCard(firstColumn.id, t, { today_on: today })} />}
       </section>
       <section className="td-sec">
         <h2>루틴 <span className="n">{active.length}</span></h2>
         {active.length ? active.map((r) => <RoutineRow key={r.id} r={r} done={todayOf(r) === "done"} days={streak(r, logMap.get(r.id) ?? new Map(), today)} />) : <Empty />}
-        {filter === "mine" && myMemberId && <AddInline label="+ 루틴 추가" placeholder="매일 할 일 (예: 아침 메일 확인)" max={100} onAdd={addRoutine} />}
+        {filter === "mine" && myMemberId && <AddInline always label="" placeholder="매일 할 루틴 입력 후 Enter (예: 아침 메일 확인)" max={100} onAdd={addRoutine} />}
       </section>
       <section className="td-sec">
         <h2>오늘 완료 <span className="n">{doneToday.length + routinesDone.length}</span></h2>
