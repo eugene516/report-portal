@@ -23,13 +23,13 @@ begin
   -- 1. 마감 3일 이내 항목만 주담당 보드에 등록, 두 번 실행해도 1건
   perform public.sync_deadline_tasks();
   perform public.sync_deadline_tasks();
-  select count(*) into n from public.team_tasks where member_id = m and auto;
+  select count(*) into n from public.todo_cards where assignee_id = m and auto;   -- 20261030004800 부터 할일 카드로 등록
   r := r || '1 ' || case when n = 1 then 'OK' else 'FAIL:' || n end || ';';
 
   -- 2. 수량을 채우면 자동 할 일도 완료
   update public.client_contract_items set done_count = 5 where client_id = a and service = 'review';
   perform public.sync_deadline_tasks();
-  select count(*) into n from public.team_tasks where member_id = m and auto and done;
+  select count(*) into n from public.todo_cards where assignee_id = m and auto and done;
   r := r || '2 ' || case when n = 1 then 'OK' else 'FAIL' end || ';';
 
   -- 3. 반복 업무: 완료하면 다음 회차(1주 뒤)가 생긴다

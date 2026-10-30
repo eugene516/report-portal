@@ -447,3 +447,8 @@ verify_jwt = false
 # client-link: 광고주 링크 발급 · 다시 보기 (담당 직원 · 오너 · 관리자, 함수 안에서 담당 여부 확인)
 [functions.client-link]
 verify_jwt = true
+
+# inquiry-ai: 문의관리 AI 도우미(원문 정리 · 다음 액션 · 메일/카톡 초안 · 녹취 요약 · 월간 요약). 로그인 토큰 필수 + 함수 안에서 직원인지 확인한다.
+#             Claude API 키는 함수 비밀값 ANTHROPIC_API_KEY 에만 둔다 (없으면 화면에 "AI 키가 설정되지 않았습니다" 안내).
+[functions.inquiry-ai]
+verify_jwt = true

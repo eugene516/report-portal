@@ -1146,3 +1146,4 @@ img, svg { max-width: 100%; }
 .rv-inline-sheet + .rv-inline-sheet { margin-top: 10px; }
 .rv-inline .sheet-view { width: 100%; max-height: 520px; overflow: auto; border: 1px solid var(--border); padding: 10px; }
 .rv-body .sheet-view { width: 100%; }
+.work-tabs { margin-bottom: 18px; }

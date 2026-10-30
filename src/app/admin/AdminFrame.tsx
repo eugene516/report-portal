@@ -66,7 +66,7 @@ export default function AdminFrame({ me, staff, myClients, navCollapsed, childre
           <nav className="nav">
             <Link href="/admin" className={on("/admin")}>대시보드</Link>
             <Link href="/admin/clients" className={sp.get("staff") ? "" : on("/admin/clients")}>광고주 현황</Link>
-            <Link href="/admin/tasks" className={on("/admin/tasks")}>업무 확인</Link>
+            <Link href="/admin/tasks" className={on("/admin/tasks", false)}>업무관리</Link>
           </nav>
 
           {isAdmin ? (
