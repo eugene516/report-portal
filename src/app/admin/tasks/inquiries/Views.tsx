@@ -18,6 +18,18 @@ function OwnerSelect({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 // ── 보드 ─────────────────────────────────────────────────────────────
+// 문의 수정 · 삭제 버튼 (카드 · 목록 공통). 누르면 카드 펼치기 · 상세 열기로 번지지 않게 막는다
+function CardActions({ c }: { c: Inquiry }) {
+  const { openCard, canDelete, removeCard } = useIq();
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <span className="iq-acts" onClick={stop} onKeyDown={stop}>
+      <button type="button" className="iq-ib" title="수정" aria-label={`${c.company} 수정`} onClick={() => openCard(c.id)}>✎</button>
+      {canDelete(c) && <button type="button" className="iq-ib del" title="삭제" aria-label={`${c.company} 삭제`} onClick={() => removeCard(c)}>🗑</button>}
+    </span>
+  );
+}
+
 export function BoardView({ stages, title, desc }: { stages: typeof STAGES; title: string; desc: string }) {
   const { cards, settings, today, nameOf, canManage, setStage, openCard } = useIq();
   const [owner, setOwner] = useState("");
@@ -78,6 +90,7 @@ export function BoardView({ stages, title, desc }: { stages: typeof STAGES; titl
                         {c.channel && <span className="iq-chip">{c.channel}</span>}
                         <span className={`iq-d ${isActive(c.stage) ? t.cls : ""}`}>{dd}</span>
                         <span className="iq-av" title={nameOf(c.owner)}>{nameOf(c.owner).slice(0, 1)}</span>
+                        <CardActions c={c} />
                       </div>
                     </div>
                   );
@@ -131,6 +144,7 @@ function InfoCard({ c, kind, open, toggle, evs }: { c: Inquiry; kind: "waiting" 
             : until ? <span className={`iq-when ${left! <= 0 ? "warn" : ""}`}>{kind === "waiting" ? "확인 " : "재접촉 "}{md(until)}{left! > 0 ? ` (${left}일 후)` : left === 0 ? " (오늘)" : ` (${-left!}일 지남)`}</span>
             : <span className="iq-when warn">날짜 없음</span>}
           <ReturnControl c={c} />
+          <CardActions c={c} />
         </div>
       </div>
       {open && (
@@ -225,9 +239,9 @@ export function WonView() {
         <p>{need > 0 && <span className="iq-chip danger">계약 정보 입력 필요 {need}건</span>} 계약일자 · 유형(단기/매월) · 서비스만 기록합니다. 매출은 매출 · 매입 관리툴에서 관리합니다.</p></div></div>
       <div className="iq-tiles">{tiles.map(([k, v]) => <div key={k} className="iq-tile"><div className="iq-k">{k}</div><div className="iq-v">{v}</div></div>)}</div>
       <div className="iq-tw"><table className="iq-table">
-        <thead><tr><th>회사 / 담당자</th><th>계약 유형</th><th>계약 서비스</th><th>계약일자</th><th>채널</th><th>담당</th><th className="num">문의→계약</th></tr></thead>
+        <thead><tr><th>회사 / 담당자</th><th>계약 유형</th><th>계약 서비스</th><th>계약일자</th><th>채널</th><th>담당</th><th className="num">문의→계약</th><th></th></tr></thead>
         <tbody>
-          {won.length === 0 && <tr><td colSpan={7} className="iq-empty">계약 카드가 없습니다.</td></tr>}
+          {won.length === 0 && <tr><td colSpan={8} className="iq-empty">계약 카드가 없습니다.</td></tr>}
           {won.map((c) => (
             <tr key={c.id} onClick={() => openCard(c.id)}>
               <td><b>{c.company}</b><br /><span className="iq-hint">{c.person}</span></td>
@@ -261,9 +275,9 @@ export function ListView() {
         <select value={fv} onChange={(e) => setFv(e.target.value)} aria-label="서비스"><option value="">서비스 전체</option>{settings.services.map((s) => <option key={s} value={s}>{s}</option>)}</select>
       </div>
       <div className="iq-tw"><table className="iq-table">
-        <thead><tr><th>회사 / 담당자</th><th>단계</th><th>채널</th><th>서비스</th><th>담당</th><th>다음 액션</th><th className="num">경과</th><th>접수일</th></tr></thead>
+        <thead><tr><th>회사 / 담당자</th><th>단계</th><th>채널</th><th>서비스</th><th>담당</th><th>다음 액션</th><th className="num">경과</th><th>접수일</th><th></th></tr></thead>
         <tbody>
-          {rows.length === 0 && <tr><td colSpan={8} className="iq-empty">조건에 맞는 문의가 없습니다.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={9} className="iq-empty">조건에 맞는 문의가 없습니다.</td></tr>}
           {rows.map((c) => {
             const t = statusOf(c, settings.sla, today);
             return (
@@ -276,6 +290,7 @@ export function ListView() {
                 <td>{c.next_action_text ? <>{c.next_action_text}<br /><span className="iq-hint">{md(c.next_action_on)}</span></> : <span className="iq-hint">없음</span>}</td>
                 <td className="num">{t.label ? <span className={`iq-chip ${t.cls}`}>{t.label}</span> : `${diffDays(today, c.last_activity_on)}일`}</td>
                 <td>{md(c.received_on)}</td>
+                <td className="r"><CardActions c={c} /></td>
               </tr>
             );
           })}

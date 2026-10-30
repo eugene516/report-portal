@@ -126,3 +126,4 @@
   .td-sheet { animation: td-up .18s ease-out; }
   @keyframes td-up { from { transform: translateY(16px); opacity: .6; } to { transform: none; opacity: 1; } }
 }
+.td-ib.del:hover { color: var(--bad); border-color: var(--bad); }

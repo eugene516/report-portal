@@ -1,6 +1,7 @@
 "use client";
 // 할일 화면 본문: 오늘 · 보드 · 한 줄(카드/세부 항목)
 import { useState } from "react";
+import { ask } from "@/components/ui";
 import { useTodo, type Kind } from "./ctx";
 import { PRI, addDays, kstOf, md, streak, type Card, type Column, type Item, type Routine } from "./types";
 
@@ -36,7 +37,7 @@ function Badges({ t, card }: { t: Card | Item; card?: Card }) {
 
 // 한 줄: 카드 또는 세부 항목. 제목을 누르면 상세 창
 export function TaskRow({ kind, t, parent, acts, context = true }: { kind: Kind; t: Card | Item; parent?: Card; acts?: React.ReactNode; context?: boolean }) {
-  const { columns, items, toggle, open } = useTodo();
+  const { columns, items, toggle, open, removeCard, removeItem } = useTodo();
   const card = kind === "card" ? (t as Card) : parent;
   const col = columns.find((c) => c.id === card?.column_id);
   const sub = kind === "card" ? items.filter((i) => i.card_id === t.id) : [];
@@ -54,7 +55,11 @@ export function TaskRow({ kind, t, parent, acts, context = true }: { kind: Kind;
       </div>
       <div className="td-acts">
         {acts}
-        <button type="button" className="td-ib" title="담당자 바꾸기 · 상세" aria-label="상세" onClick={() => open(kind, t.id)}>👤</button>
+        <button type="button" className="td-ib" title="수정 (담당자 · 마감 · 메모)" aria-label={`${t.title} 수정`} onClick={() => open(kind, t.id)}>✎</button>
+        <button type="button" className="td-ib del" title="삭제" aria-label={`${t.title} 삭제`} onClick={async () => {
+          if (!await ask(`‘${t.title.slice(0, 30)}’을(를) 삭제할까요?${sub.length ? `\n세부 항목 ${sub.length}건도 함께 삭제됩니다.` : ""}`)) return;
+          if (kind === "card") await removeCard(t.id); else await removeItem(t.id);
+        }}>🗑</button>
       </div>
     </div>
   );
@@ -187,6 +192,7 @@ function RoutineRow({ r, done, days }: { r: Routine; done: boolean; days: number
       </div>
       {editable && (
         <div className="td-acts">
+          <button type="button" className="td-ib" title="이름 수정" aria-label="루틴 이름 수정" onClick={() => setEditing(true)}>✎</button>
           {!done && <button type="button" className="td-ib" title="오늘은 안 함 (연속 유지)" aria-label="오늘은 안 함" onClick={() => setRoutineLog(r, "skip")}>－</button>}
           <button type="button" className="td-ib" title="루틴 삭제" aria-label="루틴 삭제" onClick={() => removeRoutine(r)}>🗑</button>
         </div>
