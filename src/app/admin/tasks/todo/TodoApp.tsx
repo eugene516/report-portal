@@ -189,9 +189,11 @@ export default function TodoApp(props: {
   // ── 루틴 ─────────────────────────────────────────────
   const canEditRoutine = (r: Routine) => isAdmin || members.some((m) => m.id === r.owner_id && m.user_id === meId);
   async function addRoutine(title: string) {
-    if (!myMemberId) { fail("멤버 정보를 찾지 못해 루틴을 추가할 수 없습니다."); return false; }
-    const sort = Math.max(0, ...routines.filter((r) => r.owner_id === myMemberId).map((r) => r.sort)) + 1;
-    const { data, error } = await sb.from("todo_routines").insert({ owner_id: myMemberId, title, sort, created_by: meId }).select(ROUTINE_COLS).single();
+    // 다른 멤버를 보고 있으면 관리자는 그 멤버에게, 직원은 자기 루틴으로 추가 (루틴은 주인 · 관리자만 수정)
+    const owner = filter !== "mine" && filter !== "all" && isAdmin ? filter : myMemberId;
+    if (!owner) { fail("멤버 정보를 찾지 못해 루틴을 추가할 수 없습니다."); return false; }
+    const sort = Math.max(0, ...routines.filter((r) => r.owner_id === owner).map((r) => r.sort)) + 1;
+    const { data, error } = await sb.from("todo_routines").insert({ owner_id: owner, title, sort, created_by: meId }).select(ROUTINE_COLS).single();
     if (error || !data) { fail("루틴을 추가하지 못했습니다."); return false; }
     setRoutines((l) => upsert(l, data as Routine));
     return true;

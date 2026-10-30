@@ -144,7 +144,7 @@ export function TodayView() {
       <section className="td-sec">
         <h2>루틴 <span className="n">{active.length}</span></h2>
         {active.length ? active.map((r) => <RoutineRow key={r.id} r={r} done={todayOf(r) === "done"} days={streak(r, logMap.get(r.id) ?? new Map(), today)} />) : <Empty />}
-        {filter === "mine" && myMemberId && <AddInline always label="" placeholder="매일 할 루틴 입력 후 Enter (예: 아침 메일 확인)" max={100} onAdd={addRoutine} />}
+        {myMemberId && <AddInline always label="" placeholder="매일 할 루틴 입력 후 Enter (예: 아침 메일 확인)" max={100} onAdd={addRoutine} />}
       </section>
       <section className="td-sec">
         <h2>오늘 완료 <span className="n">{doneToday.length + routinesDone.length}</span></h2>
