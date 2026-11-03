@@ -3,7 +3,7 @@
 import type { ReportCtx } from "@/lib/report";
 import { supabaseForClientLink, supabaseForStaff } from "@/lib/supabase/server";
 
-type Quote = { id: string; period: string | null; kind: string; fileName: string; size: number | null; createdAt: string; url: string | null };
+type Quote = { id: string; period: string | null; kind: string; fileName: string; size: number | null; createdAt: string; url: string | null; dl: string | null };
 
 const KIND: Record<string, string> = { quote: "견적서", contract: "계약서" };
 const size = (n: number | null) => (n == null ? "" : n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
@@ -13,7 +13,10 @@ async function getQuotes(ctx: ReportCtx): Promise<Quote[]> {
   if (ctx.mode === "client") {
     const { data } = await supabaseForClientLink().rpc("report_quotes", { p_token: ctx.token });
     const base = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/report-quote`;
-    return ((data ?? []) as Omit<Quote, "url">[]).map((q) => ({ ...q, url: `${base}?t=${encodeURIComponent(ctx.token)}&id=${q.id}` }));
+    return ((data ?? []) as Omit<Quote, "url" | "dl">[]).map((q) => {
+      const url = `${base}?t=${encodeURIComponent(ctx.token)}&id=${q.id}`;
+      return { ...q, url, dl: `${url}&dl=1` };
+    });
   }
   const db = await supabaseForStaff();
   const { data } = await db.from("client_quotes").select("id, period, kind, file_name, size_bytes, created_at, storage_path").eq("client_id", ctx.clientId)
@@ -21,14 +24,16 @@ async function getQuotes(ctx: ReportCtx): Promise<Quote[]> {
   const rows = data ?? [];
   const { data: signed } = rows.length ? await db.storage.from("quotes").createSignedUrls(rows.map((r) => r.storage_path), 600) : { data: [] };
   const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
-  return rows.map((r) => ({ id: r.id, period: r.period, kind: r.kind, fileName: r.file_name, size: r.size_bytes, createdAt: r.created_at, url: url.get(r.storage_path) ?? null }));
+  // 내려받기 주소는 파일마다 원래 이름을 붙여 만든다
+  const dl = await Promise.all(rows.map((r) => db.storage.from("quotes").createSignedUrl(r.storage_path, 600, { download: r.file_name || true }).then((x) => x.data?.signedUrl ?? null)));
+  return rows.map((r, i) => ({ id: r.id, period: r.period, kind: r.kind, fileName: r.file_name, size: r.size_bytes, createdAt: r.created_at, url: url.get(r.storage_path) ?? null, dl: dl[i] }));
 }
 
 export default async function QuotesSection({ ctx }: { ctx: ReportCtx }) {
   const list = await getQuotes(ctx);
   return (
     <>
-      <p className="muted">믿는구석이 등록한 월별 견적서 · 계약서입니다. ‘보기’를 누르면 새 창에서 열립니다.</p>
+      <p className="muted">믿는구석이 등록한 월별 견적서 · 계약서입니다. ‘보기’는 새 창에서 열고, ‘다운로드’는 파일로 저장합니다.</p>
       <div className="card tbl-wrap"><table>
         <thead><tr><th>No</th><th>대상 월</th><th>종류</th><th>파일</th><th>등록일</th><th></th></tr></thead>
         <tbody>
@@ -40,7 +45,10 @@ export default async function QuotesSection({ ctx }: { ctx: ReportCtx }) {
               <td><span className="badge">{KIND[q.kind] ?? q.kind}</span></td>
               <td className="ellipsis"><b>{q.fileName}</b> <span className="faint">{size(q.size)}</span></td>
               <td className="faint num">{day(q.createdAt)}</td>
-              <td className="r">{q.url && <a className="btn sm" href={q.url} target="_blank" rel="noopener noreferrer">보기</a>}</td>
+              <td className="r nowrap">
+                {q.url && <a className="btn sm" href={q.url} target="_blank" rel="noopener noreferrer">보기</a>}{" "}
+                {q.dl && <a className="btn sm" href={q.dl} rel="noopener noreferrer">다운로드</a>}
+              </td>
             </tr>
           ))}
         </tbody>
