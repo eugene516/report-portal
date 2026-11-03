@@ -56,7 +56,7 @@ export default function ReportShell({
 }) {
   const current = section.join("/");
   const inAds = section[0] === "ads";
-  const tool = current === "history" || current === "contracts" || current === "quotes" || section[0] === "review";
+  const tool = current === "history" || current === "contracts" || section[0] === "quotes" || section[0] === "review";
   const past = period !== thisMonth && !inAds && !tool;
   const q = past ? `?period=${period}` : "";
   return (
@@ -81,6 +81,7 @@ export default function ReportShell({
           </Link>
           <Link href={`${base}/history`} className={current === "history" || past ? "on" : ""}>지난 레포트 보기</Link>
           {!staffTools && <Link href={`${base}/quotes`} className={current === "quotes" ? "on" : ""}>견적서</Link>}
+          {!staffTools && <Link href={`${base}/quotes/past`} className={current === "quotes/past" ? "on" : ""}>지난 견적서 보기</Link>}
           {staffTools && <div className="nav-div" />}
           {staffTools && <Link href={`${base}/contracts`} className={current === "contracts" ? "on" : ""}>{inHouse ? "업무 항목 관리" : "계약 · 견적 관리"}<span className="cnt">직원용</span></Link>}
         </nav>

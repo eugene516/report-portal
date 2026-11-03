@@ -99,10 +99,11 @@ export default async function ReportPage({
   } else if (key === "history") {
     title = "지난 레포트 보기";
     body = <HistorySection months={await getHistory(ctx)} thisMonth={currentPeriod()} base={base} services={services} />;
-  } else if (key === "quotes") {
-    // 광고주 화면(링크 · 미리보기) 메뉴. 직원은 '계약 · 견적 관리'에서 관리한다
-    title = "견적서";
-    body = <QuotesSection ctx={ctx} />;
+  } else if (key === "quotes" || key === "quotes/past") {
+    // 광고주 화면(링크 · 미리보기) 메뉴. 직원은 '계약 · 견적 관리'에서 관리한다. 당월만 기본, 지난 달은 '지난 견적서 보기'
+    const past = key === "quotes/past";
+    title = past ? "지난 견적서 보기" : "견적서";
+    body = <QuotesSection ctx={ctx} thisMonth={currentPeriod()} past={past} base={base} />;
   } else if (key === "contracts") {
     // 직원 경로에서만 열린다 (광고주 링크로는 이 주소가 없다)
     if (ctx.mode !== "staff" || !staffView) notFound();
@@ -142,7 +143,7 @@ export default async function ReportPage({
 
   return (
     <ReportShell client={client} base={base} section={section} title={title}
-      eyebrow={`${client.name} · ${section[0] === "ads" ? "온라인 광고" : key === "history" || key === "contracts" || key === "quotes" ? "월별 관리" : `${monthLabel} 마케팅 리포트`}`}
+      eyebrow={`${client.name} · ${section[0] === "ads" ? "온라인 광고" : key === "history" || key === "contracts" || section[0] === "quotes" ? "월별 관리" : `${monthLabel} 마케팅 리포트`}`}
       staffTools={staffView} preview={preview ? basePath(ctx) : null} link={link} reviewPending={review?.pending ?? 0} inHouse={inHouse} services={services} period={content.period} thisMonth={currentPeriod()}>
       {body}
     </ReportShell>

@@ -32,19 +32,29 @@ async function getQuotes(ctx: ReportCtx): Promise<Quote[]> {
   });
 }
 
-export default async function QuotesSection({ ctx }: { ctx: ReportCtx }) {
-  const list = await getQuotes(ctx);
+// 대상 월이 없는 파일(광고주 등록 때 올린 것)은 등록한 달로 본다
+const monthOf = (q: Quote) => q.period ?? day(q.createdAt).slice(0, 7);
+
+// past=false: 이번 달(과 미리 올린 다음 달) 견적서만, past=true: 지난 달 견적서 (새 달이 시작되면 자동으로 넘어간다)
+export default async function QuotesSection({ ctx, thisMonth, past, base }: { ctx: ReportCtx; thisMonth: string; past: boolean; base: string }) {
+  const list = (await getQuotes(ctx)).filter((q) => (monthOf(q) < thisMonth) === past);
+  const label = `${thisMonth.replace("-", "년 ")}월`;
   return (
     <>
-      <p className="muted">믿는구석이 등록한 월별 견적서 · 계약서입니다. ‘보기’는 새 창에서 열고, ‘다운로드’는 파일로 저장합니다.</p>
+      <p className="muted">
+        {past ? "지난 달에 등록된 견적서 · 계약서입니다." : `${label} 견적서 · 계약서입니다. 지난 달 파일은 ‘지난 견적서 보기’에 있습니다.`}
+        {" "}‘보기’는 새 창에서 열고, ‘다운로드’는 파일로 저장합니다.
+      </p>
       <div className="card tbl-wrap"><table>
         <thead><tr><th>No</th><th>대상 월</th><th>종류</th><th>파일</th><th>등록일</th><th></th></tr></thead>
         <tbody>
-          {list.length === 0 && <tr><td colSpan={6} className="faint">등록된 견적서가 없습니다.</td></tr>}
+          {list.length === 0 && <tr><td colSpan={6} className="faint">
+            {past ? "지난 견적서가 없습니다." : <>{label} 견적서가 아직 없습니다. <a href={`${base}/quotes/past`}>지난 견적서 보기 ›</a></>}
+          </td></tr>}
           {list.map((q, i) => (
             <tr key={q.id}>
               <td className="faint num">{i + 1}</td>
-              <td className="num">{q.period ? `${q.period.replace("-", "년 ")}월` : "-"}</td>
+              <td className="num">{`${monthOf(q).replace("-", "년 ")}월`}</td>
               <td><span className="badge">{KIND[q.kind] ?? q.kind}</span></td>
               <td className="ellipsis"><b>{q.fileName}</b> <span className="faint">{size(q.size)}</span></td>
               <td className="faint num">{day(q.createdAt)}</td>
