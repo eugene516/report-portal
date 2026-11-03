@@ -24,9 +24,12 @@ async function getQuotes(ctx: ReportCtx): Promise<Quote[]> {
   const rows = data ?? [];
   const { data: signed } = rows.length ? await db.storage.from("quotes").createSignedUrls(rows.map((r) => r.storage_path), 600) : { data: [] };
   const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
-  // 내려받기 주소는 파일마다 원래 이름을 붙여 만든다
-  const dl = await Promise.all(rows.map((r) => db.storage.from("quotes").createSignedUrl(r.storage_path, 600, { download: r.file_name || true }).then((x) => x.data?.signedUrl ?? null)));
-  return rows.map((r, i) => ({ id: r.id, period: r.period, kind: r.kind, fileName: r.file_name, size: r.size_bytes, createdAt: r.created_at, url: url.get(r.storage_path) ?? null, dl: dl[i] }));
+  // 내려받기: 같은 서명 주소에 원래 파일 이름을 붙인다 (SDK의 download 옵션은 한글 이름을 두 번 인코딩한다)
+  return rows.map((r) => {
+    const u = url.get(r.storage_path) ?? null;
+    return { id: r.id, period: r.period, kind: r.kind, fileName: r.file_name, size: r.size_bytes, createdAt: r.created_at, url: u,
+             dl: u && `${u}&download=${encodeURIComponent(r.file_name || "견적서")}` };
+  });
 }
 
 export default async function QuotesSection({ ctx }: { ctx: ReportCtx }) {

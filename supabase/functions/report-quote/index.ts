@@ -20,9 +20,9 @@ Deno.serve(async (req) => {
   const { data: q } = await db.from("client_quotes").select("storage_path, client_id, file_name").eq("id", id).maybeSingle();
   if (!q || q.client_id !== clientId) return deny(404);   // 토큰 오류 · 다른 광고주 파일: 구분 없이 404
 
-  // dl=1: 원래 파일 이름으로 내려받기
-  const download = url.searchParams.get("dl") === "1" ? { download: q.file_name || true } : undefined;
-  const { data, error } = await db.storage.from("quotes").createSignedUrl(q.storage_path, 120, download);
+  const { data, error } = await db.storage.from("quotes").createSignedUrl(q.storage_path, 120);
   if (error || !data?.signedUrl) return deny(404);
-  return new Response(null, { status: 302, headers: { Location: data.signedUrl, "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
+  // dl=1: 원래 파일 이름으로 내려받기 (SDK의 download 옵션은 한글 이름을 두 번 인코딩해서 직접 붙인다)
+  const loc = url.searchParams.get("dl") === "1" ? `${data.signedUrl}&download=${encodeURIComponent(q.file_name || "견적서")}` : data.signedUrl;
+  return new Response(null, { status: 302, headers: { Location: loc, "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
 });
