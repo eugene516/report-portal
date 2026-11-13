@@ -168,6 +168,16 @@ if (r.sns?.length) {
     g.links.push({ media: p.media, url: p.url });
     groups.set(key, g);
   }
+  // 카카오채널은 사진만 올린 글에 "2026년 11월 11일의 소식" 같은 제목을 붙인다.
+  // 이런 글은 같은 광고주 · 같은 날 제목이 있는 회차가 하나뿐이면 그 회차에 합친다 (같은 카드뉴스를 채널마다 올린 것)
+  const generic = (t) => !t || /^(\d{4}년\s*)?\d{1,2}월\s*\d{1,2}일(의)?\s*소식$/.test(t.trim());
+  for (const [k, g] of groups) {
+    if (!generic(g.title)) continue;
+    const same = [...groups.values()].filter((o) => o !== g && o.client === g.client && o.date === g.date && !generic(o.title));
+    if (same.length !== 1) continue;
+    same[0].links.push(...g.links);
+    groups.delete(k);
+  }
   const list = [...groups.values()].sort((a, b) => a.date.localeCompare(b.date));
   sql(`
     do $do$
