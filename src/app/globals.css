@@ -1004,8 +1004,8 @@ mark.rv-edit { background: #fff176; color: #c00000; padding: 0 1px; border-radiu
 .rv-para:hover { border-color: #e3e6ec; }
 .rv-para:focus { outline: none; border-color: #3b6fe0; background: #f7f9ff; }
 .rv-para.h { font-weight: 700; font-size: 1.12em; }
-.rv-para.was-edited { box-shadow: inset 3px 0 0 #f2c200; }
-.rv-para.dirty { background: #fffbe0; box-shadow: inset 3px 0 0 #c00000; }
+.rv-para.was-edited { background: #fffdf0; }
+.rv-para.dirty { background: #fff8d6; border-color: #e6c74a; }
 .rv-locked { margin: 0; padding: 2px 6px; color: #8a909c; background: #f4f5f7; border-radius: 6px; white-space: pre-wrap; cursor: not-allowed; }
 .review-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .review-gallery figure { margin: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
