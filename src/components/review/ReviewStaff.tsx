@@ -225,10 +225,12 @@ export async function removeReviewItem(itemId: string, title: string, status: st
   const warn = status === "draft" ? "올린 파일도 함께 지워집니다." : "올린 파일과 검수 기록(요청 · 완료 · 코멘트)이 모두 지워지고 되돌릴 수 없습니다.";
   if (!await ask(`‘${title}’을(를) 삭제할까요?\n${warn}`)) return false;
   const sb = supabaseBrowser();
-  const { data: files } = await sb.from("review_files").select("storage_path").eq("item_id", itemId);
+  const { data: files } = await sb.from("review_files").select("storage_path, original_path").eq("item_id", itemId);
   const { data, error } = await sb.from("review_items").delete().eq("id", itemId).select("id");
   if (error || !data?.length) { toastError("삭제하지 못했습니다."); return false; }
-  if (files?.length) await sb.storage.from("reviews").remove(files.map((f) => f.storage_path));
+  // 화면에서 고친 원고는 처음 원본(original_path)도 함께 지운다
+  const paths = (files ?? []).flatMap((f) => [f.storage_path, f.original_path].filter((x): x is string => !!x));
+  if (paths.length) await sb.storage.from("reviews").remove(paths);
   toast("삭제했습니다.");
   return true;
 }
