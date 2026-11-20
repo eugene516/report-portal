@@ -9,9 +9,6 @@ import type { ReviewEvent } from "@/lib/review";
 
 const kst = (iso: string) => new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(5, 16).replace("T", " ").replace("-", "/");
 
-// 답글은 원래 코멘트 아래에만 보이도록 목록에서 뺀다
-export const topLevel = (list: ReviewEvent[]) => list.filter((e) => e.action !== "reply");
-
 export default function ReviewReplies({ parent, events, staff }: { parent: ReviewEvent; events: ReviewEvent[]; staff: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
