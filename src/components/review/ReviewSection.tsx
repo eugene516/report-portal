@@ -7,12 +7,13 @@ import { canEditReview, CLIENT_REVIEW_FROM, getReviewDetail, getReviewList, getR
 import { supabaseForStaff } from "@/lib/supabase/server";
 import { ClientEmailLogin, ReviewLogout } from "./ReviewAuth";
 import ReviewFiles from "./ReviewFiles";
+import ReviewReplies, { topLevel } from "./ReviewReply";
 import ReviewDecide from "./ReviewDecide";
 import ReviewList from "./ReviewList";
 import { ClientAccounts, ReviewCreate, ReviewStaffActions } from "./ReviewStaff";
 
 const kst = (iso: string | null) => (iso ? new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ") : "-");
-const ACTION: Record<string, string> = { request: "검수 요청", resubmit: "수정본 검수 요청", approve: "검수 완료", changes: "재검수 요청", edit: "원고 수정" };
+const ACTION: Record<string, string> = { request: "검수 요청", resubmit: "수정본 검수 요청", approve: "검수 완료", changes: "재검수 요청", edit: "원고 수정", reply: "답글" };
 const Status = ({ s }: { s: string }) => <span className={`badge ${REVIEW_STATUS[s]?.badge ?? ""}`}>{REVIEW_STATUS[s]?.label ?? s}</span>;
 
 export default async function ReviewSection({ clientId, clientName, base, itemId, period, kind, staffView, thisMonth, linkToken }: {
@@ -62,8 +63,9 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
           <h3>검수 기록</h3>
           <ul className="review-log">
             {events.length === 0 && <li className="faint">아직 기록이 없습니다.</li>}
-            {events.map((e) => (
-              <li key={e.id}><span className="num faint">{kst(e.created_at)}</span><b>{e.action === "approve" && e.actor_kind === "staff" ? "담당자 완료 처리" : ACTION[e.action] ?? e.action}</b><span className="faint">{e.version}차 · {e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자")}</span>{e.comment && <span className="review-comment">{e.comment}</span>}</li>
+            {/* 답글은 원래 코멘트 아래에 묶어서 보여 준다 */}
+            {topLevel(events).map((e) => (
+              <li key={e.id}><span className="num faint">{kst(e.created_at)}</span><b>{e.action === "approve" && e.actor_kind === "staff" ? "담당자 완료 처리" : ACTION[e.action] ?? e.action}</b><span className="faint">{e.version}차 · {e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자")}</span>{e.comment && <span className="review-comment">{e.comment}</span>}<ReviewReplies parent={e} events={events} staff={staffView} /></li>
             ))}
           </ul>
           {older.length > 0 && (

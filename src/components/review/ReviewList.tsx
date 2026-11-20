@@ -12,6 +12,7 @@ import type { ReviewEvent, ReviewFile, ReviewItem } from "@/lib/review";
 import { editableOf, isDocx, isImage, isPdf, isSheet, SheetView, type ThumbFile } from "./ReviewFiles";
 import { removeReviewItem, ReviewEditDialog } from "./ReviewStaff";
 import DocxEditable from "./DocxEditor";
+import ReviewReplies from "./ReviewReply";
 
 type Row = ReviewItem & { files: ReviewFile[]; events: ReviewEvent[] };
 const KIND: Record<string, string> = { keyword: "주제 · 키워드", blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
@@ -132,7 +133,7 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
     document.body.style.overflow = "hidden";
     return () => { window.removeEventListener("keydown", key); document.body.style.overflow = ""; };
   }, [onClose, sel, r.files.length]);
-  const notes = r.events.filter((e) => e.comment && !e.file_id);
+  const notes = r.events.filter((e) => e.comment && !e.file_id && e.action !== "reply" && e.action !== "edit");
   const ok = canApprove(r, staff), ch = canChanges(r, staff);
   return (
     <div className="modal file-viewer review-viewer" role="dialog" aria-modal="true" aria-label={r.title}>
@@ -171,7 +172,7 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
         {sel == null && <div className="rv-foot">
           {notes.length > 0 && (
             <ul className="rv-notes">
-              {notes.slice(0, 4).map((e) => <li key={e.id}><b>{e.action === "changes" ? "재검수 요청" : e.action === "approve" ? "검수 완료" : "메모"}</b><span className="faint">{e.version}차 · {e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자")} · {kst(e.created_at)}</span><span className="rv-note">{e.comment}</span></li>)}
+              {notes.slice(0, 4).map((e) => <li key={e.id}><b>{e.action === "changes" ? "재검수 요청" : e.action === "approve" ? "검수 완료" : "메모"}</b><span className="faint">{e.version}차 · {e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자")} · {kst(e.created_at)}</span><span className="rv-note">{e.comment}</span><ReviewReplies parent={e} events={r.events} staff={staff} /></li>)}
             </ul>
           )}
           {ch && <textarea ref={box} value={comment} onChange={(e) => setComment(e.target.value)} rows={3} maxLength={2000} placeholder={staff ? "재검수 요청 내용 (광고주에게 받은 수정 사항을 적어 주세요)" : "수정할 내용을 적어 주세요. 예: 두 번째 문단의 표현을 바꿔 주세요."} aria-label="코멘트" />}
@@ -187,9 +188,9 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
 }
 
 // 이미지 아래 · 원본 옆에 붙는 수정 요청 코멘트
-function FileNotes({ list }: { list: ReviewEvent[] }) {
+function FileNotes({ list, all, staff }: { list: ReviewEvent[]; all: ReviewEvent[]; staff: boolean }) {
   if (list.length === 0) return null;
-  return <ul className="cn-notes">{list.map((e) => <li key={e.id}><span className="faint">{e.version}차 · {who(e)} · {kst(e.created_at).slice(5)}</span><span>{e.comment}</span></li>)}</ul>;
+  return <ul className="cn-notes">{list.map((e) => <li key={e.id}><span className="faint">{e.version}차 · {who(e)} · {kst(e.created_at).slice(5)}</span><span>{e.comment}</span><ReviewReplies parent={e} events={all} staff={staff} /></li>)}</ul>;
 }
 
 // 카드뉴스: 이미지를 아트보드처럼 썸네일로 → 누르면 한 화면 안에 원본 + 그 이미지에 대한 수정 요청 코멘트
@@ -198,7 +199,7 @@ function CardBoard({ r, staff, sel, setSel }: { r: Row; staff: boolean; sel: num
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const touchX = useRef<number | null>(null);   // 휴대폰: 원본을 좌우로 밀어서 넘기기
-  const notesOf = (id: string) => r.events.filter((e) => e.file_id === id && e.comment);
+  const notesOf = (id: string) => r.events.filter((e) => e.file_id === id && e.comment && e.action !== "reply" && e.action !== "edit");
   const can = canFileComment(r, staff);
   async function send(f: ReviewFile) {
     if (!text.trim()) return toastError("수정할 내용을 적어 주세요.");
@@ -234,7 +235,7 @@ function CardBoard({ r, staff, sel, setSel }: { r: Row; staff: boolean; sel: num
           </div>
           <aside className="cn-orig-side">
             <b>이 이미지 수정 요청</b>
-            <FileNotes list={notesOf(f.id)} />
+            <FileNotes list={notesOf(f.id)} all={r.events} staff={staff} />
             {notesOf(f.id).length === 0 && <p className="faint">아직 코멘트가 없습니다.</p>}
             {can ? (
               <>
@@ -258,7 +259,7 @@ function CardBoard({ r, staff, sel, setSel }: { r: Row; staff: boolean; sel: num
               <span className="cn-no">{i + 1}</span>
               {notesOf(f.id).length > 0 && <span className="cn-flag">수정 요청 {notesOf(f.id).length}</span>}
             </button>
-            <FileNotes list={notesOf(f.id)} />
+            <FileNotes list={notesOf(f.id)} all={r.events} staff={staff} />
           </li>
         ))}
       </ul>

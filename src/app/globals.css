@@ -1096,7 +1096,18 @@ mark.rv-edit { background: #fff176; color: #c00000; padding: 0 1px; border-radiu
 .rv-foot { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .rv-foot textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); resize: vertical; min-height: 64px; }
 .rv-foot textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.rv-notes { list-style: none; margin: 0; padding: 0; max-height: 120px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.rv-notes { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+/* 광고주 코멘트에 단 담당자 답글 */
+.rv-replies { width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.rv-reply { display: flex; flex-direction: column; gap: 1px; margin-left: 14px; padding: 6px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--text); font-size: 13px; line-height: 1.5; }
+.rv-reply-h b { color: var(--accent); font-weight: 600; }
+.rv-reply-h .faint { font-size: 11.5px; }
+.rv-reply-t { white-space: pre-wrap; overflow-wrap: anywhere; }
+.rv-reply-btn { align-self: flex-start; margin-left: 14px; font-size: 12.5px; color: var(--accent); }
+.rv-reply-form { display: flex; flex-direction: column; gap: 6px; margin-left: 14px; }
+.rv-reply-form textarea { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); resize: vertical; }
+.rv-reply-form .row { justify-content: flex-end; gap: 6px; }
+.cn-notes .rv-reply, .cn-notes .rv-reply-btn, .cn-notes .rv-reply-form { margin-left: 0; }
 .rv-notes li { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); }
 .rv-note { width: 100%; color: var(--text); }
 .rv-act { justify-content: flex-end; gap: 8px; }
