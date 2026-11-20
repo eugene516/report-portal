@@ -3,7 +3,7 @@
 // - 직원(staffView): 콘텐츠 등록 · 검수 요청 · 수정 요청 확인 · 수정본 등록 · 광고주 로그인 이메일 관리
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CLIENT_REVIEW_FROM, getReviewDetail, getReviewList, getReviewViewer, REVIEW_KINDS, REVIEW_STATUS, withFilesAndEvents } from "@/lib/review";
+import { canEditReview, CLIENT_REVIEW_FROM, getReviewDetail, getReviewList, getReviewViewer, REVIEW_KINDS, REVIEW_STATUS, withFilesAndEvents } from "@/lib/review";
 import { supabaseForStaff } from "@/lib/supabase/server";
 import { ClientEmailLogin, ReviewLogout } from "./ReviewAuth";
 import ReviewFiles from "./ReviewFiles";
@@ -12,7 +12,7 @@ import ReviewList from "./ReviewList";
 import { ClientAccounts, ReviewCreate, ReviewStaffActions } from "./ReviewStaff";
 
 const kst = (iso: string | null) => (iso ? new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ") : "-");
-const ACTION: Record<string, string> = { request: "검수 요청", resubmit: "수정본 검수 요청", approve: "검수 완료", changes: "재검수 요청" };
+const ACTION: Record<string, string> = { request: "검수 요청", resubmit: "수정본 검수 요청", approve: "검수 완료", changes: "재검수 요청", edit: "원고 수정" };
 const Status = ({ s }: { s: string }) => <span className={`badge ${REVIEW_STATUS[s]?.badge ?? ""}`}>{REVIEW_STATUS[s]?.label ?? s}</span>;
 
 export default async function ReviewSection({ clientId, clientName, base, itemId, period, kind, staffView, thisMonth, linkToken }: {
@@ -52,9 +52,9 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
           {lastChange && <div className="notice mt-s">재검수 요청 ({lastChange.actor_name ?? "광고주"}, {kst(lastChange.created_at)}): {lastChange.comment}</div>}
         </section>
         {staffView && <ReviewStaffActions clientId={clientId} itemId={item.id} status={item.status} version={item.version} hasDraftFiles={current.length > 0} pendingNext={next.length} base={base} title={item.title} kind={item.kind} period={item.period} />}
-        {staffView && next.length > 0 && <><h3 className="mt">{item.version + 1}차 수정본 (재검수 요청 전)</h3><ReviewFiles files={next} removable /></>}
+        {staffView && next.length > 0 && <><h3 className="mt">{item.version + 1}차 수정본 (재검수 요청 전)</h3><ReviewFiles files={next} removable editable={canEditReview(item.kind, item.status, true)} /></>}
         <h3 className="mt">{item.status === "draft" ? "올린 파일" : `${item.version}차 원고`}</h3>
-        <ReviewFiles files={current} removable={staffView} />
+        <ReviewFiles files={current} removable={staffView} editable={canEditReview(item.kind, item.status, staffView)} />
         {!staffView && item.status === "pending" && <ReviewDecide itemId={item.id} version={item.version} title={item.title} />}
         {item.status === "approved" && !staffView && <div className="planned mt">이 콘텐츠는 검수 완료되었습니다.</div>}
         {item.status === "changes" && !staffView && <div className="planned mt">재검수 요청을 보냈습니다. 담당자가 수정본을 올리면 다시 검수할 수 있습니다.</div>}

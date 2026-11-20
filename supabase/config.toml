@@ -452,3 +452,6 @@ verify_jwt = true
 #             Claude API 키는 함수 비밀값 ANTHROPIC_API_KEY 에만 둔다 (없으면 화면에 "AI 키가 설정되지 않았습니다" 안내).
 [functions.inquiry-ai]
 verify_jwt = true
+
+[functions.review-edit]
+verify_jwt = true

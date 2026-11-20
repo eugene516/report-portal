@@ -6,8 +6,9 @@ import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ask, toast, toastError } from "@/components/ui";
 import type { ReviewFile } from "@/lib/review";
+import DocxEditable, { type EditableFile } from "./DocxEditor";
 
-export type ThumbFile = { id: string; name: string; url: string | null; mime: string | null; size: number | null; download?: string };
+export type ThumbFile = { id: string; name: string; url: string | null; mime: string | null; size: number | null; download?: string; edit?: EditableFile & { can: boolean } };
 
 export const isImage = (f: ThumbFile) => /^image\//.test(f.mime ?? "") || /\.(png|jpe?g|webp|gif)$/i.test(f.name);
 export const isDocx = (f: ThumbFile) => /\.docx$/i.test(f.name) || f.mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -25,7 +26,8 @@ function docxHtml(url: string) {
     p = (async () => {
       const buf = await (await fetch(url)).arrayBuffer();
       const mammoth = await import("mammoth");
-      const r = await mammoth.convertToHtml({ arrayBuffer: buf });
+      // 화면에서 고친 글자(문자 스타일 '검수수정')는 형광 표시로
+      const r = await mammoth.convertToHtml({ arrayBuffer: buf }, { styleMap: ["r[style-name='검수수정'] => mark.rv-edit:fresh"] });
       // 원고에서 만든 HTML 이라도 스크립트 · 이벤트 속성은 걷어낸다
       const doc = new DOMParser().parseFromString(r.value, "text/html");
       doc.querySelectorAll("script, iframe, object, embed, style").forEach((n) => n.remove());
@@ -172,6 +174,7 @@ export function FileThumbs({ files, onRemove }: { files: ThumbFile[]; onRemove?:
   useEffect(() => {
     if (!cur) return;
     const key = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;   // 원고 수정 중 글자 입력
       if (e.key === "Escape") setOpen(null);
       if (e.key === "ArrowRight") setOpen((i) => (i == null ? i : Math.min(last, i + 1)));
       if (e.key === "ArrowLeft") setOpen((i) => (i == null ? i : Math.max(0, i - 1)));
@@ -189,6 +192,7 @@ export function FileThumbs({ files, onRemove }: { files: ThumbFile[]; onRemove?:
             <button type="button" className={`fthumb ${isDocx(f) ? "doc" : ""}`} onClick={() => setOpen(i)} title={`${f.name} 전체 보기`}><Thumb f={f} /></button>
             <div className="thumb-cap">
               <span className="thumb-name" title={f.name}>{f.name}</span>
+              {!!f.edit?.editCount && <mark className="rv-edit thumb-edited">수정됨</mark>}
               <span className="faint">{size(f.size)}</span>
               {onRemove && <button type="button" className="thumb-x" onClick={() => onRemove(f.id)} aria-label={`${f.name} 빼기`}>✕</button>}
             </div>
@@ -213,7 +217,7 @@ export function FileThumbs({ files, onRemove }: { files: ThumbFile[]; onRemove?:
               {!cur.url ? <p className="faint">파일 주소를 만들지 못했습니다.</p>
                 // eslint-disable-next-line @next/next/no-img-element
                 : isImage(cur) ? <img src={cur.url} alt={cur.name} />
-                : isDocx(cur) ? <DocxView url={cur.url} />
+                : isDocx(cur) ? (cur.edit ? <DocxEditable key={cur.id} f={cur.edit} canEdit={cur.edit.can} /> : <DocxView url={cur.url} />)
                 : isSheet(cur) ? <SheetView url={cur.url} name={cur.name} />
                 : isPdf(cur) ? <iframe src={cur.url} title={cur.name} />
                 : <div className="notice">이 형식은 화면에서 바로 볼 수 없습니다. {cur.download ? "내려받아 확인해 주세요." : "등록한 뒤 내려받아 확인할 수 있습니다."}</div>}
@@ -225,8 +229,12 @@ export function FileThumbs({ files, onRemove }: { files: ThumbFile[]; onRemove?:
   );
 }
 
+// 수정 이력 · 원본 주소 (DocxEditor 에 넘긴다)
+export const editableOf = (f: ReviewFile): EditableFile => ({ id: f.id, name: f.file_name, url: f.url ?? null, editedAt: f.edited_at, editedBy: f.edited_by_name, editCount: f.edit_count, originalUrl: f.original_url });
+
+// editable: 화면에서 원고 수정 가능 (블로그 · 칼럼, 권한은 부르는 쪽이 정하고 저장할 때 서버가 다시 확인)
 // removable: 담당 직원이 지금 버전 · 다음 수정본 파일을 지울 수 있다 (기록을 먼저 지우고 저장소 파일을 지운다)
-export default function ReviewFiles({ files, removable = false }: { files: ReviewFile[]; removable?: boolean }) {
+export default function ReviewFiles({ files, removable = false, editable = false }: { files: ReviewFile[]; removable?: boolean; editable?: boolean }) {
   const router = useRouter();
   async function remove(id: string) {
     const f = files.find((x) => x.id === id);
@@ -235,14 +243,14 @@ export default function ReviewFiles({ files, removable = false }: { files: Revie
     const sb = supabaseBrowser();
     const { data, error } = await sb.from("review_files").delete().eq("id", id).select("id");
     if (error || !data?.length) return toastError("파일을 삭제하지 못했습니다.");
-    await sb.storage.from("reviews").remove([f.storage_path]);
+    await sb.storage.from("reviews").remove([f.storage_path, ...(f.original_path ? [f.original_path] : [])]);   // 화면에서 고친 파일이면 원본도
     toast("파일을 삭제했습니다."); router.refresh();
   }
   if (files.length === 0) return <div className="empty-state">첨부 파일이 없습니다.</div>;
   return (
     <section className="card pad review-files">
       <div className="card-h"><h3>파일 {files.length}개</h3><span className="faint">썸네일을 누르면 전체 내용을 볼 수 있습니다</span></div>
-      <FileThumbs files={files.map((f) => ({ id: f.id, name: f.file_name, url: f.url ?? null, mime: f.mime_type, size: f.size_bytes, download: dl(f) }))} onRemove={removable ? remove : undefined} />
+      <FileThumbs files={files.map((f) => ({ id: f.id, name: f.file_name, url: f.url ?? null, mime: f.mime_type, size: f.size_bytes, download: dl(f), edit: { ...editableOf(f), can: editable } }))} onRemove={removable ? remove : undefined} />
     </section>
   );
 }

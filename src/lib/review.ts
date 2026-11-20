@@ -9,6 +9,9 @@ import { supabaseForClientLink, supabaseForStaff } from "./supabase/server";
 // 광고주 화면에서 보이는 파일 검수 시작 월 (그 전 달 검수 기록은 직원 화면에서만 본다)
 export const CLIENT_REVIEW_FROM = "2026-11";
 export const REVIEW_KINDS: Record<string, string> = { keyword: "당월 주제 · 키워드", blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
+// 화면에서 원고 수정: 블로그 · 칼럼 Word 파일. 직원은 검수 완료 전, 광고주는 검수 대기 중 (저장할 때 review-edit 함수가 다시 확인)
+export const EDITABLE_KINDS = ["blog", "column"];
+export const canEditReview = (kind: string, status: string, staff: boolean) => EDITABLE_KINDS.includes(kind) && (staff ? status !== "approved" : status === "pending");
 export const REVIEW_STATUS: Record<string, { label: string; badge: string }> = {
   draft: { label: "작성 중", badge: "" },
   pending: { label: "검수 대기", badge: "warn" },
@@ -21,7 +24,8 @@ export type ReviewItem = {
   id: string; client_id: string; kind: string; period: string; title: string; status: string; version: number;
   requested_at: string | null; approved_version: number | null; approved_at: string | null; created_at: string;
 };
-export type ReviewFile = { id: string; item_id: string; version: number; file_name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; sort: number; url?: string | null };
+export type ReviewFile = { id: string; item_id: string; version: number; file_name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; sort: number; url?: string | null;
+  original_path: string | null; edited_at: string | null; edited_by_name: string | null; edit_count: number; original_url?: string | null };
 export type ReviewEvent = { id: number; item_id: string; version: number; action: string; comment: string | null; actor_name: string | null; actor_kind: string; created_at: string; file_id: string | null };
 
 export async function getReviewSummary(ctx: ReportCtx, period: string): Promise<ReviewSummary | null> {
@@ -29,6 +33,15 @@ export async function getReviewSummary(ctx: ReportCtx, period: string): Promise<
     ? await (await supabaseForStaff()).rpc("staff_review_summary", { p_client: ctx.clientId, p_period: period })
     : await supabaseForClientLink().rpc("report_review_summary", { p_token: ctx.token, p_period: period });
   return (data as ReviewSummary | null) ?? null;
+}
+
+const FILE_COLS = "id, item_id, version, file_name, storage_path, mime_type, size_bytes, sort, original_path, edited_at, edited_by_name, edit_count";
+// 파일 주소: 지금 파일 + (화면에서 고쳤으면) 처음 올린 원본
+async function sign(db: Awaited<ReturnType<typeof supabaseForStaff>>, list: ReviewFile[]) {
+  const paths = [...new Set(list.flatMap((f) => [f.storage_path, f.original_path].filter((x): x is string => !!x)))];
+  const { data: signed } = paths.length ? await db.storage.from("reviews").createSignedUrls(paths, 1800) : { data: [] };
+  const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
+  return list.map((f) => ({ ...f, url: url.get(f.storage_path) ?? null, original_url: f.original_path ? url.get(f.original_path) ?? null : null }));
 }
 
 // 지금 로그인한 사람이 이 광고주의 광고주 계정인지 (리포트 링크 화면에서 검수하려면 필요)
@@ -60,13 +73,10 @@ export async function getReviewDetail(itemId: string) {
   const { data: item } = await db.from("review_items").select("id, client_id, kind, period, title, status, version, requested_at, approved_version, approved_at, created_at").eq("id", itemId).maybeSingle();
   if (!item) return null;
   const [{ data: files }, { data: events }] = await Promise.all([
-    db.from("review_files").select("id, item_id, version, file_name, storage_path, mime_type, size_bytes, sort").eq("item_id", itemId).order("version", { ascending: false }).order("sort").order("created_at"),
+    db.from("review_files").select(FILE_COLS).eq("item_id", itemId).order("version", { ascending: false }).order("sort").order("created_at"),
     db.from("review_events").select("id, item_id, version, action, comment, actor_name, actor_kind, created_at, file_id").eq("item_id", itemId).order("created_at", { ascending: false }),
   ]);
-  const list = (files ?? []) as ReviewFile[];
-  const { data: signed } = list.length ? await db.storage.from("reviews").createSignedUrls(list.map((f) => f.storage_path), 1800) : { data: [] };
-  const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
-  return { item: item as ReviewItem, files: list.map((f) => ({ ...f, url: url.get(f.storage_path) ?? null })), events: (events ?? []) as ReviewEvent[] };
+  return { item: item as ReviewItem, files: await sign(db, (files ?? []) as ReviewFile[]), events: (events ?? []) as ReviewEvent[] };
 }
 
 // 목록에서 바로 원문 보기 · 검수: 항목마다 지금 버전 파일(서명 주소)과 코멘트 기록을 함께 읽는다
@@ -76,16 +86,14 @@ export async function withFilesAndEvents(items: ReviewItem[]): Promise<ReviewRow
   const db = await supabaseForStaff();
   const ids = items.map((i) => i.id);
   const [{ data: files }, { data: events }] = await Promise.all([
-    db.from("review_files").select("id, item_id, version, file_name, storage_path, mime_type, size_bytes, sort").in("item_id", ids).order("sort").order("created_at"),
+    db.from("review_files").select(FILE_COLS).in("item_id", ids).order("sort").order("created_at"),
     db.from("review_events").select("id, item_id, version, action, comment, actor_name, actor_kind, created_at, file_id").in("item_id", ids).order("created_at", { ascending: false }),
   ]);
   const ver = new Map(items.map((i) => [i.id, i.version]));
-  const cur = ((files ?? []) as ReviewFile[]).filter((x) => x.version === ver.get(x.item_id));
-  const { data: signed } = cur.length ? await db.storage.from("reviews").createSignedUrls(cur.map((x) => x.storage_path), 1800) : { data: [] };
-  const url = new Map((signed ?? []).map((x) => [x.path, x.signedUrl]));
+  const cur = await sign(db, ((files ?? []) as ReviewFile[]).filter((x) => x.version === ver.get(x.item_id)));
   return items.map((i) => ({
     ...i,
-    files: cur.filter((x) => x.item_id === i.id).map((x) => ({ ...x, url: url.get(x.storage_path) ?? null })),
+    files: cur.filter((x) => x.item_id === i.id),
     events: ((events ?? []) as ReviewEvent[]).filter((e) => e.item_id === i.id),
   }));
 }

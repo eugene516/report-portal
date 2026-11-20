@@ -9,8 +9,9 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { confirmDialog, toast, toastError } from "@/components/ui";
 import type { ReviewEvent, ReviewFile, ReviewItem } from "@/lib/review";
-import { DocxView, isDocx, isImage, isPdf, isSheet, SheetView, type ThumbFile } from "./ReviewFiles";
+import { editableOf, isDocx, isImage, isPdf, isSheet, SheetView, type ThumbFile } from "./ReviewFiles";
 import { removeReviewItem, ReviewEditDialog } from "./ReviewStaff";
+import DocxEditable from "./DocxEditor";
 
 type Row = ReviewItem & { files: ReviewFile[]; events: ReviewEvent[] };
 const KIND: Record<string, string> = { keyword: "주제 · 키워드", blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
@@ -25,6 +26,8 @@ const canApprove = (r: Row, staff: boolean) => (staff ? r.status !== "approved" 
 const canChanges = (r: Row, staff: boolean) => (staff ? ["draft", "pending", "approved"].includes(r.status) : r.status === "pending");
 // 카드뉴스 이미지별 코멘트: 광고주는 검수 대기 · 재검수 요청 중(같은 버전)에 계속 남길 수 있다
 const canFileComment = (r: Row, staff: boolean) => (staff ? r.files.length > 0 : r.status === "pending" || r.status === "changes");
+// 화면에서 원고 수정 (블로그 · 칼럼 Word): 직원은 검수 완료 전, 광고주는 검수 대기 중 — 저장할 때 서버가 다시 확인
+const canEdit = (r: Row, staff: boolean) => ["blog", "column"].includes(r.kind) && (staff ? r.status !== "approved" : r.status === "pending");
 const isBoard = (r: Row) => r.kind === "cardnews" && r.files.length > 0 && r.files.every((f) => isImage(thumb(f)));
 const who = (e: ReviewEvent) => e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자");
 
@@ -120,7 +123,7 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
   useEffect(() => { if (write) box.current?.focus(); }, [write]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLTextAreaElement) { if (e.key === "Escape") e.target.blur(); return; }
+      if (e.target instanceof HTMLTextAreaElement) { if (e.key === "Escape") e.target.blur(); return; }   // 코멘트 · 원고 수정 입력 중
       if (e.key === "Escape") { if (sel != null) setSel(null); else onClose(); }
       if (sel != null && e.key === "ArrowRight") setSel(Math.min(r.files.length - 1, sel + 1));
       if (sel != null && e.key === "ArrowLeft") setSel(Math.max(0, sel - 1));
@@ -155,7 +158,7 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
               <section key={f.id} className="rv-file">
                 {r.files.length > 1 && <div className="rv-file-h"><span>{f.file_name}</span>{dl(f) && <a href={dl(f)}>내려받기</a>}</div>}
                 {!f.url ? <p className="faint pad">파일 주소를 만들지 못했습니다.</p>
-                  : isDocx(t) ? <DocxView url={f.url} />
+                  : isDocx(t) ? <DocxEditable key={f.id} f={editableOf(f)} canEdit={canEdit(r, staff)} />
                   // eslint-disable-next-line @next/next/no-img-element
                   : isImage(t) ? <img src={f.url} alt={f.file_name} />
                   : isSheet(t) ? <SheetView url={f.url} name={f.file_name} />

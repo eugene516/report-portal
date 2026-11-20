@@ -988,6 +988,25 @@ img, svg { max-width: 100%; }
 .docx-view { max-height: 70vh; overflow: auto; padding: 18px 22px; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: #1b1f27; line-height: 1.8; font-size: 15px; }
 .docx-view img { max-width: 100%; height: auto; }
 .docx-view table { border-collapse: collapse; } .docx-view td, .docx-view th { border: 1px solid #ddd; padding: 4px 8px; }
+/* 화면에서 고친 원고: 고친 글자 = Word 와 같은 노란 형광 + 빨간 글씨 (원고 바탕은 항상 흰색) */
+mark.rv-edit { background: #fff176; color: #c00000; padding: 0 1px; border-radius: 2px; }
+.rv-docx { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.rv-docx-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; padding: 0 2px; }
+.rv-docx-bar > .btn { margin-left: auto; }
+.rv-edited { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--text-2); }
+.rv-edited mark.rv-edit { font-weight: 600; padding: 1px 6px; }
+.thumb-edited { font-size: 11px; font-weight: 600; padding: 0 5px; flex: none; }
+.rv-editor { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.rv-editor-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.rv-editor-act { display: flex; gap: 6px; margin-left: auto; }
+.rv-paras { display: flex; flex-direction: column; gap: 2px; }
+.rv-para { display: block; width: calc(100% + 12px); resize: none; overflow: hidden; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; margin: 0 -6px; background: transparent; color: inherit; font: inherit; line-height: inherit; }
+.rv-para:hover { border-color: #e3e6ec; }
+.rv-para:focus { outline: none; border-color: #3b6fe0; background: #f7f9ff; }
+.rv-para.h { font-weight: 700; font-size: 1.12em; }
+.rv-para.was-edited { box-shadow: inset 3px 0 0 #f2c200; }
+.rv-para.dirty { background: #fffbe0; box-shadow: inset 3px 0 0 #c00000; }
+.rv-locked { margin: 0; padding: 2px 6px; color: #8a909c; background: #f4f5f7; border-radius: 6px; white-space: pre-wrap; cursor: not-allowed; }
 .review-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .review-gallery figure { margin: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
 .review-gallery img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: var(--surface-2); }
