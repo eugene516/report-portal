@@ -1101,6 +1101,8 @@ mark.rv-edit { background: #fff176; color: #c00000; padding: 0 1px; border-radiu
 .rv-replies { width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 .rv-reply { display: flex; flex-direction: column; gap: 1px; margin-left: 14px; padding: 6px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--text); font-size: 13px; line-height: 1.5; }
 .rv-reply-h b { color: var(--accent); font-weight: 600; }
+.rv-reply.from-client { background: var(--surface); border: 1px solid var(--border); }
+.rv-reply.from-client .rv-reply-h b { color: var(--text); }
 .rv-reply-h .faint { font-size: 11.5px; }
 .rv-reply-t { white-space: pre-wrap; overflow-wrap: anywhere; }
 .rv-reply-btn { align-self: flex-start; margin-left: 14px; font-size: 12.5px; color: var(--accent); }
