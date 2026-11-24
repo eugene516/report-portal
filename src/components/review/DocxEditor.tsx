@@ -1,9 +1,10 @@
 "use client";
 // Word 원고 보기 + 화면에서 바로 수정 (블로그 · 홈페이지 칼럼)
-// - '✎ 원고 수정'을 누르면 문단마다 입력칸이 열리고, 저장하면 고친 글자만 노란 형광 + 빨간 글씨로 표시된 Word 파일이 된다
+// - '✎ 원고 수정'을 누르면 문단마다 입력칸이 열리고, 원고 안 이미지는 교체 · 삭제할 수 있다
+// - 저장하면 고친 글자와 이미지 교체 · 삭제 자리가 노란 형광 + 빨간 글씨로 표시된 Word 파일이 된다
 // - 저장은 review-edit 함수가 권한(직원: 검수 완료 전 · 광고주: 검수 대기 중)을 확인한 뒤 새 파일로 바꾼다. 처음 원본은 따로 보관
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ask, toast, toastError } from "@/components/ui";
 import { DocxView } from "./ReviewFiles";
@@ -31,7 +32,8 @@ export default function DocxEditable({ f, canEdit }: { f: EditableFile; canEdit:
   return (
     <div className="rv-docx">
       {(canEdit || !!f.editCount) && (
-        <div className="rv-docx-bar">
+        // 스크롤해도 '원고 수정' 버튼이 위에 붙어 있게 (수정 중에는 저장 · 취소 줄이 대신 붙는다)
+        <div className={`rv-docx-bar ${editing ? "" : "stick"}`}>
           <EditedNote f={f} />
           {canEdit && !editing && <button type="button" className="btn sm primary" onClick={() => setEditing(true)}>✎ 원고 수정</button>}
         </div>
@@ -41,25 +43,49 @@ export default function DocxEditable({ f, canEdit }: { f: EditableFile; canEdit:
   );
 }
 
-type Loaded = Awaited<ReturnType<typeof import("./docxEdit").loadDocx>>;   // jszip 은 수정할 때만 불러온다
+type Mod = typeof import("./docxEdit");   // jszip 은 수정할 때만 불러온다
+type Loaded = Awaited<ReturnType<Mod["loadDocx"]>>;
+type Change = import("./docxEdit").ParaChange;
+type Para = import("./docxEdit").EditPara;
+type Act = "delete" | File | null;
+
+const unchanged = (p: Para, c: Change | undefined) => !c || (c.segs.every((x, i) => x === p.segs[i]) && c.objs.every((o) => o === null));
 
 function DocxEditor({ f, onClose }: { f: EditableFile; onClose: () => void }) {
   const router = useRouter();
   const [doc, setDoc] = useState<Loaded | null>(null);
   const [err, setErr] = useState(false);
-  const [text, setText] = useState<Map<number, string>>(new Map());
+  const [changes, setChanges] = useState<Map<number, Change>>(new Map());
+  const [previews, setPreviews] = useState<Map<string, string>>(new Map());   // 교체할 이미지 미리보기 주소 ("문단:그림")
   const [busy, setBusy] = useState(false);
+  const urls = useRef(new Set<string>());
   useEffect(() => {
     let alive = true;
+    let loaded: Loaded | null = null;
+    const made = urls.current;
     (async () => {
       const buf = await (await fetch(f.url!)).arrayBuffer();
-      const d = await (await import("./docxEdit")).loadDocx(buf);
-      if (alive) setDoc(d);
+      loaded = await (await import("./docxEdit")).loadDocx(buf);
+      if (alive) setDoc(loaded); else loaded.dispose();
     })().catch(() => { if (alive) setErr(true); });
-    return () => { alive = false; };
+    return () => { alive = false; loaded?.dispose(); made.forEach((u) => URL.revokeObjectURL(u)); made.clear(); };
   }, [f.url]);
 
-  const changed = doc ? doc.paras.filter((p) => text.has(p.idx) && text.get(p.idx) !== p.text).length : 0;
+  const changed = doc ? doc.paras.filter((p) => !unchanged(p, changes.get(p.idx))).length : 0;
+  const cur = (p: Para): Change => changes.get(p.idx) ?? { segs: [...p.segs], objs: p.objs.map(() => null) };
+  const update = (p: Para, fn: (c: Change) => Change) => setChanges((m) => new Map(m).set(p.idx, fn(m.get(p.idx) ?? cur(p))));
+  const setSeg = (p: Para, i: number, v: string) => update(p, (c) => ({ ...c, segs: c.segs.map((x, k) => (k === i ? v : x)) }));
+  const setObj = (p: Para, i: number, act: Act) => {
+    const key = `${p.idx}:${i}`;
+    setPreviews((m) => {
+      const n = new Map(m);
+      const old = n.get(key);
+      if (old) { URL.revokeObjectURL(old); urls.current.delete(old); n.delete(key); }
+      if (act instanceof File) { const u = URL.createObjectURL(act); urls.current.add(u); n.set(key, u); }
+      return n;
+    });
+    update(p, (c) => ({ ...c, objs: c.objs.map((x, k) => (k === i ? act : x)) }));
+  };
 
   async function cancel() {
     if (changed && !(await ask(`고친 문단 ${changed}개가 저장되지 않았습니다. 수정을 취소할까요?`))) return;
@@ -70,8 +96,9 @@ function DocxEditor({ f, onClose }: { f: EditableFile; onClose: () => void }) {
     if (!changed) return toastError("고친 내용이 없습니다.");
     setBusy(true);
     try {
-      const blob = await (await import("./docxEdit")).saveDocx(doc, text);
+      const blob = await (await import("./docxEdit")).saveDocx(doc, changes);
       if (!blob) { setBusy(false); return toastError("고친 내용이 없습니다."); }
+      if (blob.size > 30 * 1024 * 1024) { setBusy(false); return toastError("저장할 원고가 30MB를 넘습니다. 더 작은 이미지로 바꿔 주세요."); }
       const form = new FormData();
       form.append("fileId", f.id);
       form.append("file", new File([blob], f.name, { type: blob.type }));
@@ -82,7 +109,7 @@ function DocxEditor({ f, onClose }: { f: EditableFile; onClose: () => void }) {
         setBusy(false);
         return toastError(msg);
       }
-      toast(`원고를 저장했습니다. 고친 부분은 형광 + 빨간 글씨로 표시됩니다.`);
+      toast("원고를 저장했습니다. 고친 부분은 형광 + 빨간 글씨로 표시됩니다.");
       onClose();
       router.refresh();
     } catch {
@@ -98,7 +125,7 @@ function DocxEditor({ f, onClose }: { f: EditableFile; onClose: () => void }) {
     <div className="rv-editor">
       <div className="rv-editor-bar">
         <b>원고 수정 중</b>
-        <span className="faint">{changed ? `고친 문단 ${changed}개` : "문단을 눌러 바로 고치세요"}{locked ? ` · 이미지 · 링크가 있는 문단 ${locked}개는 수정할 수 없습니다` : ""}</span>
+        <span className="faint">{changed ? `고친 문단 ${changed}개` : "문단을 눌러 고치고, 이미지는 ‘이미지 교체’로 바꾸세요"}{locked ? ` · 수정할 수 없는 문단 ${locked}개(회색)` : ""}</span>
         <span className="rv-editor-act">
           <button type="button" className="btn sm" disabled={busy} onClick={cancel}>취소</button>
           <button type="button" className="btn sm primary" disabled={busy || !changed} onClick={save}>{busy ? "저장 중…" : "저장"}</button>
@@ -106,19 +133,62 @@ function DocxEditor({ f, onClose }: { f: EditableFile; onClose: () => void }) {
       </div>
       <div className="docx-view rv-paras">
         {doc.paras.map((p) => {
-          if (!p.editable) return p.text.trim() ? <p key={p.idx} className="rv-locked" title="이미지 · 링크 등이 있어 화면에서 수정할 수 없는 문단">{p.text}</p> : null;
-          const v = text.get(p.idx) ?? p.text;
-          const dirty = v !== p.text;
-          return <Para key={p.idx} value={v} heading={p.heading} cls={`${dirty ? "dirty" : ""} ${p.edited ? "was-edited" : ""}`}
-            onChange={(nv) => setText((m) => new Map(m).set(p.idx, nv))} />;
+          if (!p.editable) return p.text.trim() ? <p key={p.idx} className="rv-locked" title="각주 · 필드 · 변경 추적 등이 있어 화면에서 수정할 수 없는 문단">{p.text}</p> : null;
+          const c = cur(p);
+          return (
+            <div key={p.idx} className="rv-pblock">
+              {c.segs.map((v, i) => (
+                <Fragment key={i}>
+                  {/* 그림이 있는 문단의 빈 글 구간(그림 앞뒤 빈 줄)은 숨긴다 */}
+                  {(p.objs.length === 0 || p.segs[i] !== "" || v !== "") && (
+                    <ParaBox value={v} heading={p.heading} cls={`${v !== p.segs[i] ? "dirty" : ""} ${p.edited ? "was-edited" : ""}`} onChange={(nv) => setSeg(p, i, nv)} />
+                  )}
+                  {p.objs[i] && <ImageBlock obj={p.objs[i]} act={c.objs[i] ?? null} preview={previews.get(`${p.idx}:${i}`) ?? null} onAct={(a) => setObj(p, i, a)} />}
+                </Fragment>
+              ))}
+            </div>
+          );
         })}
       </div>
     </div>
   );
 }
 
+// 원고 안 이미지: 교체(새 파일 고르기) · 삭제 · 되돌리기
+function ImageBlock({ obj, act, preview, onAct }: { obj: Para["objs"][number]; act: Act; preview: string | null; onAct: (a: Act) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  if (obj.kind !== "image") return <div className="rv-img other faint">그림 요소 (화면에서 바꿀 수 없음)</div>;
+  const state = act === "delete" ? "del" : act ? "new" : "";
+  return (
+    <figure className={`rv-img ${state}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {preview ? <img src={preview} alt="바꿀 이미지" /> : obj.src ? <img src={obj.src} alt="원고 이미지" /> : <span className="faint">이 형식의 이미지는 미리 볼 수 없습니다</span>}
+      <figcaption>
+        {state === "new" && <span className="badge warn">교체 예정</span>}
+        {state === "del" && <span className="badge bad">삭제 예정</span>}
+        <span className="rv-img-act">
+          {state === "new" && <button type="button" className="btn sm" onClick={() => input.current?.click()}>다른 이미지</button>}
+          {state ? <button type="button" className="btn sm" onClick={() => onAct(null)}>되돌리기</button> : (
+            <>
+              <button type="button" className="btn sm" onClick={() => input.current?.click()}>이미지 교체</button>
+              <button type="button" className="btn sm ghost" onClick={() => onAct("delete")}>삭제</button>
+            </>
+          )}
+        </span>
+        <input ref={input} type="file" hidden accept="image/png,image/jpeg,image/gif,image/webp" onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          if (file.size > 10 * 1024 * 1024) return toastError("이미지는 10MB 이하로 올려 주세요.");
+          onAct(file);
+        }} />
+      </figcaption>
+    </figure>
+  );
+}
+
 // 문단 입력칸: 글 길이에 맞춰 높이가 늘어난다
-function Para({ value, heading, cls, onChange }: { value: string; heading: boolean; cls: string; onChange: (v: string) => void }) {
+function ParaBox({ value, heading, cls, onChange }: { value: string; heading: boolean; cls: string; onChange: (v: string) => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const el = ref.current;
