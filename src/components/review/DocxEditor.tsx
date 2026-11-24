@@ -2,7 +2,7 @@
 // Word 원고 보기 + 화면에서 바로 수정 (블로그 · 홈페이지 칼럼)
 // - '✎ 원고 수정'을 누르면 문단마다 입력칸이 열리고, 원고 안 이미지는 교체 · 삭제할 수 있다
 // - 저장하면 고친 글자와 이미지 교체 · 삭제 자리가 노란 형광 + 빨간 글씨로 표시된 Word 파일이 된다
-// - 저장은 review-edit 함수가 권한(직원: 검수 완료 전 · 광고주: 검수 대기 중)을 확인한 뒤 새 파일로 바꾼다. 처음 원본은 따로 보관
+// - 저장은 review-edit 함수가 권한(직원: 언제나 · 광고주: 검수 대기 중)을 확인한 뒤 새 파일로 바꾼다. 처음 원본은 따로 보관
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";

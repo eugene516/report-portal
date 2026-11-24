@@ -27,8 +27,8 @@ const canApprove = (r: Row, staff: boolean) => (staff ? r.status !== "approved" 
 const canChanges = (r: Row, staff: boolean) => (staff ? ["draft", "pending", "approved"].includes(r.status) : r.status === "pending");
 // 카드뉴스 이미지별 코멘트: 광고주는 검수 대기 · 재검수 요청 중(같은 버전)에 계속 남길 수 있다
 const canFileComment = (r: Row, staff: boolean) => (staff ? r.files.length > 0 : r.status === "pending" || r.status === "changes");
-// 화면에서 원고 수정 (블로그 · 칼럼 Word): 직원은 검수 완료 전, 광고주는 검수 대기 중 — 저장할 때 서버가 다시 확인
-const canEdit = (r: Row, staff: boolean) => ["blog", "column"].includes(r.kind) && (staff ? r.status !== "approved" : r.status === "pending");
+// 화면에서 원고 수정 (블로그 · 칼럼 Word): 직원은 검수 완료 뒤에도, 광고주는 검수 대기 중만 — 저장할 때 서버가 다시 확인
+const canEdit = (r: Row, staff: boolean) => ["blog", "column"].includes(r.kind) && (staff || r.status === "pending");   // 직원: 검수 완료 뒤에도, 광고주: 검수 대기 중만
 const isBoard = (r: Row) => r.kind === "cardnews" && r.files.length > 0 && r.files.every((f) => isImage(thumb(f)));
 const who = (e: ReviewEvent) => e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자");
 

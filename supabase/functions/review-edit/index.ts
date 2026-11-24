@@ -1,6 +1,6 @@
 // 파일 검수: 화면에서 고친 Word 원고 저장 (블로그 · 홈페이지 칼럼)
 // POST multipart/form-data: fileId, file(.docx)
-// - 직원(담당 · 관리자): 검수 완료 전 항목의 지금 버전 · 다음 수정본 파일
+// - 직원(담당 · 관리자): 지금 버전 · 다음 수정본 파일 (검수 완료 뒤에도)
 // - 광고주 계정: 자기 병원 항목이 '검수 대기'일 때 지금 버전 파일만
 // - 새 파일을 올리고 기록(review_files)의 저장 경로를 바꾼다. 처음 올린 원본은 original_path 로 보관하고, 중간 수정본은 지운다
 import { corsHeaders, getCaller, json, serviceClient, withCors } from "../_shared/common.ts";
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
   let kind: "staff" | "client";
   let who: string;
   if (await caller.canAccess(it.client_id)) {
-    if (it.status === "approved" || f.version < it.version) return reply({ error: "검수 완료되었거나 지난 버전 원고는 수정할 수 없습니다." }, 409);
+    if (f.version < it.version) return reply({ error: "지난 버전 원고는 수정할 수 없습니다." }, 409);   // 검수 완료 뒤에도 직원은 수정 가능
     const { data: s } = await db.from("staff_roles").select("display_name, email").eq("user_id", caller.userId).maybeSingle();
     kind = "staff"; who = s?.display_name || s?.email || caller.email || "담당자";
   } else {
