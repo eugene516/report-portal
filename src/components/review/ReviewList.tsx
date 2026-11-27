@@ -9,9 +9,10 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { confirmDialog, toast, toastError } from "@/components/ui";
 import type { ReviewEvent, ReviewFile, ReviewItem } from "@/lib/review";
-import { editableOf, isDocx, isImage, isPdf, isSheet, SheetView, type ThumbFile } from "./ReviewFiles";
+import { editableOf, isDocx, isImage, isPdf, isSheet, type ThumbFile } from "./ReviewFiles";
 import { removeReviewItem, ReviewEditDialog } from "./ReviewStaff";
 import DocxEditable from "./DocxEditor";
+import SheetEditable from "./SheetEditor";
 import ReviewReplies from "./ReviewReply";
 
 type Row = ReviewItem & { files: ReviewFile[]; events: ReviewEvent[] };
@@ -28,7 +29,7 @@ const canChanges = (r: Row, staff: boolean) => (staff ? ["draft", "pending", "ap
 // 카드뉴스 이미지별 코멘트: 광고주는 검수 대기 · 재검수 요청 중(같은 버전)에 계속 남길 수 있다
 const canFileComment = (r: Row, staff: boolean) => (staff ? r.files.length > 0 : r.status === "pending" || r.status === "changes");
 // 화면에서 원고 수정 (블로그 · 칼럼 Word): 직원은 검수 완료 뒤에도, 광고주는 검수 대기 중만 — 저장할 때 서버가 다시 확인
-const canEdit = (r: Row, staff: boolean) => ["blog", "column"].includes(r.kind) && (staff || r.status === "pending");   // 직원: 검수 완료 뒤에도, 광고주: 검수 대기 중만
+const canEdit = (r: Row, staff: boolean) => ["blog", "column", "keyword"].includes(r.kind) && (staff || r.status === "pending");   // 직원: 검수 완료 뒤에도, 광고주: 검수 대기 중만
 const isBoard = (r: Row) => r.kind === "cardnews" && r.files.length > 0 && r.files.every((f) => isImage(thumb(f)));
 const who = (e: ReviewEvent) => e.actor_name ?? (e.actor_kind === "client" ? "광고주" : "담당자");
 
@@ -99,7 +100,7 @@ export default function ReviewList({ rows, staff, base }: { rows: Row[]; staff: 
           </tr>
           {sheets.length > 0 && (
             <tr className="rv-inline"><td colSpan={5}>
-              {sheets.map((f) => <div key={f.id} className="rv-inline-sheet">{sheets.length > 1 && <div className="faint">{f.file_name}</div>}<SheetView url={f.url!} name={f.file_name} /></div>)}
+              {sheets.map((f) => <div key={f.id} className="rv-inline-sheet">{sheets.length > 1 && <div className="faint">{f.file_name}</div>}<SheetEditable key={f.id} f={editableOf(f)} canEdit={canEdit(r, staff)} /></div>)}
             </td></tr>
           )}
           </Fragment>);
@@ -162,7 +163,7 @@ function Viewer({ r, staff, write, busy, onClose, onApprove, onChanges, nav }: {
                   : isDocx(t) ? <DocxEditable key={f.id} f={editableOf(f)} canEdit={canEdit(r, staff)} />
                   // eslint-disable-next-line @next/next/no-img-element
                   : isImage(t) ? <img src={f.url} alt={f.file_name} />
-                  : isSheet(t) ? <SheetView url={f.url} name={f.file_name} />
+                  : isSheet(t) ? <SheetEditable key={f.id} f={editableOf(f)} canEdit={canEdit(r, staff)} />
                   : isPdf(t) ? <iframe src={f.url} title={f.file_name} />
                   : <div className="notice">이 형식은 화면에서 바로 볼 수 없습니다. <a href={dl(f)}>내려받기</a></div>}
               </section>

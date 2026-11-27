@@ -19,3 +19,12 @@ export async function uploadQuotes(sb: SupabaseClient, clientId: string, files: 
   }
   return { failed, ids };
 }
+
+// 잘못 올린 견적서 · 계약서 삭제: 기록을 먼저 지우고(RLS 가 담당 여부 확인) 저장소 파일을 지운다
+// (이미 '계약에 반영'한 내용은 그대로 남는다 — 계약 항목은 따로 고친다)
+export async function deleteQuote(sb: SupabaseClient, q: { id: string; storage_path: string }) {
+  const { data, error } = await sb.from("client_quotes").delete().eq("id", q.id).select("id");
+  if (error || !data?.length) return false;
+  await sb.storage.from("quotes").remove([q.storage_path]);
+  return true;
+}

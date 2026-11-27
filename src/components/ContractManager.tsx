@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { SERVICES } from "./ServicePicker";
-import { uploadQuotes } from "./quotes";
+import { deleteQuote, uploadQuotes } from "./quotes";
 import { applyQuote } from "@/app/admin/actions";
 
 const AUTO = new Set(["blog", "cafe", "daangn", "cardnews", "column", "aeo"]);   // 리포트 자료로 진행 수량을 자동 집계
@@ -86,6 +86,15 @@ export default function ContractManager(p: Props) {
     // 견적서는 내용을 읽어 이 달 계약에 바로 반영한다
     if (kind === "quote") for (const id of r.ids) { const a = await applyQuote(id); setMsg(a.ok ? { ok: true, text: a.ok } : { ok: false, text: a.error ?? "반영하지 못했습니다." }); }
     finish(r.ids.length > 0, `${kind === "quote" ? "견적서" : "계약서"}를 올렸습니다.`);
+  }
+  async function removeFile(f: { id: string; storage_path: string; file_name: string; kind: string }) {
+    if (!(await ask(`‘${f.file_name}’ ${f.kind === "contract" ? "계약서" : "견적서"}를 삭제할까요?
+광고주 화면에서도 사라집니다. 이미 계약에 반영한 내용은 그대로 남습니다.`))) return;
+    setBusy(true);
+    const ok = await deleteQuote(sb, f);
+    setBusy(false);
+    setMsg({ ok, text: ok ? "파일을 삭제했습니다." : "파일을 삭제하지 못했습니다." });
+    if (ok) router.refresh();
   }
   async function openFile(path: string) {
     const { data } = await sb.storage.from("quotes").createSignedUrl(path, 60);
@@ -171,6 +180,7 @@ export default function ContractManager(p: Props) {
               <span className="row">
                 {f.kind !== "contract" && <button className="btn sm" disabled={busy} onClick={async () => { setBusy(true); const a = await applyQuote(f.id); finish(!!a.ok, a.ok ?? a.error ?? ""); }} title="견적서 내용을 읽어 이 달 계약 · 미집행 · 광고 채널을 다시 맞춥니다">계약에 반영</button>}
                 <button className="btn sm" onClick={() => openFile(f.storage_path)}>열기</button>
+                <button className="btn sm ghost" disabled={busy} onClick={() => removeFile(f)}>삭제</button>
               </span>
             </li>
           ))}

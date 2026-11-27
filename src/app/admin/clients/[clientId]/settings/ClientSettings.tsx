@@ -6,7 +6,7 @@ import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import Link from "next/link";
 import { AD_CHANNEL_OPTIONS, SERVICES, type ServiceState } from "@/components/ServicePicker";
-import { uploadQuotes } from "@/components/quotes";
+import { deleteQuote, uploadQuotes } from "@/components/quotes";
 import { applyQuote } from "@/app/admin/actions";
 import IssueLinkButton, { LinkReveal } from "@/app/admin/IssueLinkButton";
 import NaverKeyPanel from "./NaverKeyPanel";
@@ -76,6 +76,13 @@ export default function ClientSettings(p: Props) {
     if (r.failed) setMsg({ ok: false, text: `견적서 ${r.failed}개를 올리지 못했습니다 (형식·크기 확인).` });
     for (const qid of r.ids) { const a = await applyQuote(qid); setMsg(a.ok ? { ok: true, text: a.ok } : { ok: false, text: a.error ?? "" }); }
     done(r.ids.length > 0, "견적서를 올렸습니다.");
+  }
+  async function removeQuote(q: { id: string; storage_path: string; file_name: string }) {
+    if (!await ask(`‘${q.file_name}’ 견적서를 삭제할까요?
+광고주 화면에서도 사라집니다. 이미 계약에 반영한 내용은 그대로 남습니다.`)) return;
+    setBusy(true);
+    const ok = await deleteQuote(sb, q);
+    done(ok, ok ? "견적서를 삭제했습니다." : "견적서를 삭제하지 못했습니다.");
   }
   async function openQuote(path: string) {
     const { data } = await sb.storage.from("quotes").createSignedUrl(path, 60);
@@ -169,7 +176,7 @@ export default function ClientSettings(p: Props) {
         <ul className="list">
           {p.quotes.length === 0 && <li className="faint">첨부된 견적서가 없습니다.</li>}
           {p.quotes.map((q) => (
-            <li key={q.id}><span>{q.file_name} <span className="faint">{day(q.created_at)}</span></span><button className="btn sm" onClick={() => openQuote(q.storage_path)}>열기</button></li>
+            <li key={q.id}><span>{q.file_name} <span className="faint">{day(q.created_at)}</span></span><span className="row"><button className="btn sm" onClick={() => openQuote(q.storage_path)}>열기</button><button className="btn sm ghost" disabled={busy} onClick={() => removeQuote(q)}>삭제</button></span></li>
           ))}
         </ul>
         <div className="row mt"><input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.docx,.hwp" disabled={busy} onChange={(e) => addQuotes([...(e.target.files ?? [])])} /></div>

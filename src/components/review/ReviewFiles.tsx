@@ -7,6 +7,7 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ask, toast, toastError } from "@/components/ui";
 import type { ReviewFile } from "@/lib/review";
 import DocxEditable, { type EditableFile } from "./DocxEditor";
+import SheetEditable from "./SheetEditor";
 
 export type ThumbFile = { id: string; name: string; url: string | null; mime: string | null; size: number | null; download?: string; edit?: EditableFile & { can: boolean } };
 
@@ -60,12 +61,14 @@ export function DocxView({ url, thumb }: { url: string; thumb?: boolean }) {
 // 엑셀(xlsx) · CSV → 시트별 표 (값 · 굵게 · 병합 · 열 너비만). 글자는 React 가 그대로 이스케이프한다
 // - 병합된 셀은 한 칸으로 합쳐 그린다 (제목 · 안내 줄이 열마다 반복되지 않도록)
 // - 열 너비는 엑셀 열 너비를 따르고, 긴 글은 칸 안에서 줄바꿈한다
-type SheetCell = { v: string; cs?: number; rs?: number; b?: boolean };
-type Sheet = { name: string; cols: number[]; rows: (SheetCell | null)[][] };   // null = 병합으로 가려진 칸
+// at = 엑셀 주소(행 · 열, 화면에서 고칠 때 씀), fx = 수식 칸(고칠 수 없음), e = 화면에서 고친 칸(노란 칸 + 빨간 글씨)
+export type SheetCell = { v: string; cs?: number; rs?: number; b?: boolean; at?: [number, number]; fx?: boolean; e?: boolean };
+export type Sheet = { name: string; cols: number[]; rows: (SheetCell | null)[][] };   // null = 병합으로 가려진 칸
 const sheetCache = new Map<string, Promise<Sheet[]>>();
 const MAX_ROWS = 500;
 const colPx = (w: number | undefined) => Math.round(Math.min(420, Math.max(48, (w ?? 10) * 7.5)));
-function sheetData(url: string, name: string) {
+export const EDIT_FILL = "FFFFFF00", EDIT_FONT = "FFC00000";
+export function sheetData(url: string, name: string) {
   let p = sheetCache.get(url);
   if (!p) {
     p = (async () => {
@@ -105,7 +108,9 @@ function sheetData(url: string, name: string) {
             if (hidden.has(key)) { cells.push(null); continue; }
             const cell = row.getCell(c);
             const sp = span.get(key);
-            cells.push({ v: String(cell.text ?? ""), cs: sp ? Math.min(sp.cs, last - c + 1) : undefined, rs: sp?.rs, b: !!cell.font?.bold });
+            const fill = cell.fill as { fgColor?: { argb?: string } } | undefined;
+            cells.push({ v: String(cell.text ?? ""), cs: sp ? Math.min(sp.cs, last - c + 1) : undefined, rs: sp?.rs, b: !!cell.font?.bold, at: [row.number, c],
+                         fx: cell.type === ExcelJS.ValueType.Formula, e: fill?.fgColor?.argb === EDIT_FILL && cell.font?.color?.argb === EDIT_FONT });
           }
           // 글자가 한 칸뿐인 줄(제목 · 안내 문구): 엑셀에서 옆 빈칸으로 넘쳐 보이던 것처럼 줄 끝까지 한 칸으로
           const filled = cells.filter((x) => x?.v.trim());
@@ -147,7 +152,7 @@ export function SheetView({ url, name }: { url: string; name: string }) {
             {/* 남는 폭은 가장 넓은 열(보통 제목)만 받는다 → 키워드 같은 짧은 열이 같이 늘어나지 않게 */}
             <colgroup>{s.cols.map((w, i) => <col key={i} style={i === s.cols.indexOf(Math.max(...s.cols)) ? undefined : { width: w }} />)}</colgroup>
             <tbody>
-              {s.rows.map((r, i) => <tr key={i}>{r.map((c, j) => c && <td key={j} colSpan={c.cs} rowSpan={c.rs} className={c.b ? "b" : undefined}>{c.v}</td>)}</tr>)}
+              {s.rows.map((r, i) => <tr key={i}>{r.map((c, j) => c && <td key={j} colSpan={c.cs} rowSpan={c.rs} className={[c.b ? "b" : "", c.e ? "sh-edit" : ""].join(" ").trim() || undefined}>{c.v}</td>)}</tr>)}
             </tbody>
           </table></div>
           {s.rows.length >= MAX_ROWS && <p className="faint">처음 {MAX_ROWS}줄만 보입니다. 전체는 내려받아 확인해 주세요.</p>}
@@ -218,7 +223,7 @@ export function FileThumbs({ files, onRemove }: { files: ThumbFile[]; onRemove?:
                 // eslint-disable-next-line @next/next/no-img-element
                 : isImage(cur) ? <img src={cur.url} alt={cur.name} />
                 : isDocx(cur) ? (cur.edit ? <DocxEditable key={cur.id} f={cur.edit} canEdit={cur.edit.can} /> : <DocxView url={cur.url} />)
-                : isSheet(cur) ? <SheetView url={cur.url} name={cur.name} />
+                : isSheet(cur) ? (cur.edit ? <SheetEditable key={cur.id} f={cur.edit} canEdit={cur.edit.can} /> : <SheetView url={cur.url} name={cur.name} />)
                 : isPdf(cur) ? <iframe src={cur.url} title={cur.name} />
                 : <div className="notice">이 형식은 화면에서 바로 볼 수 없습니다. {cur.download ? "내려받아 확인해 주세요." : "등록한 뒤 내려받아 확인할 수 있습니다."}</div>}
             </div>

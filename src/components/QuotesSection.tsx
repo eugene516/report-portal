@@ -2,8 +2,9 @@
 // 파일 주소: 직원(미리보기) = 로그인 세션 서명 주소, 광고주 링크 = report-quote 함수(토큰 확인 후 서명 주소로 이동)
 import type { ReportCtx } from "@/lib/report";
 import { supabaseForClientLink, supabaseForStaff } from "@/lib/supabase/server";
+import QuoteDeleteButton from "./QuoteDeleteButton";
 
-type Quote = { id: string; period: string | null; kind: string; fileName: string; size: number | null; createdAt: string; url: string | null; dl: string | null };
+type Quote = { id: string; period: string | null; kind: string; fileName: string; size: number | null; createdAt: string; url: string | null; dl: string | null; path?: string };
 
 const KIND: Record<string, string> = { quote: "견적서", contract: "계약서" };
 const size = (n: number | null) => (n == null ? "" : n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
@@ -27,7 +28,7 @@ async function getQuotes(ctx: ReportCtx): Promise<Quote[]> {
   // 내려받기: 같은 서명 주소에 원래 파일 이름을 붙인다 (SDK의 download 옵션은 한글 이름을 두 번 인코딩한다)
   return rows.map((r) => {
     const u = url.get(r.storage_path) ?? null;
-    return { id: r.id, period: r.period, kind: r.kind, fileName: r.file_name, size: r.size_bytes, createdAt: r.created_at, url: u,
+    return { id: r.id, period: r.period, kind: r.kind, fileName: r.file_name, size: r.size_bytes, createdAt: r.created_at, url: u, path: r.storage_path,
              dl: u && `${u}&download=${encodeURIComponent(r.file_name || "견적서")}` };
   });
 }
@@ -61,6 +62,7 @@ export default async function QuotesSection({ ctx, thisMonth, past, base }: { ct
               <td className="r nowrap">
                 {q.url && <a className="btn sm" href={q.url} target="_blank" rel="noopener noreferrer">보기</a>}{" "}
                 {q.dl && <a className="btn sm" href={q.dl} rel="noopener noreferrer">다운로드</a>}
+                {ctx.mode === "staff" && q.path && <>{" "}<QuoteDeleteButton id={q.id} path={q.path} name={q.fileName} /></>}
               </td>
             </tr>
           ))}

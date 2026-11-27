@@ -1190,3 +1190,14 @@ mark.rv-edit { background: #fff176; color: #c00000; padding: 0 1px; border-radiu
 .rv-inline .sheet-view { width: 100%; max-height: 520px; overflow: auto; border: 1px solid var(--border); padding: 10px; }
 .rv-body .sheet-view { width: 100%; }
 .work-tabs { margin-bottom: 18px; }
+/* 주제 · 키워드 엑셀 화면 수정 */
+.sheet-view td.sh-edit { background: #fff176; color: #c00000; }
+.sheet-edit td { padding: 0; }
+.sheet-edit td.locked { padding: 5px 9px; color: #6b7280; background: #f3f4f6; }
+.sheet-edit td.dirty { background: #fff8d6; }
+.sheet-edit td.sh-edit .sh-cell { color: #c00000; }
+.sh-cell { display: block; width: 100%; resize: none; overflow: hidden; border: 1px solid transparent; padding: 4px 8px; background: transparent; color: inherit; font: inherit; line-height: 1.45; }
+.sh-cell:hover { border-color: #c9d3e6; }
+.sh-cell:focus { outline: none; border-color: #3b6fe0; background: #f7f9ff; }
+.rv-sheet-act { margin-left: auto; gap: 6px; }
+.rv-month-tabs { display: flex; width: fit-content; }

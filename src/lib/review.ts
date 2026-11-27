@@ -10,7 +10,7 @@ import { supabaseForClientLink, supabaseForStaff } from "./supabase/server";
 export const CLIENT_REVIEW_FROM = "2026-11";
 export const REVIEW_KINDS: Record<string, string> = { keyword: "당월 주제 · 키워드", blog: "블로그", column: "홈페이지 칼럼", cardnews: "SNS 카드뉴스", etc: "기타" };
 // 화면에서 원고 수정: 블로그 · 칼럼 Word 파일. 직원은 검수 완료 뒤에도, 광고주는 검수 대기 중만 (저장할 때 review-edit 함수가 다시 확인)
-export const EDITABLE_KINDS = ["blog", "column"];
+export const EDITABLE_KINDS = ["blog", "column", "keyword"];   // 블로그 · 칼럼(Word), 주제 · 키워드(엑셀)
 export const canEditReview = (kind: string, status: string, staff: boolean) => EDITABLE_KINDS.includes(kind) && (staff || status === "pending");   // 직원: 검수 완료 뒤에도 수정 가능, 광고주: 검수 대기 중만
 export const REVIEW_STATUS: Record<string, { label: string; badge: string }> = {
   draft: { label: "작성 중", badge: "" },

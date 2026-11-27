@@ -94,8 +94,17 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
   }).filter((x) => x.k !== "etc" || x.total > 0);
   const sel = kind && byKind.some((x) => x.k === kind) ? kind : null;
   const href = (k: string | null) => `${base}/review?${new URLSearchParams({ ...(want !== thisMonth ? { period: want } : {}), ...(k ? { kind: k } : {}) })}`;
+  const monthHref = (m: string) => `${base}/review?${new URLSearchParams({ ...(m !== thisMonth ? { period: m } : {}), kind: "keyword" })}`;
   const accounts = staffView ? ((await (await supabaseForStaff()).from("client_users").select("user_id, name, email").eq("client_id", clientId).order("created_at")).data ?? []) : [];
   // 원고 번호 순 (10월블로그01 → 02 …)
+  // 주제 · 키워드: 표 위에 달별 탭 (키워드가 등록된 달 + 지금 보는 달) → 누르면 그 달 표가 바로 열린다
+  let kwMonths: string[] = [];
+  if (sel === "keyword") {
+    let q = (await supabaseForStaff()).from("review_items").select("period").eq("client_id", clientId).eq("kind", "keyword");
+    if (!staffView) q = q.neq("status", "draft").gte("period", from);
+    const { data } = await q;
+    kwMonths = [...new Set([want, ...(data ?? []).map((r) => r.period as string)])].sort();
+  }
   const rows = sel ? await withFilesAndEvents(visible.filter((i) => i.kind === sel).sort((a, b) => a.title.localeCompare(b.title, "ko", { numeric: true }))) : [];
 
   return (
@@ -123,11 +132,25 @@ export default async function ReviewSection({ clientId, clientName, base, itemId
         ))}
       </div>
       {!sel ? <div className="empty-state mt">{visible.length === 0 ? (staffView ? "이 달에 등록한 검수 콘텐츠가 없습니다. ‘+ 검수 콘텐츠 등록’으로 시작하세요." : "이 달에 검수할 콘텐츠가 없습니다.") : "위에서 구분을 눌러 목록을 확인하세요."}</div>
-        : rows.length === 0 ? <div className="empty-state mt">이 달에 등록된 {REVIEW_KINDS[sel]} 콘텐츠가 없습니다.</div>
+        : rows.length === 0 ? <>{kwMonths.length > 1 && <MonthTabs months={kwMonths} cur={want} href={monthHref} thisMonth={thisMonth} />}<div className="empty-state mt">이 달에 등록된 {REVIEW_KINDS[sel]} 콘텐츠가 없습니다.</div></>
         : <>
+            {kwMonths.length > 1 && <MonthTabs months={kwMonths} cur={want} href={monthHref} thisMonth={thisMonth} />}
             <div className="row review-list-h mt"><h3>{REVIEW_KINDS[sel]} <span className="faint">{rows.length}건</span></h3><Link href={href(null)} className="faint">구분 목록으로</Link></div>
             <ReviewList rows={rows} staff={staffView} base={base} />
           </>}
     </>
+  );
+}
+
+// 주제 · 키워드 달별 탭 (10월 · 11월 · 12월 …)
+function MonthTabs({ months, cur, href, thisMonth }: { months: string[]; cur: string; href: (m: string) => string; thisMonth: string }) {
+  return (
+    <nav className="seg rv-month-tabs mt" aria-label="대상 월">
+      {months.map((m) => (
+        <Link key={m} href={href(m)} className={m === cur ? "on" : ""} aria-current={m === cur ? "page" : undefined}>
+          {Number(m.slice(5))}월{m.slice(0, 4) !== thisMonth.slice(0, 4) ? ` (${m.slice(2, 4)}년)` : ""}{m === thisMonth ? " · 이번 달" : ""}
+        </Link>
+      ))}
+    </nav>
   );
 }
