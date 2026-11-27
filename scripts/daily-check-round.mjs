@@ -261,7 +261,9 @@ const relDay = (t) => {
   const s = (t ?? "").replace(/\s+/g, "");
   let m = s.match(/(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
   m = s.match(/(\d+)일전/); if (m) return kstDay(Date.now() - Number(m[1]) * 86_400_000);
-  if (/(\d+)(시간|분|초)전|방금/.test(s)) return kstDay(Date.now());
+  // "23시간 전"은 어제일 수 있다: 시간 · 분만큼 빼서 날짜를 정한다
+  m = s.match(/(\d+)(시간|분|초)전/); if (m) return kstDay(Date.now() - Number(m[1]) * ({ 시간: 3_600_000, 분: 60_000, 초: 1000 })[m[2]]);
+  if (/방금/.test(s)) return kstDay(Date.now());
   return null;
 };
 result.columns = []; result.sns = [];
